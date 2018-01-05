@@ -23,7 +23,7 @@ const dataSource = {
 const myReadable = new MyReadable(dataSource)
 setTimeout(() => {
   console.log(myReadable._readableState.buffer)
-}, 1000)
+})
 myReadable.setEncoding('utf8')
 myReadable.on('data', (chunk) => {
   // console.log(myReadable._readableState.buffer)
