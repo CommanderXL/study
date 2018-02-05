@@ -38,4 +38,18 @@ var fn = function fn() {
 
 ## Babel-plugin-transform-runtime
 
+`Babel-plugin-transform-runtime`这个插件将`Babel-runtime`作为其依赖。因此如果你要使用`Babel-runtime`来提供`polyfills`的话，那么仅仅只需要安装这一个插件，而`Babel-runtime`不需要另行的安装。
+
+这个插件主要做的工作是：
+
+1. 如果你的模块文件里面使用了`generators/async`函数，那么会在你的模块文件当中自动引入`babel-runtime/regenerator`；
+2. 如果你的模块文件里面使用了`ES6`中的静态方法或者是`builtIns`，那么这个插件会将你所使用的这些方法做一层映射，即引入对应`core-js`中提供的`polyfills`；
+3. 移除`babel`内联的`helpers`，而使用`babel-runtime/helpers`提供的`helpers`，避免代码的冗余。
+
+不过如果你要使用实例方法，例如:
+
+```javascript
+'foo'.includes('bar')
+```
+
 ## Babel-polyfills
