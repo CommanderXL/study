@@ -1,1 +1,1 @@
-console.log(Object.values({ 1: 2 }))
+const vals = Object.values({ key: 'val' })

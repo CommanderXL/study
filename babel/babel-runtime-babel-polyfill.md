@@ -46,10 +46,32 @@ var fn = function fn() {
 2. 如果你的模块文件里面使用了`ES6`中的静态方法或者是`builtIns`，那么这个插件会将你所使用的这些方法做一层映射，即引入对应`core-js`中提供的`polyfills`；
 3. 移除`babel`内联的`helpers`，而使用`babel-runtime/helpers`提供的`helpers`，避免代码的冗余。
 
+
+这个插件的作用就是在`Babel`编译代码的环节，将原始`code`转化为`AST`后，遍历`AST`的节点去完成`polyfill`的引入工作，具体的实现请参见`Babel-plugin-transform-runtime`的源码实现。
+
+例如：你使用了`Object`上的静态方法`const vals = Object.values({key: 'val'})`:
+
+最后代码将会编译成：
+
+```javascript
+'use strict';
+
+var _values = require('babel-runtime/core-js/object/values');
+
+var _values2 = _interopRequireDefault(_values);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var vals = (0, _values2.default)({ key: 'val' });
+```
+
+
 不过如果你要使用实例方法，例如:
 
 ```javascript
 'foo'.includes('bar')
 ```
+
+这个时候使用`Babel-runtime`是无法工作的，因为它并没有提供实例方法的`polyfill`。
 
 ## Babel-polyfills
