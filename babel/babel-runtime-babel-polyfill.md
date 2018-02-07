@@ -66,12 +66,22 @@ var vals = (0, _values2.default)({ key: 'val' });
 ```
 
 
-不过如果你要使用实例方法，例如:
+不过如果你要使用部分**实例方法**，例如:
 
 ```javascript
 'foo'.includes('bar')
 ```
 
-这个时候使用`Babel-runtime`是无法工作的，因为它并没有提供实例方法的`polyfill`。
+这个时候使用`Babel-runtime`是无法工作的，因为它并没有提供实例方法的`polyfill`，即`Babel-runtime`并未提供原型链上的`polyfill`，这也是官方说的`babel-runtime`没有全局污染，官方推荐如果要用实例上的这些方法请使用`babel-polyfill`。
 
-## Babel-polyfills
+## Babel-polyfill
+
+`Babel-polyfill`官方的介绍就是模拟一个完整`es2015环境`，它也将`babel-core`和`regenerator`作为了它的依赖。除了提供了`BuiltIns`，`Static Method`以及`generator functions`的`polyfill`外，它还通过修改原型链上的方法提供了实例方法的`polyfill`，因此你可以放心的使用：
+
+```javascript
+'foo'.includes('bar')
+```
+
+在使用过程当中，如果你打算使用`Babel-polyfill`的话，那么在你的入口文件直接引入即可，这个时候你便不再需要`Babel-plugin-transform-runtime`这个插件了。
+
+## Babel-preset-env
