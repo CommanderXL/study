@@ -47,7 +47,7 @@ var fn = function fn() {
 3. 移除`babel`内联的`helpers`，而使用`babel-runtime/helpers`提供的`helpers`，避免代码的冗余。
 
 
-这个插件的作用就是在`Babel`编译代码的环节，将原始`code`转化为`AST`后，遍历`AST`的节点去完成`polyfill`的引入工作，具体的实现请参见`Babel-plugin-transform-runtime`的源码实现。
+这个插件的作用就是在`Babel`编译代码的环节，将原始`code`转化为`AST`后，遍历`AST`的节点去完成`polyfill`的引入工作，引入的`polyfill`实际上都是`babel-core`和`regenerator`这2个包提供的，`babel-plugin-transform-runtime`提供了这些方法的映射名，具体的实现请参见`Babel-plugin-transform-runtime`的源码中关于`definitions.js`中的定义。
 
 例如：你使用了`Object`上的静态方法`const vals = Object.values({key: 'val'})`:
 
