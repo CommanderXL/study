@@ -6,4 +6,8 @@ var _values2 = _interopRequireDefault(_values);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+require('babel-polyfill');
+
 var vals = (0, _values2.default)({ key: 'val' });
+
+console.log(vals);

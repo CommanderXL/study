@@ -27,3 +27,5 @@ var A = function () {
 }();
 
 var a = new A();
+
+console.log(a);

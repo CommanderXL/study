@@ -1,7 +1,11 @@
-"use strict";
+'use strict';
+
+require('babel-polyfill');
 
 var arr = [1, 2, 3];
 
-arr.findIndex(function (num) {
+var res = arr.findIndex(function (num) {
   return num > 2;
 });
+
+console.log(res);

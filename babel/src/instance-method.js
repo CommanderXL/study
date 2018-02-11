@@ -1,3 +1,7 @@
+require('babel-polyfill')
+
 const arr = [1, 2, 3]
 
-arr.findIndex(num => num > 2)
+const res = arr.findIndex(num => num > 2)
+
+console.log(res)

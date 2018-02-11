@@ -85,3 +85,73 @@ var vals = (0, _values2.default)({ key: 'val' });
 在使用过程当中，如果你打算使用`Babel-polyfill`的话，那么在你的入口文件直接引入即可，这个时候你便不再需要`Babel-plugin-transform-runtime`这个插件了。
 
 ## Babel-preset-env
+
+> A Babel preset that compiles ES2015+ down to ES5 by automatically determining the Babel plugins and polyfills you need based on your targeted browser or runtime environments
+
+通过`babel`的配置项，在`babel`编译你的代码的时候来决定是否需要`polyfill`以及`plugin`。
+
+几个经常用到的配置:
+
+* target
+
+即配置你的代码需要运行的环境。`babel`会根据你的配置来决定需要引入哪些`polyfill`及相关的`plugin`。
+
+```javascript
+  // .babelrc
+
+  {
+    "presets": [
+      ["env", {
+        "target": {
+          "node": "current"
+        }
+      }]
+    ]
+  }
+
+  {
+    "presets": [
+      ["env", {
+        "target": {
+          "browsers": ["last 2 versions", "safari >= 7"]
+        }
+      }]
+    ]
+  }
+```
+
+* useBuiltIns
+
+usage | entry | false
+
+是否使用`polyfill`。`babel`在编译你的代码过程中会根据你的`target`配置项来决定是否需要引入相关的`polyfill`。
+
+如果设为`usage`或`true`时：
+
+a.js
+
+```javascript
+var a = new Promise();
+```
+
+
+b.js
+```javascript
+var b = new Map();
+```
+
+Out (if environment doesn't support it)
+
+```javascript
+import "core-js/modules/es6.promise";
+var a = new Promise();
+import "core-js/modules/es6.map";
+var b = new Map();
+```
+Out (if environment supports it)
+```javascript
+var a = new Promise();
+var b = new Map();
+```
+
+如果设为`false`，那么编译后的代码里面不会单独引入相关的`polyfill`。
