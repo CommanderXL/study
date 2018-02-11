@@ -155,3 +155,5 @@ var b = new Map();
 ```
 
 如果设为`false`，那么编译后的代码里面不会单独引入相关的`polyfill`。
+
+这个配置项配合`target`字段，可以实现`polyfill`的按需引入，即`babel`根据你`target`配置的需要编译平台及相关的版本号，来引入需要的`polyfill`，如果这个版本已经支持了部分API，那么相关的`polyfill`便不需要再次引入。

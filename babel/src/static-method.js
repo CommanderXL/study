@@ -1,5 +1,5 @@
 require('babel-polyfill')
 
-const vals = Object.values({ key: 'val' })
+// const vals = Object.values({ key: 'val' })
 
-console.log(vals)
+console.log(123)

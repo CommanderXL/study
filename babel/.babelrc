@@ -2,9 +2,9 @@
   "presets": [
     ["env", {
       "targets": {
-        "node": "4.0"
+        "node": "current"
       },
-      "useBuiltIns": false,
+      "useBuiltIns": "usage",
       "debug": true
     }]
   ],
