@@ -75,6 +75,36 @@ console.log('this is sub process')
 
 * spawn
 
+```javascript
+child_process.spawn(command[, args][, options])
+```
+
+上面说到的`exec`，`execFile`和`fork`创建新的子进程都是基于这个方法进行的封装。
+
+调用这个方法返回子进程对象。
 
 
 ## 父子进程间的通讯
+
+其中通过`fork`方法和`spawn`创建新的子进程时，在配置选项中有关于`stdio`的字段：
+
+这个字段主要用于父子进程间的管道配置。默认情况下，子进程的 `stdin`、 `stdout` 和 `stderr` 会重定向到 `ChildProcess` 对象上相应的 `subprocess.stdin`、 `subprocess.stdout` 和 `subprocess.stderr` 流。 这等同于将 `options.stdio` 设为 `['pipe', 'pipe', 'pipe']`。
+
+* `pipe` - 等同于 [`pipe`, `pipe`, `pipe`] （默认）
+* `ignore` - 等同于 [`ignore`, `ignore`, `ignore`]
+* `inherit` - 等同于 [`process.stdin`, `process.stdout`, `process.stderr`] 或 [`0`,`1`,`2`]
+
+其中`inherit`即继承父进程的标准输入输出(和父进程共享)。
+
+```javascript
+const { spawn } = require('child_process');
+
+// 子进程使用父进程的 stdios
+spawn('prg', [], { stdio: 'inherit' });
+
+// 衍生的子进程只共享 stderr
+spawn('prg', [], { stdio: ['pipe', 'pipe', process.stderr] });
+
+// 打开一个额外的 fd=4，用于与程序交互
+spawn('prg', [], { stdio: ['pipe', null, null, null, 'pipe'] });
+```
