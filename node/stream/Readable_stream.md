@@ -13,20 +13,18 @@
 ```javascript
 const { Readable } = require('stream')
 
-// 实例化一个可读流
-const rs = new Readable()
-
 let c = 97 - 1
+// 实例化一个可读流
+const rs = new Readable({
+  read () {
+    if (c >= 'z'.charCodeAt(0)) return rs.push(null)
 
-// 定义可读流实例的_read方法
-rs._read = function (hwm) {
-  if (c >= 'z'.charCodeAt(0)) return rs.push(null)
-
-  setTimeout(() => {
-    // 向可读流中推送数据
-    rs.push(String.fromCharCode(++c))
-  }, 100)
-}
+    setTimeout(() => {
+      // 向可读流中推送数据
+      rs.push(String.fromCharCode(++c))
+    }, 100)
+  }
+})
 
 // 将可读流的数据pipe到标准输出并打印出来
 rs.pipe(process.stdout)
@@ -62,7 +60,7 @@ function Readable(options) {
   Stream.call(this);
 }
 ```
-`ReadableState`构造函数中定义了很多关于可读流的不同阶段的状态值：
+在我们创建可读流实例时，传入了一个`read`方法，用以自定义从数据源获取数据的方法，**如果是开发者需要自己去实现可读流，那么这个方法一定需要去自定义，否则在程序的运行过程中会报错**。`ReadableState`构造函数中定义了很多关于可读流的不同阶段的状态值：
 
 ```javascript
 function ReadableState(options, stream) {
@@ -132,6 +130,7 @@ function ReadableState(options, stream) {
   // Crypto is kind of old and crusty.  Historically, its default string
   // encoding is 'binary' so we have to make this configurable.
   // Everything else in the universe uses 'utf8', though.
+  // 编码方式
   this.defaultEncoding = options.defaultEncoding || 'utf8';
 
   // 在pipe管道当中正在等待drain事件的写入流
@@ -149,5 +148,99 @@ function ReadableState(options, stream) {
     this.decoder = new StringDecoder(options.encoding);
     this.encoding = options.encoding;
   }
+}
+```
+
+在上面的例子中，当实例化一个可读流`rs`后，调用可读流实例的`pipe`方法。这正式开始了可读流在`flowing`模式下从数据源开始获取数据，以及`process.stdout`对数据的消费。
+
+
+```javascript
+Readable.prototype.pipe = function (dest, pipeOpts) {
+  var src = this
+  var state = this._readableState
+  ...
+
+  // 可读流实例监听data，可读流会从数据源获取数据，同时数据被传递到了消费者
+  src.on('data', ondata)
+  function ondata (chunk) {
+    ...
+    var ret = dest.write(chunk)
+    ...
+  }
+
+  ...
+}
+```
+
+Node提供的可读流有3种方式可以将**初始态**`flowing = null`的可读流转化为`flowing = true`：
+
+* 监听`data`事件
+* 调用`stream.resume()`方法
+* 调用`stream.pipe()`方法
+
+事实上这3种方式都回归到了一种方式上:`strean.resume()`，通过调用这个方法，将可读流的模式改变为`flowing`态。继续回到上面的例子当中，在调用了`rs.pipe()`方法后，实际上内部是调用了`src.on('data', ondata)`监听`data`事件，那么我们就来看下这个方法当中做了哪些工作。
+
+```javascript
+Readable.prototype.on = function (ev, fn) {
+  ...
+  // 监听data事件
+  if (ev === 'data') {
+    // 可读流一开始的flowing状态是null
+    // Start flowing on next tick if stream isn't explicitly paused
+    if (this._readableState.flowing !== false)
+      this.resume();
+  } else if (ev === 'readable') {
+    // 监听readable事件
+    const state = this._readableState;
+    if (!state.endEmitted && !state.readableListening) {
+      state.readableListening = state.needReadable = true;
+      state.emittedReadable = false;
+      if (!state.reading) {
+        process.nextTick(nReadingNextTick, this);
+      } else if (state.length) {
+        emitReadable(this);
+      }
+    }
+  }
+
+  return res;
+}
+```
+
+可读流监听`data`事件，并调用`resume`方法：
+
+```javascript
+Readable.prototype.resume = function() {
+  var state = this._readableState;
+  if (!state.flowing) {
+    debug('resume');
+    // 置为flowing状态
+    state.flowing = true;
+    resume(this, state);
+  }
+  return this;
+};
+
+function resume(stream, state) {
+  if (!state.resumeScheduled) {
+    state.resumeScheduled = true;
+    process.nextTick(resume_, stream, state);
+  }
+}
+
+function resume_(stream, state) {
+  if (!state.reading) {
+    debug('resume read 0');
+    // 开始从数据源中获取数据
+    stream.read(0);
+  }
+
+  state.resumeScheduled = false;
+  // 如果是flowing状态的话，那么将awaitDrain置为0
+  state.awaitDrain = 0;
+  stream.emit('resume');
+  flow(stream);
+  if (state.flowing && !state.reading)
+    stream.read(0);
 }
 ```

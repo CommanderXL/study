@@ -1,16 +1,15 @@
 const { Readable } = require('stream')
 
-const rs = new Readable()
-
 let c = 97 - 1
 
-rs._read = function (hwm) {
-  if (c >= 'z'.charCodeAt(0)) return rs.push(null)
-
-  // setTimeout(() => {
-  rs.push(String.fromCharCode(++c))
-  // }, 100)
-}
+const rs = new Readable({
+  read () {
+    if (c >= 'z'.charCodeAt(0)) return rs.push(null)
+    // setTimeout(() => {
+    rs.push(String.fromCharCode(++c))
+    // }, 100)
+  }
+})
 
 rs.pipe(process.stdout)
 
