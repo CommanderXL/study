@@ -244,3 +244,11 @@ function resume_(stream, state) {
     stream.read(0);
 }
 ```
+
+`resume`方法会判断这个可读流是否处于`flowing`模式下，同时在内部调用`stream.read(0)`开始从数据源中获取数据:
+
+```javascript
+Readable.prototype.read = function () {
+  
+}
+```
