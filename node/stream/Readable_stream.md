@@ -424,10 +424,18 @@ function addChunk(stream, state, chunk, addToFront) {
     if (state.needReadable)
       emitReadable(stream);
   }
-  // 在可能的情况下读取更多的数据到buffer。这个过程是异步的process.nextTick
-  // TODO: 为什么是异步的动作？？？ http://www.xiedacon.com/2017/07/28/Node.js%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-Readable%E5%AE%9E%E7%8E%B0/
-  // TODO: process.nextTick执行的时机  tick
   maybeReadMore(stream, state);
 }
 ```
+
+在`addChunk`方法中完成对数据的处理，这里需要注意的就是，在flowing态下，数据被消耗的途径可能还不一样：
+
+1. 从数据源获取的数据可能进入可读流的缓冲区，然后被消费者使用;
+2. 不进入可读流的缓冲区，直接被消费者使用。
+
+这2种情况到底使用哪一种还要看开发者的是同步还是异步的去调用push方法，对应着`state.sync`的状态值。
+
+当`push`方法被异步调用时，即`state.sync`为`false`：这个时候对于从数据源获取到的数据是直接通过触发`data`事件以供消费者来使用，而不用存放到缓冲区。然后调用`stream.read(0)`方法重复读取数据并供消费者使用。
+
+当`push`方法是同步时，即`state.sync`为`true`：
 
