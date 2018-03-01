@@ -245,10 +245,189 @@ function resume_(stream, state) {
 }
 ```
 
-`resume`方法会判断这个可读流是否处于`flowing`模式下，同时在内部调用`stream.read(0)`开始从数据源中获取数据:
+`resume`方法会判断这个可读流是否处于`flowing`模式下，同时在内部调用`stream.read(0)`开始从数据源中获取数据(其中stream.read()方法根据所接受到的参数会有不同的行为)：
+
+TODO: 这个地方可说明stream.read(size)方法接收到的不同的参数
 
 ```javascript
-Readable.prototype.read = function () {
+Readable.prototype.read = function (n) {
+  ...
   
+  if (n === 0 &&
+      state.needReadable &&
+      (state.length >= state.highWaterMark || state.ended)) {
+    debug('read: emitReadable', state.length, state.ended);
+    // 如果缓存中没有数据且处于end状态
+    if (state.length === 0 && state.ended)
+    // 流状态结束
+      endReadable(this);
+    else
+    // 触发readable事件
+      emitReadable(this);
+    return null;
+  }
+
+  ...
+
+  // 从缓存中可以读取的数据
+  n = howMuchToRead(n, state);
+
+  // 判断是否应该从数据源中获取数据
+  // if we need a readable event, then we need to do some reading.
+  var doRead = state.needReadable;
+  debug('need readable', doRead);
+
+  // if we currently have less than the highWaterMark, then also read some
+  // 如果buffer的长度为0或者buffer的长度减去需要读取的数据的长度 < hwm 的时候，那么这个时候还需要继续读取数据
+  // state.length - n 即表示当前buffer已有的数据长度减去需要读取的数据长度后，如果还小于hwm话，那么doRead仍然置为true
+  if (state.length === 0 || state.length - n < state.highWaterMark) {
+    // 继续read数据
+    doRead = true;
+    debug('length less than watermark', doRead);
+  }
+
+  // however, if we've ended, then there's no point, and if we're already
+  // reading, then it's unnecessary.
+  // 如果数据已经读取完毕，或者处于正在读取的状态，那么doRead置为false表明不需要读取数据
+  if (state.ended || state.reading) {
+    doRead = false;
+    debug('reading or ended', doRead);
+  } else if (doRead) {
+    debug('do read');
+    state.reading = true;
+    state.sync = true;
+    // if the length is currently zero, then we *need* a readable event.
+    // 如果当前缓冲区的长度为0，首先将needReadable置为true，那么再当缓冲区有数据的时候就触发readable事件
+    if (state.length === 0)
+      state.needReadable = true;
+    // call internal read method
+    // 从数据源获取数据，可能是同步也可能是异步的状态，这个取决于自定义_read方法的内部实现，可参见study里面的示例代码
+    this._read(state.highWaterMark);
+    state.sync = false;
+    // If _read pushed data synchronously, then `reading` will be false,
+    // and we need to re-evaluate how much data we can return to the user.
+    // 如果_read方法是同步，那么reading字段将会为false。这个时候需要重新计算有多少数据需要重新返回给消费者
+    if (!state.reading)
+      n = howMuchToRead(nOrig, state);
+  }
+
+  // ret为输出给消费者的数据
+  var ret;
+  if (n > 0)
+    ret = fromList(n, state);
+  else
+    ret = null;
+
+  if (ret === null) {
+    state.needReadable = true;
+    n = 0;
+  } else {
+    state.length -= n;
+  }
+
+  if (state.length === 0) {
+    // If we have nothing in the buffer, then we want to know
+    // as soon as we *do* get something into the buffer.
+    if (!state.ended)
+      state.needReadable = true;
+
+    // If we tried to read() past the EOF, then emit end on the next tick.
+    if (nOrig !== n && state.ended)
+      endReadable(this);
+  }
+
+  // 只要从数据源获取的数据不为null，即未EOF时，那么每次读取数据都会触发data事件
+  if (ret !== null)
+    this.emit('data', ret);
+
+  return ret;
 }
 ```
+
+这个时候可读流从数据源开始获取数据，调用`this._read(state.highWaterMark)`方法，对应着例子当中实现的`read()`方法：
+
+```javascript
+const rs = new Readable({
+  read () {
+    if (c >= 'z'.charCodeAt(0)) return rs.push(null)
+
+    setTimeout(() => {
+      // 向可读流中推送数据
+      rs.push(String.fromCharCode(++c))
+    }, 100)
+  }
+})
+```
+
+在`read`方法当中有一个非常中的方法需要开发者自己去调用，就是`stream.push`方法，这个方法即完成从数据源获取数据，并供消费者去调用。
+
+```javascript
+Readable.prototype.push = function (chunk, encoding) {
+  ....
+  // 对从数据源拿到的数据做处理
+  return readableAddChunk(this, chunk, encoding, false, skipChunkCheck);
+}
+
+function readableAddChunk (stream, chunk, encoding, addToFront, skipChunkCheck) {
+  ... 
+  // 是否添加数据到头部
+      if (addToFront) {
+        // 如果不能在写入数据
+        if (state.endEmitted)
+          stream.emit('error',
+                      new errors.Error('ERR_STREAM_UNSHIFT_AFTER_END_EVENT'));
+        else
+          addChunk(stream, state, chunk, true);
+      } else if (state.ended) { // 已经EOF，但是仍然还在推送数据，这个时候会报错
+        stream.emit('error', new errors.Error('ERR_STREAM_PUSH_AFTER_EOF'));
+      } else {
+        // 完成一次读取后，立即将reading的状态置为false
+        state.reading = false;
+        if (state.decoder && !encoding) {
+          chunk = state.decoder.write(chunk);
+          if (state.objectMode || chunk.length !== 0)
+            // 添加数据到尾部
+            addChunk(stream, state, chunk, false);
+          else
+            maybeReadMore(stream, state);
+        } else {
+          // 添加数据到尾部
+          addChunk(stream, state, chunk, false);
+        }
+      }
+  ...
+
+  return needMoreData(state);
+}
+
+// 根据stream的状态来对数据做处理
+function addChunk(stream, state, chunk, addToFront) {
+  // flowing为readable stream的状态，length为buffer的长度
+  // flowing模式下且为异步读取数据的过程时，可读流的缓冲区并不保存数据，而是直接获取数据后触发data事件供消费者使用
+  if (state.flowing && state.length === 0 && !state.sync) {
+    // 对于flowing模式的Reabable，可读流自动从系统底层读取数据，直接触发data事件，且继续从数据源读取数据stream.read(0)
+    stream.emit('data', chunk);
+    // 继续从缓存池中获取数据
+    stream.read(0);
+  } else {
+    // update the buffer info.
+    // 数据的长度
+    state.length += state.objectMode ? 1 : chunk.length;
+    // 将数据添加到头部
+    if (addToFront)
+      state.buffer.unshift(chunk);
+    else
+    // 将数据添加到尾部
+      state.buffer.push(chunk);
+
+    // 触发readable事件，即通知缓存当中现在有数据可读
+    if (state.needReadable)
+      emitReadable(stream);
+  }
+  // 在可能的情况下读取更多的数据到buffer。这个过程是异步的process.nextTick
+  // TODO: 为什么是异步的动作？？？ http://www.xiedacon.com/2017/07/28/Node.js%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-Readable%E5%AE%9E%E7%8E%B0/
+  // TODO: process.nextTick执行的时机  tick
+  maybeReadMore(stream, state);
+}
+```
+
