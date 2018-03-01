@@ -428,14 +428,30 @@ function addChunk(stream, state, chunk, addToFront) {
 }
 ```
 
-在`addChunk`方法中完成对数据的处理，这里需要注意的就是，在flowing态下，数据被消耗的途径可能还不一样：
+在`addChunk`方法中完成对数据的处理，这里需要注意的就是，在`flowing`态下，数据被消耗的途径可能还不一样：
 
 1. 从数据源获取的数据可能进入可读流的缓冲区，然后被消费者使用;
 2. 不进入可读流的缓冲区，直接被消费者使用。
 
-这2种情况到底使用哪一种还要看开发者的是同步还是异步的去调用push方法，对应着`state.sync`的状态值。
+这2种情况到底使用哪一种还要看开发者的是同步还是异步的去调用`push`方法，对应着`state.sync`的状态值。
 
 当`push`方法被异步调用时，即`state.sync`为`false`：这个时候对于从数据源获取到的数据是直接通过触发`data`事件以供消费者来使用，而不用存放到缓冲区。然后调用`stream.read(0)`方法重复读取数据并供消费者使用。
 
-当`push`方法是同步时，即`state.sync`为`true`：
+当`push`方法是同步时，即`state.sync`为`true`：这个时候从数据源获取数据后，就不是直接通过触发`data`事件来供消费者直接使用，而是首先上数据缓冲到可读流的缓冲区。这个时候你看代码可能会疑惑，将数据缓存起来后，那么在`flowing`模式下，是如何流动起来的呢？事实上在一开始调用`resume_`方法时：
+
+```javascript
+function resume_() {
+  ...
+  // 
+  flow(stream);
+  if (state.flowing && !state.reading)
+    stream.read(0); // 继续从数据源获取数据
+}
+
+function flow(stream) {
+  ...
+  // 如果处理flowing状态，那么调用stream.read()方法用以从stream的缓冲区中获取数据并供消费者来使用
+  while (state.flowing && stream.read() !== null);
+}
+```
 
