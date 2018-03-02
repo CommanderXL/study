@@ -561,3 +561,6 @@ function maybeReadMore_(stream, state) {
 ```
 
 每当可读流有新的数据被推进缓冲区，触发`readable`事件后，消费者通过调用`stream.read()`方法来从可读流中获取数据。
+
+
+以上就是通过可读流的2种模式分析了下可读流的内部工作机制。
