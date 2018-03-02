@@ -457,3 +457,8 @@ function flow(stream) {
 
 在`flow`方法内部调用`stream.read()`方法取出可读流缓冲区的数据供消费者使用，同时继续调用`stream.read(0)`来继续从数据源获取数据。
 
+
+以上就是在flowing模式下，可读流是如何完成从数据源获取数据并提供给消费者使用的大致流程。
+
+
+### paused模式
