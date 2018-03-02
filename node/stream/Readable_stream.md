@@ -190,17 +190,7 @@ Readable.prototype.on = function (ev, fn) {
     if (this._readableState.flowing !== false)
       this.resume();
   } else if (ev === 'readable') {
-    // 监听readable事件
-    const state = this._readableState;
-    if (!state.endEmitted && !state.readableListening) {
-      state.readableListening = state.needReadable = true;
-      state.emittedReadable = false;
-      if (!state.reading) {
-        process.nextTick(nReadingNextTick, this);
-      } else if (state.length) {
-        emitReadable(this);
-      }
-    }
+    ...
   }
 
   return res;
@@ -462,3 +452,120 @@ function flow(stream) {
 
 
 ### paused模式
+
+在`pasued`模式下，消费者如果要获取数据需要手动调用`stream.read()`方法去获取数据。
+
+举个例子:
+
+```javascript
+const { Readable } = require('stream')
+
+let c = 97 - 1
+
+const rs = new Readable({
+  highWaterMark: 3,
+  read () {
+    if (c >= 'f'.charCodeAt(0)) return rs.push(null)
+    // setTimeout(() => {
+      rs.push(String.fromCharCode(++c))
+      // rs.push(String.fromCharCode(++c))
+      console.log('flowing: ', rs._readableState.flowing)
+      console.log('bufferList: ', rs._readableState.buffer)
+      console.log('length: ', rs._readableState.length)
+      console.log('\n\n')
+    // }, 1000)
+  }
+})
+
+rs.setEncoding('utf8')
+rs.on('readable', () => {
+  console.log(rs._readableState.length)
+  // setTimeout(() => {
+    
+  // console.log('get the data from readable: ', rs.read())
+  // }, 1000)
+})
+```
+
+通过监听`readable`事件，开始出发可读流从数据源获取数据。
+
+```javascript
+Readable.prototype.on = function (env) {
+  if (env === 'data') {
+    ...
+  } else if (env === 'readable') {
+    // 监听readable事件
+    const state = this._readableState;
+    if (!state.endEmitted && !state.readableListening) {
+      state.readableListening = state.needReadable = true;
+      state.emittedReadable = false;
+      if (!state.reading) {
+        process.nextTick(nReadingNextTick, this);
+      } else if (state.length) {
+        emitReadable(this);
+      }
+    }
+  }
+}
+
+function nReadingNextTick(self) {
+  debug('readable nexttick read 0');
+  // 开始从数据源获取数据
+  self.read(0);
+}
+```
+
+在`nReadingNextTick`当中调用`self.read(0)`方法后，后面的流程和上面分析的flowing模式的可读流从数据源获取数据的流程相似，最后都要调用`addChunk`方法，将数据获取到后推入可读流的缓冲区：
+
+```javascript
+function addChunk(stream, state, chunk, addToFront) {
+  if (state.flowing && state.length === 0 && !state.sync) {
+    ...
+  } else {
+    // update the buffer info.
+    // 数据的长度
+    state.length += state.objectMode ? 1 : chunk.length;
+    // 将数据添加到头部
+    if (addToFront)
+      state.buffer.unshift(chunk);
+    else
+    // 将数据添加到尾部
+      state.buffer.push(chunk);
+
+    // 触发readable事件，即通知缓存当中现在有数据可读
+    if (state.needReadable)
+      emitReadable(stream);
+  }
+  maybeReadMore(stream, state);
+}
+```
+
+一旦有数据被加入到了缓冲区，且`needReadable`(这个字段表示是否需要触发`readable`事件用以通知消费者来消费数据)为`true`，这个时候会触发`readable`告诉消费者有新的数据被`push`进了可读流的缓冲区。此外还会调用`maybeReadMore`方法，异步的从数据源获取更多的数据：
+
+```javascript
+function maybeReadMore(stream, state) {
+  if (!state.readingMore) {
+    state.readingMore = true;
+    process.nextTick(maybeReadMore_, stream, state);
+  }
+}
+
+function maybeReadMore_(stream, state) {
+  var len = state.length;
+  // 在非flowing的模式下，且缓冲区的数据长度小于hwm
+  while (!state.reading && !state.flowing && !state.ended &&
+         state.length < state.highWaterMark) {
+    debug('maybeReadMore read 0');
+    stream.read(0);
+    // 获取不到数据后
+    if (len === state.length)
+      // didn't get any data, stop spinning.
+      break;
+    else
+      len = state.length;
+  }
+  state.readingMore = false;
+}
+```
+
+每当可读流有新的数据被推进缓冲区，触发`readable`事件后，消费者通过调用`stream.read()`方法来从可读流中获取数据。
