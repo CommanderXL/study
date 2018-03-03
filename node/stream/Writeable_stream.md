@@ -1,4 +1,4 @@
-## Node.js Writeable Stream的实现简析
+## Node.js Writable Stream的实现简析
 
 可写流是对数据写入“目的地”的一种抽象，可作为可读流的一种消费者。数据源可能多种多样，如果使用了可写流来完成数据的消费，那么就有可写流的内部机制来控制数据在生产及消费过程中的各状态的扭转等。
 
@@ -125,12 +125,12 @@ function WritableState(options, stream) {
 }
 ```
 
-在实现的可写流当中必须要定义一个`write`方法，即定义数据如何被消费：
+在实现的可写流当中必须要定义一个`write`方法，在可写流内部，这个方法会被赋值给一个内部`_write`方法，主要是在数据被消费的时候调用：
 
 ```javascript
-const { Writeable } = require('stream')
+const { Writable } = require('stream')
 
-const ws = new Writeable({
+const ws = new Writable({
   write (chunk, encoding, cb) {
     // chunk 即要被消费的数据
     // encoding为编码方式
@@ -138,3 +138,128 @@ const ws = new Writeable({
   }
 })
 ```
+
+可写流对开发者暴露了一个`write`方法，这个方法用于接收数据源的数据，同时来完成数据向消费者的传递或者是将数据暂存于缓冲区当中。
+
+让我们来看下一个简单的例子：
+
+```javascript
+function writeOneMillionTimes(writer, data, encoding, callback) {
+  let i = 1000000;
+  write();
+  function write() {
+    let ok = true;
+    do {
+      i--;
+      if (i === 0) {
+        // 最后 一次
+        writer.write(data, encoding, callback);
+      } else {
+        // 检查是否可以继续写入。 
+        // 这里不要传递 callback， 因为写入还没有结束！ 
+        ok = writer.write(data, encoding);
+      }
+    } while (i > 0 && ok);
+    if (i > 0) {
+      // 不得不提前停下！
+      // 当 'drain' 事件触发后继续写入  
+      writer.once('drain', write);
+    }
+  }
+}
+
+const { Writable } = require('stream')
+const ws = new Writable({
+  write (chunk, encoding, cb) {
+    // do something to consume the chunk
+  }
+})
+
+writeOneMillionTimes(ws, 'aaaaaa', 'utf8', function () {
+  console.log('this is Writable')
+})
+```
+
+程序开始后，首先可写流调用`writer.write`方法，将数据`data`传入到可写流当中，然后可写流内部来判断将数据是直接提供给数据消费者还是暂时先存放到缓冲区。
+
+```javascript
+Writable.prototype.write = function (data, encoding, callback) {
+  var state = this._writableState;
+  // 是否可向可写流当中继续写入数据
+  var ret = false;
+  var isBuf = !state.objectMode && Stream._isUint8Array(chunk);
+
+  // 转化成buffer
+  if (isBuf && Object.getPrototypeOf(chunk) !== Buffer.prototype) {
+    chunk = Stream._uint8ArrayToBuffer(chunk);
+  }
+
+  // 对于可选参数的处理
+  if (typeof encoding === 'function') {
+    cb = encoding;
+    encoding = null;
+  }
+
+  // 编码
+  if (isBuf)
+    encoding = 'buffer';
+  else if (!encoding)
+    encoding = state.defaultEncoding;
+
+  if (typeof cb !== 'function')
+    cb = nop;
+
+  // 如果已经停止了向数据消费者继续提供数据
+  if (state.ended)
+    writeAfterEnd(this, cb);
+  else if (isBuf || validChunk(this, state, chunk, cb)) {
+    state.pendingcb++;
+    // 是将数据直接提供给消费者还是暂时存放到缓冲区
+    ret = writeOrBuffer(this, state, isBuf, chunk, encoding, cb);
+  }
+
+  return ret;
+}
+
+function writeOrBuffer (stream, state, isBuf, chunk, encoding, cb) {
+  ...
+  var len = state.objectMode ? 1 : chunk.length;
+
+  state.length += len;
+
+  var ret = state.length < state.highWaterMark;
+  // we must ensure that previous needDrain will not be reset to false.
+  // 如果state.length长度大于hwm，将needDrain置为true，需要触发drain事件，开发者通过监听这个事件可以重新恢复可写流对于数据源的获取
+  if (!ret)
+    state.needDrain = true;
+
+  // state.writing 代表现在可写流正处于将数据传递给消费者使用的状态
+  // 或 当前处于corked状态时，就将数据写入buffer缓冲区内
+  if (state.writing || state.corked) {
+    var last = state.lastBufferedRequest;
+    state.lastBufferedRequest = {
+      chunk,
+      encoding,
+      isBuf,
+      callback: cb,
+      next: null
+    };
+    if (last) {
+      last.next = state.lastBufferedRequest;
+    } else {
+      state.bufferedRequest = state.lastBufferedRequest;
+    }
+    state.bufferedRequestCount += 1;
+  } else {
+    // 将数据写入底层数据
+    doWrite(stream, state, false, len, chunk, encoding, cb);
+  }
+
+  return ret;
+}
+```
+
+
+
+
+
