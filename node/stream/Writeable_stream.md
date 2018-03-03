@@ -235,6 +235,7 @@ function writeOrBuffer (stream, state, isBuf, chunk, encoding, cb) {
 
   // state.writing 代表现在可写流正处于将数据传递给消费者使用的状态
   // 或 当前处于corked状态时，就将数据写入buffer缓冲区内
+  // writeable的buffer缓冲区也是链表结构
   if (state.writing || state.corked) {
     var last = state.lastBufferedRequest;
     state.lastBufferedRequest = {
@@ -251,11 +252,31 @@ function writeOrBuffer (stream, state, isBuf, chunk, encoding, cb) {
     }
     state.bufferedRequestCount += 1;
   } else {
-    // 将数据写入底层数据
+    // 将数据写入底层数据即传递给消费者
     doWrite(stream, state, false, len, chunk, encoding, cb);
   }
 
   return ret;
+}
+
+
+function doWrite(stream, state, writev, len, chunk, encoding, cb) {
+  // chunk的数据长度
+  state.writelen = len;
+  // chunk传递给消费者后的回调函数
+  state.writecb = cb;
+  // 可写流正在将数据传递给消费者的状态
+  state.writing = true;
+  // 同步态
+  state.sync = true;
+  // 如果定义了writev批量写入数据数据的就调用此方法
+  if (writev)
+    stream._writev(chunk, state.onwrite);
+  else
+  // 这个方法即完成将数据传递给消费者，并传入onwrite回调，这个onwrite函数必须要调用来告知写数据是完成还是失败
+  // 这3个参数也对应着上面提到的在自定义实现可写流时需要定义的write方法所接受的3个参数
+    stream._write(chunk, encoding, state.onwrite);
+  state.sync = false;
 }
 ```
 
