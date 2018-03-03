@@ -280,6 +280,108 @@ function doWrite(stream, state, writev, len, chunk, encoding, cb) {
 }
 ```
 
+在`doWrite`方法中调用了开发者定义的`write`方法来完成数据的消费，即`stream._write()`，同时也提到了关于当数据被消费完了后需要调用`state.onwrite`这个方法来同步可写流的状态。接下来就来看下这个方法的内部实现：
+
+```javascript
+// 完成一次_write方法后，更新相关的state状态
+function onwriteStateUpdate(state) {
+  state.writing = false;  // 已经写完数据
+  state.writecb = null;   // 回调
+  state.length -= state.writelen;
+  state.writelen = 0;     // 需要被写入数据的长度
+}
+
+// 数据被写入底层资源后必须要调用这个callback，其中stream是被作为预设函数，可参数上面Writeable中关于onwrite的定义
+function onwrite(stream, er) {
+  var state = stream._writableState;
+  var sync = state.sync;
+  var cb = state.writecb;
+
+  onwriteStateUpdate(state);
+
+  if (er)
+    onwriteError(stream, state, sync, er, cb);
+  else {
+    // Check if we're actually ready to finish, but don't emit yet
+    // 检验是否要结束这个writeable的流
+    var finished = needFinish(state);
+
+    // 如果finished代表可写流里面还保存着有数据，那么需要调用clearBuffer完成对缓冲区数据的清理
+    if (!finished &&
+        !state.corked &&
+        !state.bufferProcessing &&
+        state.bufferedRequest) {
+      clearBuffer(stream, state);
+    }
+
+    // 始终是异步的调用afterWrite方法
+    if (sync) {
+      process.nextTick(afterWrite, stream, state, finished, cb);
+    } else {
+      afterWrite(stream, state, finished, cb);
+    }
+  }
+}
+
+function afterWrite(stream, state, finished, cb) {
+  if (!finished)
+    onwriteDrain(stream, state);
+  state.pendingcb--;
+  cb();
+  finishMaybe(stream, state);
+}
+
+// 是否要结束这个writeable的流，需要将内部缓冲区的数据全部写入底层资源池
+function needFinish(state) {
+  return (state.ending &&
+          state.length === 0 &&
+          state.bufferedRequest === null &&
+          !state.finished &&
+          !state.writing);
+}
+
+// if there's something in the buffer waiting, then process it
+// 内部递归调用doWrite方法来完成将数据从缓冲区传递给消费者
+function clearBuffer(stream, state) {
+  // 这个字段代表正在处理缓冲区buffer
+  state.bufferProcessing = true;
+  var entry = state.bufferedRequest;
+
+  // 在定义了writev方法的情况下才可能调用，批量将数据传递给消费者
+  if (stream._writev && entry && entry.next) {
+    // Fast case, write everything using _writev()
+    ...
+  } else {
+    // Slow case, write chunks one-by-one
+    // 一个一个将数据传递给消费者
+    while (entry) {
+      var chunk = entry.chunk;
+      var encoding = entry.encoding;
+      var cb = entry.callback;
+      var len = state.objectMode ? 1 : chunk.length;
+
+      doWrite(stream, state, false, len, chunk, encoding, cb);
+      entry = entry.next;
+      state.bufferedRequestCount--;
+      // if we didn't call the onwrite immediately, then
+      // it means that we need to wait until it does.
+      // also, that means that the chunk and cb are currently
+      // being processed, so move the buffer counter past them.
+      if (state.writing) {
+        break;
+      }
+    }
+
+    if (entry === null)
+      state.lastBufferedRequest = null;
+  }
+
+  state.bufferedRequest = entry;
+  // 缓冲区buffer已经处理完
+  state.bufferProcessing = false;
+}
+```
+
 
 
 
