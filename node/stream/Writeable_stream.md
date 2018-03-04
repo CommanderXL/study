@@ -363,6 +363,7 @@ function clearBuffer(stream, state) {
       var cb = entry.callback;
       var len = state.objectMode ? 1 : chunk.length;
 
+      // 继续将缓冲区的数据提供给消费者
       doWrite(stream, state, false, len, chunk, encoding, cb);
       entry = entry.next;
       state.bufferedRequestCount--;
@@ -385,6 +386,26 @@ function clearBuffer(stream, state) {
 }
 ```
 
+每次调用`onWrite`方法时，首先都会调用`onwriteStateUpdate`方法来更新这个可写流的状态，具体见上面的方法定义。同时需要对这个可写流进行判断，是否要关闭这个可写流。同时还进行判断`buffer`是否还有可供消费者使用的数据。如果有那么就调用`clearBuffer`方法用以将缓冲区的数据提供给消费者来使用。
+
+
+## 背压
+
+当数据源提供给可写流的数据过快的时候有可能出现背压的情况，这个时候数据源不再提供数据给可写流，是否出现背压的情况，可通过可写流的`write`方法的返回值来进行判断，如果返回的是`false`，那么就出现的了背压。还是用上面的例子来看//TODO: 添加writable背压例子的链接。
+
+在实现的`write`方法中通过`setTimeout`来延迟一段时间调用`onwrite`方法，这个时候每次数据消费者都拿到了数据，但是因为这个地方延迟了更新可写流的状态，但是从数据源向可写流中还是同步的写入数据，因此一定会出现在可写流的缓冲区保存的数据大于`hmw`的情况。
+
+在`writeOrBuffer`方法中有关于可写流缓冲区保存的数据长度和`hwm`的比较:
+
+```javascript
+var ret = state.length < state.highWaterMark;
+// we must ensure that previous needDrain will not be reset to false.
+// 如果state.length长度大于hwm，将needDrain置为true，需要触发drain事件，
+if (!ret)
+  state.needDrain = true;
+```
+
+将`needDrain`置为`true`。一旦出现背压的情况，这个时候开发者需要提前监听`drain`事件，监听这个事件后可以并再次调用可写流的`write`方法让数据源继续提供数据给可写流。
 
 
 
