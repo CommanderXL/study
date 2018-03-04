@@ -6,6 +6,8 @@
 
 ### Flowing模式
 
+![node-stream-flowing](../../images/node/node-stream-flowing.png)
+
 在`flowing`模式下，可读流自动从系统的底层读取数据，并通过`EventEmitter`接口的事件提供给消费者。如果不是开发者需要自己去实现可读流，大家可使用最为简单的`readable.pipe()`方法去消费数据。
 
 接下来我们就通过一个简单的实例去具体分析下`flowing`模式下，可读流是如何工作的。
