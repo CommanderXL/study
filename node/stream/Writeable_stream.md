@@ -275,6 +275,7 @@ function doWrite(stream, state, writev, len, chunk, encoding, cb) {
   else
   // 这个方法即完成将数据传递给消费者，并传入onwrite回调，这个onwrite函数必须要调用来告知写数据是完成还是失败
   // 这3个参数也对应着上面提到的在自定义实现可写流时需要定义的write方法所接受的3个参数
+  // 可写流向消费者提供数据是同步的，但是消费者拿到数据后同步可写流的状态可能是同步，也可能是异步的
     stream._write(chunk, encoding, state.onwrite);
   state.sync = false;
 }
@@ -297,6 +298,7 @@ function onwrite(stream, er) {
   var sync = state.sync;
   var cb = state.writecb;
 
+  // 首先更新可写流的状态
   onwriteStateUpdate(state);
 
   if (er)
@@ -306,7 +308,8 @@ function onwrite(stream, er) {
     // 检验是否要结束这个writeable的流
     var finished = needFinish(state);
 
-    // 如果finished代表可写流里面还保存着有数据，那么需要调用clearBuffer完成对缓冲区数据的清理
+    // 每次写完一次数据后都需要检验
+    // 如果finished代表可写流里面还保存着有数据，那么需要调用clearBuffer，将可写流的缓冲区的数据提供给消费者
     if (!finished &&
         !state.corked &&
         !state.bufferProcessing &&
