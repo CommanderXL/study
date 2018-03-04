@@ -563,4 +563,55 @@ function maybeReadMore_(stream, state) {
 每当可读流有新的数据被推进缓冲区，触发`readable`事件后，消费者通过调用`stream.read()`方法来从可读流中获取数据。
 
 
+## 背压
+
+当数据消费消费数据的速度慢于可写流提供给消费者的数据后会产生背压。
+
+还是通过`pipe`管道来看：
+
+```javascript
+
+
+Readable.prototype.pipe = function () {
+  ...
+  
+  // 监听drain事件
+  var ondrain = pipeOnDrain(src);
+  dest.on('drain', ondrain);
+
+  ...
+
+  src.on('data', ondata)
+  function ondata () {
+    increasedAwaitDrain = false;
+    // 向writable中写入数据
+    var ret = dest.write(chunk);
+    if (false === ret && !increasedAwaitDrain) {
+      ...     
+      src.pause();
+    }
+  }
+  ...
+}
+
+function pipeOnDrain(src) {
+  return function() {
+    var state = src._readableState;
+    debug('pipeOnDrain', state.awaitDrain);
+    // 减少pipes中awaitDrain的数量
+    if (state.awaitDrain)
+      state.awaitDrain--;
+    // 如果awaitDrain的数量为0，且readable上绑定了data事件时(EE.listenerCount返回绑定的事件回调数量)
+    if (state.awaitDrain === 0 && EE.listenerCount(src, 'data')) {
+      // 重新开启flowing模式
+      state.flowing = true;
+      flow(src);
+    }
+  };
+}
+```
+
+当`dest.write(chunk)`返回`false`的时候，即代表可读流给可写流提供的数据过快，这个时候调用`src.pause`方法，暂停`flowing`状态，同步也暂停可写流从数据源获取数据以及向可写流输入数据。这个时候只有当可写流触发`drain`事件时，会调用`ondrain`来恢复`flowing`，同时可读流继续向可写流输入数据。关于可写流的背压可参见关于[Writable_stream](https://github.com/CommanderXL/study/blob/master/node/stream/Writeable_stream.md)的源码分析。
+
+
 以上就是通过可读流的2种模式分析了下可读流的内部工作机制。当然还有一些细节处大家有兴趣的话可以阅读相关的源码。
