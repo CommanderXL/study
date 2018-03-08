@@ -17,3 +17,112 @@
 `module Identifiers`定义了`require`函数所接受的参数规则，比如说必须是小驼峰命名的字符串，可以没有文件后缀名，`.`或者`..`表明文件路径是相对路径等等。
 
 具体关于`commonJS`中定义的`module`规范，可以参见[wiki文档](http://wiki.commonjs.org/wiki/Modules/1.1.1)
+
+在我们的`node.js`程序当中，我们使用`require`这个**看起来是全局**(后面会解释为什么看起来是全局的)的方法去加载其他模块。
+
+```javascript
+const util = require('./util')
+```
+
+首先我们来看下关于这个方法，`node.js`内部是如何定义的：
+
+```javascript
+Module.prototype.require = function () {
+  assert(path, 'missing path');
+  assert(typeof path === 'string', 'path must be a string');
+  // 实际上是调用Module._load方法
+  return Module._load(path, this, /* isMain */ false);
+}
+
+Module._load = function (request, parent, isMain) {
+  .....
+
+  // 获取文件名
+  var filename = Module._resolveFilename(request, parent, isMain);
+
+  // _cache缓存的模块
+  var cachedModule = Module._cache[filename];
+  if (cachedModule) {
+    updateChildren(parent, cachedModule, true);
+    return cachedModule.exports;
+  }
+
+  // 如果是nativeModule模块
+  if (NativeModule.nonInternalExists(filename)) {
+    debug('load native module %s', request);
+    return NativeModule.require(filename);
+  }
+
+  // Don't call updateChildren(), Module constructor already does.
+  // 初始化一个新的module
+  var module = new Module(filename, parent);
+
+  if (isMain) {
+    process.mainModule = module;
+    module.id = '.';
+  }
+
+  // 加载模块前，就将这个模块缓存起来。注意node.js的模块加载系统是如何避免循环依赖的
+  Module._cache[filename] = module;
+
+  // 加载module
+  tryModuleLoad(module, filename);
+
+  // 将module.exports导出的内容返回
+  return module.exports;
+}
+```
+
+`Module._load`方法是一个内部的方法，主要是:
+
+1. 根据你传入的代表模块路径的字符串来查找相应的模块路径;
+2. 根据找到的模块路径来做缓存;
+3. 进而去加载对应的模块。
+
+接下来我们来看下`node.js`是如何根据传入的模块路径字符串来查找对应的模块的：
+
+```javascript
+Module._resolveFilename = function (request, parent, isMain, options) {
+  if (NativeModule.nonInternalExists(request)) {
+    return request;
+  }
+
+  var paths;
+
+  if (typeof options === 'object' && options !== null &&
+      Array.isArray(options.paths)) {
+    const fakeParent = new Module('', null);
+
+    paths = [];
+
+    for (var i = 0; i < options.paths.length; i++) {
+      const path = options.paths[i];
+      fakeParent.paths = Module._nodeModulePaths(path);
+      const lookupPaths = Module._resolveLookupPaths(request, fakeParent, true);
+
+      if (!paths.includes(path))
+        paths.push(path);
+
+      for (var j = 0; j < lookupPaths.length; j++) {
+        if (!paths.includes(lookupPaths[j]))
+          paths.push(lookupPaths[j]);
+      }
+    }
+  } else {
+    // 获取模块的大致路径 [parentDir]  | [id, [parentDir]]
+    paths = Module._resolveLookupPaths(request, parent, true);
+  }
+
+  // look up the filename first, since that's the cache key.
+  // node index.js
+  // request = index.js
+  // paths = ['.', '/root/foo/bar/node_modules', '/node_modules']
+  var filename = Module._findPath(request, paths, isMain);
+  if (!filename) {
+    var err = new Error(`Cannot find module '${request}'`);
+    err.code = 'MODULE_NOT_FOUND';
+    throw err;
+  }
+  return filename;
+}
+```
