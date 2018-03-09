@@ -91,23 +91,7 @@ Module._resolveFilename = function (request, parent, isMain, options) {
 
   if (typeof options === 'object' && options !== null &&
       Array.isArray(options.paths)) {
-    const fakeParent = new Module('', null);
-
-    paths = [];
-
-    for (var i = 0; i < options.paths.length; i++) {
-      const path = options.paths[i];
-      fakeParent.paths = Module._nodeModulePaths(path);
-      const lookupPaths = Module._resolveLookupPaths(request, fakeParent, true);
-
-      if (!paths.includes(path))
-        paths.push(path);
-
-      for (var j = 0; j < lookupPaths.length; j++) {
-        if (!paths.includes(lookupPaths[j]))
-          paths.push(lookupPaths[j]);
-      }
-    }
+    ...
   } else {
     // 获取模块的大致路径 [parentDir]  | [id, [parentDir]]
     paths = Module._resolveLookupPaths(request, parent, true);
@@ -116,7 +100,7 @@ Module._resolveFilename = function (request, parent, isMain, options) {
   // look up the filename first, since that's the cache key.
   // node index.js
   // request = index.js
-  // paths = ['.', '/root/foo/bar/node_modules', '/node_modules']
+  // paths = ['/root/foo/bar/index.js', '/root/foo/bar']
   var filename = Module._findPath(request, paths, isMain);
   if (!filename) {
     var err = new Error(`Cannot find module '${request}'`);
@@ -126,3 +110,20 @@ Module._resolveFilename = function (request, parent, isMain, options) {
   return filename;
 }
 ```
+在这个方法内部，需要调用一个内部的方法：`Module._resolveLookupPaths`，这个方法会依据父模块的路径获取所有这个模块可能的路径：
+
+```javascript
+Module._resolveLookupPaths = function (request, parent, newReturn) {
+  ...
+}
+```
+
+这个方法内部有以下几种情况的处理：
+
+1. 是启动模块，即通过`node xxx`启动的模块
+
+这个时候`node.js`会直接获取到你这个程序执行路径，并在这个方法当中返回。
+
+2. `require(xxx)`require一个存在于`node_modules`中的模块
+
+3. `require(./)`require一个相对路径或者绝对路径的模块
