@@ -231,5 +231,32 @@ function tryPackage(requestPath, exts, isMain) {
 }
 ```
 
-梳理下上面的查询模块时的一个策略：
+梳理下上面查询模块时的一个策略：
+
+1. `require`模块的时候，传入的字符串最后一个字符不是`/`时：
+
+* 如果是个文件，那么直接返回这个文件的路径
+
+* 如果是个文件夹，那么会找个这个文件夹下是否有`package.json`文件，以及这个文件当中的`main`字段对应的路径(对应源码当中的方法为`tryPackage`)：
+
+  * 如果main字段对应的路径是一个文件且存在，那么就返回这个路径
+  * main字段对应的路径对应没有带后缀，那么尝试使用`.js`，`.json`，`.node`，`.ms`后缀去加载对应文件
+  * 如果以上2个条件都不满足，那么尝试对应路径下的`index.js`，`index.json`，`index.node`文件
+
+* 如果以上2个方法都没有找到对应文件路径，那么就对文件路径后添加分别添加`.js`，`.json`，`.node`，`.ms`后缀去加载对应的文件(对应源码当中的方法为`tryExtensions`)
+
+2. `require`模块的时候，传入的字符串最后一个字符是`/`时，即`require`的是一个文件夹时：
+
+* 首先查询这个文件夹下的package.json文件中的main字段对应的路径，具体的流程方法和上面说的查找package.json文件的一致
+* 查询当前文件下的`index.js`，`index.json`，`index.node`等文件
+
+
+当找到文件的路径后就调用`tryModuleLoad`开始加载模块了，这个方法内部实际上是调用了模块实例的`load`方法：
+
+```javascript
+Module.prototype.load = function () {
+  
+}
+```
+ 
 
