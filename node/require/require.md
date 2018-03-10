@@ -374,12 +374,14 @@ Module.wrapper = [
 当前文件的父文件夹的绝对路径
 
 
-## exports 和 module.exports的关系
+## 几个问题
+
+### exports 和 module.exports的关系
 
 特别注意第一个参数和第三参数的联系：第一参数是对于第三个参数的`exports`属性的引用。一旦将某个模块`exports`赋值给另外一个新的对象，那么就断开了`exports`属性和`module.exports`之间的引用关系，同时在其他模块当中也无法引用在当前模块中通过`exports`暴露出去的`API`，对于模块的引用始终是获取`module.exports`属性。
 
 
-## 循环引用
+### 循环引用
 
 官方示例：
 
