@@ -346,8 +346,32 @@ Module.wrapper = [
 ];
 ```
 
-* 通过`Module.wrap`将源码包裹一层
+* 通过`Module.wrap`将源码包裹一层(遵循`commonJS`规范)
 * 通过调用`vm`v8虚拟机暴露出来的方法来构造一个新的函数
 * 完成函数的调用
+
+
+通过源码发现，`Module.wrapper`在对源码文本进行包裹的时候，传入了5个参数:
+
+* exports
+
+是对于第三个参数`module`的`exports`属性的引用
+
+* require
+
+这个`require`并非是`Module.prototype.require`方法，而是通过`internalModule.makeRequireFunction`重新构造出来的，这个方法内部还是依赖`Module.prototype.require`方法去加载模块的，同时还对这个`require`方法做了一些拓展。
+
+* module
+
+`module`对象
+
+* __filename
+
+当前文件的绝对路径
+
+* __dirname
+
+当前文件的父文件夹的绝对路径
+
  
 
