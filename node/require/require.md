@@ -363,7 +363,7 @@ Module.wrapper = [
 
 * module
 
-`module`对象
+`module`对象，如果需要向外暴露`API`供其他模块来使用，需要在`module.exports`属性上定义
 
 * __filename
 
@@ -373,5 +373,66 @@ Module.wrapper = [
 
 当前文件的父文件夹的绝对路径
 
- 
 
+## exports 和 module.exports的关系
+
+特别注意第一个参数和第三参数的联系：第一参数是对于第三个参数的`exports`属性的引用。一旦将某个模块`exports`赋值给另外一个新的对象，那么就断开了`exports`属性和`module.exports`之间的引用关系，同时在其他模块当中也无法引用在当前模块中通过`exports`暴露出去的`API`，对于模块的引用始终是获取`module.exports`属性。
+
+
+## 循环引用
+
+官方示例：
+
+`a.js`
+
+```javascript
+console.log('a 开始');
+exports.done = false;
+const b = require('./b.js');
+console.log('在 a 中，b.done = %j', b.done);
+exports.done = true;
+console.log('a 结束');
+```
+
+`b.js`
+
+```javascript
+console.log('b 开始');
+exports.done = false;
+const a = require('./a.js');
+console.log('在 b 中，a.done = %j', a.done);
+exports.done = true;
+console.log('b 结束');
+```
+
+`main.js`
+
+```javascript
+console.log('main 开始');
+const a = require('./a.js');
+const b = require('./b.js');
+console.log('在 main 中，a.done=%j，b.done=%j', a.done, b.done);
+```
+
+
+```javascript
+$ node main.js
+main 开始
+a 开始
+b 开始
+在 b 中，a.done = false
+b 结束
+在 a 中，b.done = true
+a 结束
+在 main 中，a.done=true，b.done=true
+```
+
+在`a`模块加载时，需要加载`b`模块，但是在实际加载`a`模块之前，就已经将`a`模块进行的缓存，具体参见`Module._load`方法:
+
+```javascript
+Module._cache[filename] = module;
+
+tryModuleLoad(module, filename);
+```
+
+因为在加载`b`模块的过程中再次去加载`a`模块的时候，这时是直接从缓存中获取`a`模块导出的`API`，此时`exports.done`的属性还是`false`，未被设置为`true`，只有当`b`模块被完全加载后，`a`模块`exports`属性才被设置为`true`。
