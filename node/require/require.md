@@ -255,8 +255,99 @@ function tryPackage(requestPath, exts, isMain) {
 
 ```javascript
 Module.prototype.load = function () {
-  
+
+  ...
+  this.filename = filename;
+  // 定义module的paths。获取这个module路径上所有可能的node_modules路径
+  this.paths = Module._nodeModulePaths(path.dirname(filename));
+
+  var extension = path.extname(filename) || '.js';
+  if (!Module._extensions[extension]) extension = '.js';
+  // 开始load这个文件
+  Module._extensions[extension](this, filename);
+  this.loaded = true;
+
+  ...
 }
 ```
+
+调用`Module._extension`方法去加载不同格式的文件，就拿`js`文件来说：
+
+```javascript
+Module._extensions['.js'] = function(module, filename) {
+  // 首先读取文件的文本内容
+  var content = fs.readFileSync(filename, 'utf8');
+  module._compile(internalModule.stripBOM(content), filename);
+};
+
+```
+
+内部调用了`Module.prototype._compile`这个方法：
+
+
+```javascript
+Module.prototype._compile = function (content, filename)) {
+  content = internalModule.stripShebang(content);
+
+  // create wrapper function
+  // 将源码的文本包裹一层
+  var wrapper = Module.wrap(content);
+
+  // vm.runInThisContext在一个v8的虚拟机内部执行wrapper后的代码
+  var compiledWrapper = vm.runInThisContext(wrapper, {
+    filename: filename,
+    lineOffset: 0,
+    displayErrors: true
+  });
+
+  var inspectorWrapper = null;
+  if (process._breakFirstLine && process._eval == null) {
+    if (!resolvedArgv) {
+      // we enter the repl if we're not given a filename argument.
+      if (process.argv[1]) {
+        resolvedArgv = Module._resolveFilename(process.argv[1], null, false);
+      } else {
+        resolvedArgv = 'repl';
+      }
+    }
+
+    // Set breakpoint on module start
+    if (filename === resolvedArgv) {
+      delete process._breakFirstLine;
+      inspectorWrapper = process.binding('inspector').callAndPauseOnStart;
+    }
+  }
+  var dirname = path.dirname(filename);
+  // 构造require函数
+  var require = internalModule.makeRequireFunction(this);
+  var depth = internalModule.requireDepth;
+  if (depth === 0) stat.cache = new Map();
+  var result;
+  if (inspectorWrapper) {
+    result = inspectorWrapper(compiledWrapper, this.exports, this.exports,
+                              require, this, filename, dirname);
+  } else {
+    // 开始执行这个函数
+    // 传入的参数依次是 module.exports / require / module / filename / dirname
+    result = compiledWrapper.call(this.exports, this.exports, require, this,
+                                  filename, dirname);
+  }
+  if (depth === 0) stat.cache = null;
+  return result;
+}
+
+Module.wrap = function(script) {
+  return Module.wrapper[0] + script + Module.wrapper[1];
+};
+
+Module.wrapper = [
+  '(function (exports, require, module, __filename, __dirname) { ',
+  '\n});'
+];
+```
+
+* 通过`Module.wrap`将源码包裹一层
+* 通过调用`vm`v8虚拟机暴露出来的方法来构造一个新的函数
+* 完成函数的调用
  
 
