@@ -15,6 +15,8 @@ var REJECTED = ['REJECTED'];
 var FULFILLED = ['FULFILLED'];
 var PENDING = ['PENDING'];
 
+var handlers = {}
+
 function Promise (resolver) {
   if (typeof resolver !== 'function') {
     throw new TypeError('resolver must be a function');
@@ -83,6 +85,7 @@ function safelyResolveThenable(self, thenable) {
 
   // 用一个函数将resolver执行包裹一层
   function tryToUnwrap() {
+    // 这个函数即由调用方传入的
     thenable(onSuccess, onError);
   }
 
@@ -92,5 +95,58 @@ function safelyResolveThenable(self, thenable) {
     onError(result.value);
   }
 }
+
+function tryCatch(func, value) {
+  var out = {};
+  try {
+    out.value = func(value);
+    out.status = 'success';
+  } catch (e) {
+    out.status = 'error';
+    out.value = e;
+  }
+  return out;
+}
 ```
+
+如果给`Promise`构造函数传入`callback`在执行过程中没有报错，且被`resolve`的话，那么这个时候即调用的`onSuccess`方法，这个方法内部调用了`handlers.resolve`方法。
+
+接下来我们看下这个方法的定义：
+
+```javascript
+handlers.resolve = function (self, value) {
+  var result = tryCatch(getThen, value);
+  if (result.status === 'error') {
+    return handlers.reject(self, result.value);
+  }
+  // 判断这个value是否是个thenable对象
+  var thenable = result.value;
+  
+  if (thenable) {
+    safelyResolveThenable(self, thenable);
+  } else {
+    // 将这个promise的state从 pending -> fulfilled
+    self.state = FULFILLED;
+    // 更改这个promise对应的值
+    self.outcome = value;
+    var i = -1;
+    var len = self.queue.length;
+    // 依次执行这个promise的queue队列里面每一项的callFulfilled方法
+    while (++i < len) {
+      self.queue[i].callFulfilled(value);
+    }
+  }
+  // 返回这个promise对象
+  return self;
+}
+```
+
+再回到我们上面举的这个例子：
+
+```javascript
+const promise = new Promise(resolve => {
+  resolve(1)
+})
+```
+
 
