@@ -226,6 +226,8 @@ function unwrap(promise, func, value) {
 
 在这个函数中，使用`immediate`方法统一的将`func`方法异步的执行(下面会解释)。并将这个`func`执行的返回值传递到下一个`promise`的处理方法当中。
 
+因此在上面给的例子当中，因为Promise的状态是被同步resolve的，那么接下来立即调用then方法，并执行传入的onFullfilled方法。
+
 
 第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，还是首先实例化一个`QueueItem`，并保存到这个`promise`的`queue`队列当中。
 
@@ -259,4 +261,32 @@ QueueItem.prototype.otherCallRejected = function (value) {
   unwrap(this.promise, this.onRejected, value);
 };
 ```
+
+`QueueItem`构造函数接受3个参数:`promise`，`onFullfilled`，`onRejected`。
+
+1. promise
+
+在`then`当中新创建的promise对象
+
+2. onFullfilled
+
+**上一个**promise被resolve后需要调用的回调
+
+3. onRejected
+
+**上一个**promise被reject后需要调用的回调函数
+
+接下来我们看下第二种情况是在什么样的情况下去执行的：
+
+```javascript
+const promise = new Promise(resolve => {
+  setTimeout(() => {
+    resolve(1)
+  }, 3000)
+})
+
+promise.then(data => console.log(data))
+```
+
+在这个例子当中，当过了`3s`后在控制台输出`1`。在这个例子当中，因为`promise`内部是异步去`resolve`这个`promise`。在这个`promise`被`resolve`前，`promise`实例通过`then`方法向这个`promise`的`queue`队列中添加`onFullfilled`方法，这个`queue`中保存的方法会等到`promise`被`resolve`后才会被执行。当在实际的调用`resolve(1)`时，即`promise`这个时候才被`resolve`，那么便会调用`handlers.resolve`方法，并依次调用这个`promise`的`queue`队列当中保存的`onFullfilled`函数
 
