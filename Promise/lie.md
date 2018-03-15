@@ -149,4 +149,114 @@ const promise = new Promise(resolve => {
 })
 ```
 
+在这个例子当中，是同步去`resolve`这个`promise`，那么返回的这个`promise`实例的状态便为`fulfilled`，同时`outcome`的值也被设为`1`。
+
+将这个例子拓展一下：
+
+```javascript
+const promise = new Promise(resolve => {
+  resolve(1)
+})
+
+promise.then(function onFullfilled (value) {
+  console.log(value)
+})
+```
+
+在实例的`then`方法上传入`一个onFullfilled`回调执行上面的代码，最后在控制台输出`1`。
+
+接下来我们看下`Promise`原型上`then`方法的定义：
+
+```javascript
+Promise.prototype.then = function (onFulfilled, onRejected) {
+  if (typeof onFulfilled !== 'function' && this.state === FULFILLED ||
+    typeof onRejected !== 'function' && this.state === REJECTED) {
+    return this;
+  }
+  // 创建一个新的promise
+  var promise = new this.constructor(INTERNAL);
+  /* istanbul ignore else */
+  if (!process.browser) {
+    if (this.handled === UNHANDLED) {
+      this.handled = null;
+    }
+  }
+
+  // new Promise在内部resolve过程中如果是同步的
+  if (this.state !== PENDING) {
+    var resolver = this.state === FULFILLED ? onFulfilled : onRejected;
+    unwrap(promise, resolver, this.outcome);
+  } else { // 异步的resolve
+    // this.queue保存了对于promise
+    this.queue.push(new QueueItem(promise, onFulfilled, onRejected));
+  }
+
+  return promise;
+};
+```
+
+在`then`方法内部首先创建一个新的`promise`，接下来会根据这个`promise`的状态来进行不同的处理。
+
+1. 如果这个`promise`已经被`resolve/reject`了(即`非pending`态)，那么会调用`unwrap()`方法来执行对应的回调函数；
+
+2. 如果这个`promise`还是处于`pending`态，那么需要实例化一个`QueueItem`，并推入到`queue`队列当中。
+
+我们首先分析第一种情况，即调用`then`方法的时候，`promise`的状态已经被`resolve/reject`了，那么根据对应的`state`来取对应的回调函数，并调用`unwrap`函数。
+
+```javascript
+function unwrap(promise, func, value) {
+  // 异步执行这个func
+  immediate(function () {
+    var returnValue;
+    try {
+      // 捕获onFulfilled函数在执行过程中的错误
+      returnValue = func(value);
+    } catch (e) {
+      return handlers.reject(promise, e);
+    }
+    // 不能返回自身promise
+    if (returnValue === promise) {
+      handlers.reject(promise, new TypeError('Cannot resolve promise with itself'));
+    } else {
+      handlers.resolve(promise, returnValue);
+    }
+  });
+}
+```
+
+在这个函数中，使用`immediate`方法统一的将`func`方法异步的执行(下面会解释)。并将这个`func`执行的返回值传递到下一个`promise`的处理方法当中。
+
+
+第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，还是首先实例化一个`QueueItem`，并保存到这个`promise`的`queue`队列当中。
+
+```javascript
+function QueueItem(promise, onFulfilled, onRejected) {
+  // 首先保存这个promise
+  this.promise = promise;
+  // 如果onFulfilled是一个函数
+  if (typeof onFulfilled === 'function') {
+    this.onFulfilled = onFulfilled;
+    // 那么重新赋值callFulfilled函数
+    this.callFulfilled = this.otherCallFulfilled;
+  }
+  if (typeof onRejected === 'function') {
+    this.onRejected = onRejected;
+    this.callRejected = this.otherCallRejected;
+  }
+}
+// 如果onFulfilled是一个函数，那么就会覆盖callFulfilled方法
+// 如果onFulfilled不是一个函数，那么就会直接调用handlers.resolve去递归处理promise
+QueueItem.prototype.callFulfilled = function (value) {
+  handlers.resolve(this.promise, value);
+};
+QueueItem.prototype.otherCallFulfilled = function (value) {
+  unwrap(this.promise, this.onFulfilled, value);
+};
+QueueItem.prototype.callRejected = function (value) {
+  handlers.reject(this.promise, value);
+};
+QueueItem.prototype.otherCallRejected = function (value) {
+  unwrap(this.promise, this.onRejected, value);
+};
+```
 
