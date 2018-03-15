@@ -85,6 +85,7 @@ handlers.resolve = function (target, value) {
       target.queue[i].callFullfilled(value)
     }
   }
+  return target
 }
 
 handlers.reject = function (target, value) {
