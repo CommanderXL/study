@@ -226,10 +226,9 @@ function unwrap(promise, func, value) {
 
 在这个函数中，使用`immediate`方法统一的将`func`方法异步的执行(下面会解释)。并将这个`func`执行的返回值传递到下一个`promise`的处理方法当中。
 
-因此在上面给的例子当中，因为Promise的状态是被同步resolve的，那么接下来立即调用then方法，并执行传入的onFullfilled方法。
+因此在上面给的例子当中，因为`Promise`的状态是被同步`resolve`的，那么接下来立即调用`then`方法，并执行传入的`onFullfilled`方法。
 
-
-第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，还是首先实例化一个`QueueItem`，并保存到这个`promise`的`queue`队列当中。
+第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，首先实例化一个`QueueItem`，并保存到这个`promise`的`queue`队列当中，延迟执行这个`queue`当中保存的回调函数。
 
 ```javascript
 function QueueItem(promise, onFulfilled, onRejected) {
