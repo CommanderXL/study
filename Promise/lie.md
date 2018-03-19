@@ -64,6 +64,7 @@ const promise = new Promise((resolve, reject) => {
 function safelyResolveThenable(self, thenable) {
   // Either fulfill, reject or reject with error
   // 标志位，初始态的promise仅仅只能被resolve/reject一次
+  // TODO: 补充一个例子
   var called = false;
   function onError(value) {
     if (called) {
