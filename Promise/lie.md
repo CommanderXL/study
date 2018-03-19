@@ -51,7 +51,7 @@ function Promise (resolver) {
 对于promise，我们一般的用法是：
 
 ```javascript
-// 传入的函数当中接收2个参数,resolve/reject，都是promise内部定义的，用以改变这个promise的状态和值
+// 构造函数当中接收2个参数,resolve/reject，需要注意的是这2个参数是promise内部定义的，用以改变这个promise的状态和值
 const promise = new Promise((resolve, reject) => {
   // 同步或者异步的去resolve一个值
   resolve(1)
@@ -108,6 +108,16 @@ function tryCatch(func, value) {
   }
   return out;
 }
+```
+在`safelyResolveThenable`方法中设定了一个`called`标志位，这是因为一旦一个promise的状态发生了改变，那么之后的状态不能再次被改变，举例:
+
+```javascript
+new Promise((resolve, reject) => {
+  // 一旦状态发生改变，后面的reject/resolve方法不能起作用
+  resolve(1)
+  reject(new Error('error'))
+  resolve(2)
+})
 ```
 
 如果给`Promise`构造函数传入`callback`在执行过程中没有报错，且被`resolve`的话，那么这个时候即调用的`onSuccess`方法，这个方法内部调用了`handlers.resolve`方法。
@@ -198,7 +208,7 @@ Promise.prototype.then = function (onFulfilled, onRejected) {
 
 在`then`方法内部首先创建一个新的`promise`，接下来会根据这个`promise`的状态来进行不同的处理。
 
-1. 如果这个`promise`已经被`resolve/reject`了(即`非pending`态)，那么会调用`unwrap()`方法来执行对应的回调函数；
+1. 如果这个`promise`已经被`resolve/reject`了(即`非pending`态)，那么会直接调用`unwrap()`方法来执行对应的回调函数；
 
 2. 如果这个`promise`还是处于`pending`态，那么需要实例化一个`QueueItem`，并推入到`queue`队列当中。
 
@@ -229,7 +239,7 @@ function unwrap(promise, func, value) {
 
 因此在上面给的例子当中，因为`Promise`的状态是被同步`resolve`的，那么接下来立即调用`then`方法，并执行传入的`onFullfilled`方法。
 
-第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，首先实例化一个`QueueItem`，并保存到这个`promise`的`queue`队列当中，延迟执行这个`queue`当中保存的回调函数。
+第二种情况，如果`promise`还是处于`pending`态，这个时候不是立即执行`callback`，首先实例化一个`QueueItem`，并缓存到这个`promise`的`queue`队列当中，延迟执行这个`queue`当中保存的回调函数。
 
 ```javascript
 function QueueItem(promise, onFulfilled, onRejected) {
