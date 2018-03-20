@@ -141,7 +141,7 @@ handlers.resolve = function (self, value) {
     self.outcome = value;
     var i = -1;
     var len = self.queue.length;
-    // 依次执行这个promise的queue队列里面每一项的callFulfilled方法
+    // 依次执行这个promise的queue队列里面每一项queueItem的callFulfilled方法
     while (++i < len) {
       self.queue[i].callFulfilled(value);
     }
@@ -313,5 +313,30 @@ promise
 .then(console.log)
 ```
 
-最后在控制台打印出2，而非3。当上一个`promise`被`resolve`后，调用这个`promise`的`queue`当中缓存的`queueItem`上的`callFulfilled`方法，因为`then`方法接收的是数值类型，因此这个`queueItem`上的`callFulfilled`方法未被覆盖，因此这时所做的便是直接将这个`queueItem`中报错的`promise`进行`resolve`，同时将上一个`promise`的值传下去。可以这样理解，如果`then`方法第一个参数接收到的是个函数，那么就由这个函数处理上一个`promise`传递过来的值，如果不是函数，那么就像管道一样，先流过这个`then`方法，而将上一个值传递给下下个`then`方法接收到的函数去处理。
+最后在控制台打印出2，而非3。当上一个`promise`被`resolve`后，调用这个`promise`的`queue`当中缓存的`queueItem`上的`callFulfilled`方法，因为`then`方法接收的是数值类型，因此这个`queueItem`上的`callFulfilled`方法未被覆盖，因此这时所做的便是直接将这个`queueItem`中保存的`promise`进行`resolve`，同时将上一个`promise`的值传下去。可以这样理解，如果`then`方法第一个参数接收到的是个函数，那么就由这个函数处理上一个`promise`传递过来的值，如果不是函数，那么就像管道一样，先流过这个`then`方法，而将上一个值传递给下下个`then`方法接收到的函数去处理。
 
+上面提到了关于`unwrap`这个函数，这个函数的作用就是统一的将`then`方法中接收到的`onFullfilled`参数异步的执行。主要是使用了`immediate`这个库。这里说明下为什么统一的要将`onFullfilled`方法进行异步话的处理呢。
+
+首先，是要解决代码逻辑执行顺序的问题，首先来看一种情况：
+
+```javascript
+const promise = new Promise(resolve => {
+  // 情况一：同步resolve
+  resolve(1)
+  // 情况二：异步resolve
+  setTimeout(() => {
+    resolve(2)
+  }, 1000)
+})
+
+promise.then(function onFullfilled() {
+  // do something
+  foo()
+})
+
+bar()
+```
+
+这个`promise`可能会被同步的`resolve`，也有可能异步的`resolve`，这个时候如果`onFullfilled`方法设计成同步的执行的话，那么`foo`及`bar`的执行顺序便依赖`promise`是被**同步or异步**被`resolve`，但是如果统一将`onFullfilled`方法设计成异步的执行的话，那么`bar`方法始终在`foo`方法前执行，这样就保证了代码执行的顺序。
+
+其次，是要解决同步回调stackoverflow的问题，[具体的链接请戳我](https://link.zhihu.com/?target=http%3A//blog.izs.me/post/59142742143/designing-apis-for-asynchrony)
