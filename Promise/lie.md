@@ -300,3 +300,19 @@ promise.then(data => console.log(data))
 
 在这个例子当中，当过了`3s`后在控制台输出`1`。在这个例子当中，因为`promise`内部是异步去`resolve`这个`promise`。在这个`promise`被`resolve`前，`promise`实例通过`then`方法向这个`promise`的`queue`队列中添加`onFullfilled`方法，这个`queue`中保存的方法会等到`promise`被`resolve`后才会被执行。当在实际的调用`resolve(1)`时，即`promise`这个时候才被`resolve`，那么便会调用`handlers.resolve`方法，并依次调用这个`promise`的`queue`队列当中保存的`onFullfilled`函数
 
+可以看到在`QueueItem`函数内部，会对`onFullfilled`和`onRejected`的参数类型做判断，只有当它们是函数的时候，才会将这个方法进行一次缓存，同时使用`otherCallFulfilled`方法覆盖原有的`callFulfilled`方法。这也是大家经常会遇到的**值穿透**的问题，举个例子：
+
+```javascript
+const promise = new Promise(resolve => {
+  setTimeout(() => {
+    resolve(2)
+  }, 2000)
+})
+
+promise
+.then(3)
+.then(console.log)
+```
+
+最后在控制台打印出2，而非3。当上一个`promise`被`resolve`后，调用这个`promise`的`queue`当中缓存的`queueItem`上的`callFulfilled`方法，因为`then`方法接收的是数值类型，因此这个`queueItem`上的`callFulfilled`方法未被覆盖，因此这时所做的便是直接将这个`queueItem`中报错的`promise`进行`resolve`，同时将上一个`promise`的值传下去。
+
