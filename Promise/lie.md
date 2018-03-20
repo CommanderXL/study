@@ -64,7 +64,6 @@ const promise = new Promise((resolve, reject) => {
 function safelyResolveThenable(self, thenable) {
   // Either fulfill, reject or reject with error
   // 标志位，初始态的promise仅仅只能被resolve/reject一次
-  // TODO: 补充一个例子
   var called = false;
   function onError(value) {
     if (called) {
@@ -212,7 +211,7 @@ Promise.prototype.then = function (onFulfilled, onRejected) {
 
 2. 如果这个`promise`还是处于`pending`态，那么需要实例化一个`QueueItem`，并推入到`queue`队列当中。
 
-我们首先分析第一种情况，即调用`then`方法的时候，`promise`的状态已经被`resolve/reject`了，那么根据对应的`state`来取对应的回调函数，并调用`unwrap`函数。
+我们首先分析第一种情况，即调用`then`方法的时候，`promise`的状态已经被`resolve/reject`了，那么根据对应的`state`来取对应的回调函数，并调用`unwrap`函数(后面会详细讲解这个方法)。
 
 ```javascript
 function unwrap(promise, func, value) {
@@ -235,7 +234,7 @@ function unwrap(promise, func, value) {
 }
 ```
 
-在这个函数中，使用`immediate`方法统一的将`func`方法异步的执行(下面会解释)。并将这个`func`执行的返回值传递到下一个`promise`的处理方法当中。
+在这个函数中，使用`immediate`方法统一的将`func`方法**异步的执行**。并将这个`func`执行的返回值传递到下一个`promise`的处理方法当中。
 
 因此在上面给的例子当中，因为`Promise`的状态是被同步`resolve`的，那么接下来立即调用`then`方法，并执行传入的`onFullfilled`方法。
 
@@ -314,5 +313,5 @@ promise
 .then(console.log)
 ```
 
-最后在控制台打印出2，而非3。当上一个`promise`被`resolve`后，调用这个`promise`的`queue`当中缓存的`queueItem`上的`callFulfilled`方法，因为`then`方法接收的是数值类型，因此这个`queueItem`上的`callFulfilled`方法未被覆盖，因此这时所做的便是直接将这个`queueItem`中报错的`promise`进行`resolve`，同时将上一个`promise`的值传下去。
+最后在控制台打印出2，而非3。当上一个`promise`被`resolve`后，调用这个`promise`的`queue`当中缓存的`queueItem`上的`callFulfilled`方法，因为`then`方法接收的是数值类型，因此这个`queueItem`上的`callFulfilled`方法未被覆盖，因此这时所做的便是直接将这个`queueItem`中报错的`promise`进行`resolve`，同时将上一个`promise`的值传下去。可以这样理解，如果`then`方法第一个参数接收到的是个函数，那么就由这个函数处理上一个`promise`传递过来的值，如果不是函数，那么就像管道一样，先流过这个`then`方法，而将上一个值传递给下下个`then`方法接收到的函数去处理。
 
