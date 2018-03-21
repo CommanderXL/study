@@ -339,4 +339,71 @@ bar()
 
 这个`promise`可能会被同步的`resolve`，也有可能异步的`resolve`，这个时候如果`onFullfilled`方法设计成同步的执行的话，那么`foo`及`bar`的执行顺序便依赖`promise`是被**同步or异步**被`resolve`，但是如果统一将`onFullfilled`方法设计成异步的执行的话，那么`bar`方法始终在`foo`方法前执行，这样就保证了代码执行的顺序。
 
-其次，是要解决同步回调stackoverflow的问题，[具体的链接请戳我](https://link.zhihu.com/?target=http%3A//blog.izs.me/post/59142742143/designing-apis-for-asynchrony)
+其次，是要解决同步回调`stackoverflow`的问题，[具体的链接请戳我](https://link.zhihu.com/?target=http%3A//blog.izs.me/post/59142742143/designing-apis-for-asynchrony)
+
+我们看到`lie.js`的内部实现当中，每次在调用`then`方法的时候，**内部都新创建了一个`promise`的对象**并返回，这样也完成了`promise`的链式调用。即：
+
+```javascript
+const Promise = require('lie')
+const promise = new Promise(resolve => setTimeout(resolve, 3000))
+promise.then(() => 'a').then(() => 'b').then(() => {})
+```
+
+需要注意的是，在每个`then`方法内部创建的新的`promise`对象的`state`为`pending`态，`outcome`为`null`。可以将上面示例的`promise`打印到控制台，你会非常清晰的看到整个`promise`链的结构：
+
+```javascript
+Promise {
+  state: [ 'PENDING' ],
+  queue:
+   [ QueueItem {
+       promise: {
+         state: ['PENDING'],
+         queue: [
+           QueueItem {
+             promise: {
+               state: ['PENDING'],
+               queue: [
+                 QueueItem {
+                   promise: {
+                     state: ['PENDING'],
+                     queue: [],
+                     outcome: undefined
+                   }
+                 }
+               ],
+               outcome: undefined,
+               handled: null
+             },
+             onFulfilled: [Function],
+             callFulfilled: [Function]
+           }
+         ],
+        outcome: undefined,
+        handled: null        
+       },
+       onFulfilled: [Function],
+       callFulfilled: [Function] } ],
+  outcome: undefined,
+  handled: null }
+```
+
+实际这个`promise`链是一个嵌套的结构，一旦的最外部的`promise`的状态发生了改变，那么就会依次执行这个`promise`的`queue`队列里保存的`queueItem`的`onFulfilled`或者`onRejected`方法，并这样一直传递下去。因此这也是大家经常看到的`promise`链一旦开始，就会一直向下执行，没法在哪个`promise`的执行过程中中断。
+
+不过刚才也提到了关于在`then`方法内部是创建的一个新的`pending`状态的`promise`，这个`promise`状态的改变完全是由上一个`promise`的状态决定的，如果上一个`promise`是被`resolve`的，那么这个`promise`同样是被`resolve`的(前提是在代码执行过程中没有报错),并这样传递下去。如果有这样一种情况，在某个`promise`封装的请求中，如果响应的错误码不符合要求，不希望这个`promise`继续被`resolve`下去，同时想要单独的`catch`住这个响应的话，那么可以在`then`方法中直接返回一个被`rejected`的`promise`。这样在这个`promise`后面的`then`方法中创建的`promise`的`state`都会被`rejected`，同时这些`promise`所接受的`fullfilled`方法不再执行，如果有传入`onRejected`方法的话便会执行`onRejected`方法，最后一直传递到的`catch`方法中添加的`onReject`方法。
+
+```javascript
+someRequest()
+.then(res => {
+  if (res.error === 0) {
+    // do something
+    return res
+  } else {
+    return Promise.reject(res)
+  }
+}).then(val => {
+  // do something
+}).catch(err => {
+  // do something
+})
+
+```
