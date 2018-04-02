@@ -70,10 +70,11 @@ function initAssetRegisters (Vue) {
         ...
         if (type === 'component' && isPlainObject(definition)) {
           definition.name = definition.name || id;
+          // definition = Vue.extend(definition)
           definition = this.options._base.extend(definition);
         }
         ...
-        // 在Vue.options的components属性上挂载组件
+        // 在Vue.options的components属性上挂载组件实例的constructor
         this.options[type + 's'][id] = definition;
         return definition
       }
@@ -104,7 +105,7 @@ Vue.extend = function (extendOptions) {
     Sub.prototype = Object.create(Super.prototype);
     Sub.prototype.constructor = Sub;
     Sub.cid = cid++;
-    // 完成options合并的工作
+    // 完成options合并的工作，同时建立起子组件options和Super options的原型链
     Sub.options = mergeOptions(
       Super.options,
       extendOptions
@@ -141,4 +142,19 @@ Vue.extend = function (extendOptions) {
   };
 ```
 
-以上就是调用`Vue.component`方法对全局组件进行注册后`Vue`内部所做的工作。接下来看下局部组件的是如何注册的
+大家可以看到在`Vue.extend`方法内部，实际上就是创建了一个`VueComponent`的`constructor`，同时还需完成这个构造函数和根`constructor`方法、原型链的继承工作，其中有一点关于`options`配置属性合并的工作。
+
+```javascript
+...
+Sub.options = mergeOptions(
+  Super.options,
+  extendOptions
+)
+...
+```
+
+// TODO: 讲解下options合并的过程
+调用`mergeOptions`方法，将根`constructor`(superCtor)的`options`属性和子`constructor`的`options`(subCtor)属性进行一次合并。就拿`components`属性来说，最终的结果就是`subCtor.options.components.prototype = superCtor.options.components`，同时通过`mixin`，使得`subCtor.options.components`可直接访问全局组件和局部组件。
+
+
+这样调用`Vue.component`方法后完成全局组件的注册。`Vue`的局部组件和全局组件注册的方法还不太一样，首先在注册的阶段，局部组件并非和全局组件一样在代码初始化的阶段就完成了全局组件的注册，局部组件是在父组件在实例化的过程中动态的进行注册的(后面的内容会讲到这个地方)。
