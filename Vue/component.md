@@ -181,3 +181,91 @@ Vue.prototype._init = function () {
 }
 ```
 
+在这个内部，通过调用`initRender`方法给实例挂载生成vnode节点的方法：
+
+```javascript
+function initRender () {
+  ...
+  // 供内部调用生成vnode的方法
+  vm._c = function (a, b, c, d) { return createElement(vm, a, b, c, d, false); };
+  ...
+  // 供开发者调用的生成vnode的方法
+  vm.$createElement = function (a, b, c, d) { return createElement(vm, a, b, c, d, true); };
+  ...
+}
+```
+
+接下来根据是否有`el`配置选项来将`vue component`挂载到真实`dom`节点上。
+
+
+```javascript
+
+
+// public mount method
+Vue.prototype.$mount = function (
+  el,
+  hydrating
+) {
+  el = el && inBrowser ? query(el) : undefined;
+  return mountComponent(this, el, hydrating)
+};
+
+var mount = Vue.prototype.$mount;
+
+Vue.prototype.$mount = function (
+  el,
+  hydrating
+) {
+  el = el && query(el);
+
+  var options = this.$options;
+  // resolve template/el and convert to render function
+  if (!options.render) {
+    var template = options.template;
+    if (template) {
+      if (typeof template === 'string') {
+        if (template.charAt(0) === '#') {
+          template = idToTemplate(template);
+          /* istanbul ignore if */
+          if ("development" !== 'production' && !template) {
+            warn(
+              ("Template element not found or is empty: " + (options.template)),
+              this
+            );
+          }
+        }
+      } else if (template.nodeType) {
+        template = template.innerHTML;
+      } else {
+        {
+          warn('invalid template option:' + template, this);
+        }
+        return this
+      }
+    } else if (el) {
+      // 获取真实dom元素的字符串内容
+      template = getOuterHTML(el);
+    }
+    if (template) {
+      // 获取到模板的字符串内容后，调用compileToFunctions方法将模板字符编译成render函数
+      // 需要注意的是编译的时候只编译模板下的字符串，并不能直接编译当前模板的子组件的模板内容
+      var ref = compileToFunctions(template, {
+        shouldDecodeNewlines: shouldDecodeNewlines,
+        shouldDecodeNewlinesForHref: shouldDecodeNewlinesForHref,
+        delimiters: options.delimiters,
+        comments: options.comments
+      }, this);
+      // 生成render函数
+      var render = ref.render;
+      var staticRenderFns = ref.staticRenderFns;
+      options.render = render;                    // 挂载render函数
+      options.staticRenderFns = staticRenderFns;  // 挂载staticRenderFns函数
+    }
+  }
+  return mount.call(this, el, hydrating)
+}
+
+```
+
+完成模板编译，生成`render`函数后，接下来调用`mountComponent`方法：
+
