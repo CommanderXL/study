@@ -403,3 +403,246 @@ Vue.prototype._render = function () {
 }
 ```
 
+在上面已经提到了关于最后关于编译生成的`render`函数：
+
+```javascript
+// render函数
+(function() {
+  with(this){
+    return _c('div',  // 标签tag
+      {
+        attrs:{"id":"app"}  // 属性值
+      },
+      [                     // children节点
+        _c('my-component'),
+        _v(" "),
+        _c('p',[_v(_s(appVal))])
+      ], 1)}
+})
+```
+
+在实际的执行过程当中，首先完成`children`节点的`vnode`的生成工作。这里首先生成`my-component`子组件的`vnode`，我们来看下`vm._c`方法，这个方法内部最终是调用`_createElement`方法来生成`vnode`：
+
+```javascript
+function _createElement (
+  context,
+  tag,
+  data,
+  children,
+  normalizationType
+) {
+  ...
+  // support single function children as default scoped slot
+  if (Array.isArray(children) &&
+    typeof children[0] === 'function'
+  ) {
+    data = data || {};
+    data.scopedSlots = { default: children[0] };
+    children.length = 0;
+  }
+  if (normalizationType === ALWAYS_NORMALIZE) {
+    children = normalizeChildren(children);
+  } else if (normalizationType === SIMPLE_NORMALIZE) {
+    children = simpleNormalizeChildren(children);
+  }
+  var vnode, ns;
+  if (typeof tag === 'string') {
+    var Ctor;
+    ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag);
+    if (config.isReservedTag(tag)) {
+      // platform built-in elements
+      // 如果是内置的元素标签
+      vnode = new VNode(
+        config.parsePlatformTagName(tag), data, children,
+        undefined, undefined, context
+      );
+    } else if (isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
+      // component
+      // 如果是自己自定义标签元素
+      // 首先resolveAsset从$options属性上获取components定义
+      // 需要注意的是全局注册的component，最终得到的Ctor为一个function
+      // 而局部注册的component，最终得到的Ctor为一个plain Object
+      vnode = createComponent(Ctor, data, context, children, tag);
+    } else {
+      // unknown or unlisted namespaced elements
+      // check at runtime because it may get assigned a namespace when its
+      // parent normalizes children
+      vnode = new VNode(
+        tag, data, children,
+        undefined, undefined, context
+      );
+    }
+  } else {
+    // direct component options / constructor
+    vnode = createComponent(tag, data, context, children);
+  }
+  if (Array.isArray(vnode)) {
+    return vnode
+  } else if (isDef(vnode)) {
+    if (isDef(ns)) { applyNS(vnode, ns); }
+    if (isDef(data)) { registerDeepBindings(data); }
+    return vnode
+  } else {
+    return createEmptyVNode()
+  }
+}
+```
+
+因此上面提到的`render`函数，最终生成一个`vnode`
+
+```javascript
+VNode {
+  ...
+  children: [VNode, VNode, VNode],
+  tag: 'div',
+  elm: div#app(dom元素),
+  data: {
+    attrs: {
+      id: '#app'
+    }
+  },
+  context: Vue
+  ...
+}
+```
+
+`VNode`生成完毕后，让我们再回到`mountComponent`方法内部：
+
+```javascript
+updateComponent = function () {
+  // vm._render首先构建完成vnode
+  // 然后调用vm._update方法，更vnode挂载到真实的DOM节点上
+  vm._update(vm._render(), hydrating);
+};
+```
+
+当`vm._render`函数生成完`vnode`后，执行`vm._update(vnode)`，将`vnode`渲染为真实的`DOM`节点：
+
+```javascript
+Vue.prototype._update = function (vnode, hydrating) {
+  var vm = this;
+  if (vm._isMounted) {
+    callHook(vm, 'beforeUpdate');
+  }
+  var prevEl = vm.$el;
+  var prevVnode = vm._vnode;
+  var prevActiveInstance = activeInstance;
+  activeInstance = vm;
+  vm._vnode = vnode;
+  // Vue.prototype.__patch__ is injected in entry points
+  // based on the rendering backend used.
+  if (!prevVnode) {
+    // initial render
+    // 页面初始化渲染
+    vm.$el = vm.__patch__(
+      vm.$el, vnode, hydrating, false /* removeOnly */,
+      vm.$options._parentElm,
+      vm.$options._refElm
+    );
+    // no need for the ref nodes after initial patch
+    // this prevents keeping a detached DOM tree in memory (#5851)
+    vm.$options._parentElm = vm.$options._refElm = null;
+  } else {
+    // updates
+    // 更新
+    vm.$el = vm.__patch__(prevVnode, vnode);
+  }
+  ...
+}
+```
+
+当页面进行首次渲染的时候：
+
+```javascript
+vm.$el = vm.__patch__(
+  vm.$el, vnode, hydrating, false /* removeOnly */,
+  vm.$options._parentElm,
+  vm.$options._refElm
+)
+```
+
+可查阅关于patch的方法：
+
+```javascript
+function patch (oldVnode, vnode, hydrating, removeOnly, parentElm, refElm) {
+  ...
+  if (isUndef(oldVnode)) {
+    ...
+  } else {
+    // 是否是真实的dom节点
+    var isRealElement = isDef(oldVnode.nodeType);
+    if (!isRealElement && sameVnode(oldVnode, vnode)) {
+      // patch existing root node
+      patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly);
+    } else {
+      ...
+      // replacing existing element
+      var oldElm = oldVnode.elm;
+      var parentElm$1 = nodeOps.parentNode(oldElm);
+      // create new node
+      createElm(
+        vnode,
+        insertedVnodeQueue,
+        // extremely rare edge case: do not insert if old element is in a
+        // leaving transition. Only happens when combining transition +
+        // keep-alive + HOCs. (#4590)
+        oldElm._leaveCb ? null : parentElm$1,
+        nodeOps.nextSibling(oldElm)
+      );
+    }
+  }
+}
+
+function createElm (
+  vnode,
+  insertedVnodeQueue,
+  parentElm,  // 父节点
+  refElm,
+  nested,
+  ownerArray,
+  index
+) {
+  vnode.isRootInsert = !nested; // for transition enter check
+  // 实例化component
+  if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
+    return
+  }
+
+  // anchor
+  var data = vnode.data;
+  var children = vnode.children;
+  var tag = vnode.tag;
+  if (isDef(tag)) {
+    ...
+
+    // 创建真实的DOM节点
+    vnode.elm = vnode.ns
+      ? nodeOps.createElementNS(vnode.ns, tag)
+      : nodeOps.createElement(tag, vnode);
+    setScope(vnode);
+
+    /* istanbul ignore if */
+    {
+      // 挂载根节点之前首先递归遍历children vnode，将children vnode渲染成真实的dom节点，并挂载到传入的vnode所创建的DOM节点下
+      createChildren(vnode, children, insertedVnodeQueue);
+      if (isDef(data)) {
+        invokeCreateHooks(vnode, insertedVnodeQueue);
+      }
+      console.log('parentEle: ', parentElm)
+      console.log('vnode.elm', vnode.elm)
+      // 将vnode生成的dom节点插入到真实的dom节点当中
+      insert(parentElm, vnode.elm, refElm);
+    }
+    if ("development" !== 'production' && data && data.pre) {
+      creatingElmInVPre--;
+    }
+  } else if (isTrue(vnode.isComment)) {
+    vnode.elm = nodeOps.createComment(vnode.text);
+    insert(parentElm, vnode.elm, refElm);
+  } else {
+    vnode.elm = nodeOps.createTextNode(vnode.text);
+    insert(parentElm, vnode.elm, refElm);
+  }
+}
+```
+
