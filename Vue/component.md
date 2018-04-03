@@ -165,7 +165,35 @@ Sub.options = mergeOptions(
 
 当全局组件在注册完毕后，开始根实例化的过程。(这篇文章主要将组件渲染过程，所以其他关于`Vue`的部分内容会略去不展开)
 
-根实例化，从`Vue.prototype._init`方法开始：
+
+从一个实例开始：
+
+```javascript
+// 模板
+<div id="app">
+  <my-component></my-component>
+  <p>{{appVal}}</p>
+</div>
+
+// script
+Vue.component('my-component', {
+  template: '<div>this is my component<child></child></div>',
+  components: {
+    'child': {
+      template: '<p>hello</p>'
+    }
+  }
+})
+
+new Vue({
+  el: '#app',
+  data () {
+    appVal: 'this is app val'
+  }
+})
+```
+
+首先进行根实例化，从`Vue.prototype._init`方法开始：
 
 ```javascript
 Vue.prototype._init = function () {
@@ -186,7 +214,7 @@ Vue.prototype._init = function () {
 ```javascript
 function initRender () {
   ...
-  // 供内部调用生成vnode的方法
+  // 在内部render函数执行生成vnode的时候调用
   vm._c = function (a, b, c, d) { return createElement(vm, a, b, c, d, false); };
   ...
   // 供开发者调用的生成vnode的方法
@@ -267,5 +295,111 @@ Vue.prototype.$mount = function (
 
 ```
 
+在上面的实例当中，`Vue`的编译系统会将`html`模板内容转化为`render`函数：
+
+```javascript
+// html模板
+<div id="app">
+  <my-component></my-component>
+  <p>{{appVal}}</p>
+</div>
+
+// render函数
+(function() {
+  with(this){
+    return _c('div',  // 标签tag
+      {
+        attrs:{"id":"app"}  // 属性值
+      },
+      [                     // children节点
+        _c('my-component'),
+        _v(" "),
+        _c('p',[_v(_s(appVal))])
+      ], 1)}
+})
+```
+
 完成模板编译，生成`render`函数后，接下来调用`mountComponent`方法：
+
+**!!! 前方高能：**
+
+```javascript
+function mountComponent (
+  vm,
+  el,
+  hydrating
+) {
+  vm.$el = el;
+  if (!vm.$options.render) {
+    ...
+  }
+  // 挂载前
+  callHook(vm, 'beforeMount');
+
+  var updateComponent;
+  /* istanbul ignore if */
+  if ("development" !== 'production' && config.performance && mark) {
+    ...
+  } else {
+    updateComponent = function () {
+      // vm._render首先构建完成vnode
+      // 然后调用vm._update方法，更vnode挂载到真实的DOM节点上
+      vm._update(vm._render(), hydrating);
+    };
+  }
+
+  // we set this to vm._watcher inside the watcher's constructor
+  // since the watcher's initial patch may call $forceUpdate (e.g. inside child
+  // component's mounted hook), which relies on vm._watcher being already defined
+  new Watcher(vm, updateComponent, noop, null, true /* isRenderWatcher */);
+  hydrating = false;
+
+  // manually mounted instance, call mounted on self
+  // mounted is called for render-created child components in its inserted hook
+  if (vm.$vnode == null) {
+    vm._isMounted = true;
+    callHook(vm, 'mounted');
+  }
+  return vm
+}
+```
+
+在`mountComponent`方法内部首先定义`updateComponent`方法，这个方法内部首先会调用`vm._render`，将模板编译后生成的渲染函数转化成`vnode`，然后再调用`vm._update`完成真实`dom`的更新，新实例化一个`watcher`，开始进行页面的渲染工作。
+
+首先来看下`vm._render`是如何将渲染函数转化成`vnode`的：
+
+```javascript
+Vue.prototype._render = function () {
+    var vm = this;
+    var ref = vm.$options;
+    var render = ref.render;  // 获取render函数
+    var _parentVnode = ref._parentVnode;
+
+    ...
+
+    // set parent vnode. this allows render functions to have access
+    // to the data on the placeholder node.
+    vm.$vnode = _parentVnode;
+    // render self
+    var vnode;
+    try {
+      // 开始调用render函数，用以生成vnode
+      vnode = render.call(vm._renderProxy, vm.$createElement);
+    } catch (e) {
+      handleError(e, vm, "render");
+      // return error render result,
+      // or previous vnode to prevent render error causing blank component
+      ...
+    }
+    // return empty vnode in case the render function errored out
+    if (!(vnode instanceof VNode)) {
+      ...
+      vnode = createEmptyVNode();
+    }
+    // set parent
+    vnode.parent = _parentVnode;
+    return vnode
+  };
+}
+```
 
