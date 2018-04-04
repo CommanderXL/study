@@ -603,7 +603,8 @@ function createElm (
   index
 ) {
   vnode.isRootInsert = !nested; // for transition enter check
-  // 将vnode实例化component，和上面提到的_createElement方法不同的是，那个方法是会创建新的vnode，这里是将vnode实例化成一个vue component
+  // 实例化customer component，而非built in component
+  // 和上面提到的_createElement方法不同的是，那个方法是会创建新的vnode，这里是将vnode实例化成一个vue component。
   if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
     return
   }
