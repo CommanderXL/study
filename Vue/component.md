@@ -647,3 +647,22 @@ function createElm (
 }
 ```
 
+再让我们看下上面说的产生的根`VNode`节点：
+
+```javascript
+VNode {
+  ...
+  children: [VNode, VNode, VNode],
+  tag: 'div',
+  elm: div#app(dom元素),
+  data: {
+    attrs: {
+      id: '#app'
+    }
+  },
+  context: Vue
+  ...
+}
+```
+
+这个根`VNode`有3个`VNode`子节点，这个时候开始调用`createChildren`方法递归的完成子`VNode`的实例化，以及将`VNode`渲染成真实的`DOM`节点，以及插入到父节点当中。
