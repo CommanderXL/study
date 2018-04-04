@@ -506,7 +506,7 @@ VNode {
 }
 ```
 
-`VNode`生成完毕后，让我们再回到`mountComponent`方法内部：
+当根节点的`VNode`生成完毕后，让我们再回到`mountComponent`方法内部：
 
 ```javascript
 updateComponent = function () {
@@ -603,7 +603,7 @@ function createElm (
   index
 ) {
   vnode.isRootInsert = !nested; // for transition enter check
-  // 实例化component
+  // 将vnode实例化component，和上面提到的_createElement方法不同的是，那个方法是会创建新的vnode，这里是将vnode实例化成一个vue component
   if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
     return
   }
