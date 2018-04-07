@@ -451,14 +451,14 @@ function _createElement (
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag);
     if (config.isReservedTag(tag)) {
       // platform built-in elements
-      // 如果是内置的元素标签
+      // 如果是内置的元素，那么直接创建VNode
       vnode = new VNode(
         config.parsePlatformTagName(tag), data, children,
         undefined, undefined, context
       );
     } else if (isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
       // component
-      // 如果是自己自定义标签元素
+      // 如果是自己自定义标签元素，那么需要通过createComponent完成VNode的创建工作
       // 首先resolveAsset从$options属性上获取components定义
       // 需要注意的是全局注册的component，最终得到的Ctor为一个function
       // 而局部注册的component，最终得到的Ctor为一个plain Object
@@ -485,6 +485,71 @@ function _createElement (
   } else {
     return createEmptyVNode()
   }
+}
+
+function createComponent (
+  Ctor,
+  data,
+  context,
+  children,
+  tag
+) {
+  if (isUndef(Ctor)) {
+    return
+  }
+
+  // Vue构造函数
+  var baseCtor = context.$options._base;
+
+  // plain options object: turn it into a constructor
+  // 如果组件的定义是一个plain object，那么就需要通过使用Vue.extend方法将它转化为一个constructor
+  // 即完成局部组件的注册
+  if (isObject(Ctor)) {
+    Ctor = baseCtor.extend(Ctor);
+  }
+
+  ...
+  if (isUndef(Ctor.cid)) {
+    ...
+  }
+
+  data = data || {};
+
+  // resolve constructor options in case global mixins are applied after
+  // component constructor creation
+  // 获取Ctor构造函数上的options属性
+  resolveConstructorOptions(Ctor);
+
+  // extract props
+  var propsData = extractPropsFromVNodeData(data, Ctor, tag);
+
+  // functional component
+  if (isTrue(Ctor.options.functional)) {
+    return createFunctionalComponent(Ctor, propsData, data, context, children)
+  }
+
+  ...
+
+  if (isTrue(Ctor.options.abstract)) {
+    ...
+  }
+
+  // install component management hooks onto the placeholder node
+  // 给component初始化挂载钩子函数，只有自定义的component才有，built-in的没有
+  installComponentHooks(data);
+
+  // return a placeholder vnode
+  var name = Ctor.options.name || tag;
+  // 子vnode的id使用vue-component及对应的id来进行标识
+  var vnode = new VNode(
+    ("vue-component-" + (Ctor.cid) + (name ? ("-" + name) : '')),
+    data, undefined, undefined, undefined, context,
+    { Ctor: Ctor, propsData: propsData, listeners: listeners, tag: tag, children: children },
+    asyncFactory
+  );
+
+  /* istanbul ignore if */
+  return vnode
 }
 ```
 
@@ -665,4 +730,20 @@ VNode {
 }
 ```
 
-这个根`VNode`有3个`VNode`子节点，这个时候开始调用`createChildren`方法递归的完成子`VNode`的实例化，以及将`VNode`渲染成真实的`DOM`节点，以及插入到父节点当中。
+这个根`VNode`有3个`VNode`子节点，这个时候开始调用`createChildren`方法递归的完成子`VNode`的实例化，以及将`VNode`渲染成真实的`DOM`节点，并插入到父节点当中。
+
+```javascript
+function createChildren (vnode, children, insertedVnodeQueue) {
+  if (Array.isArray(children)) {
+    {
+      checkDuplicateKeys(children);
+    }
+    for (var i = 0; i < children.length; ++i) {
+      // 调用createElm方法完成vnode的实例化以及渲染成真实的DOM节点
+      createElm(children[i], insertedVnodeQueue, vnode.elm, null, true, children, i);
+    }
+  } else if (isPrimitive(vnode.text)) {
+    nodeOps.appendChild(vnode.elm, nodeOps.createTextNode(String(vnode.text)));
+  }
+}
+```
