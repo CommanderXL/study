@@ -238,7 +238,7 @@ input.addEventListener('input', function (e) {
 })
 ```
 
-当改变`input`输入框的内容时，触发`input`事件。这个时候便会改变响应式数据`val`的值。
+当改变`input`输入框的内容时，触发`input`事件执行对应的回调函数，这个时候便会改变响应式数据`val`的值，即调用`val`的`setter`方法。
 
 
 
