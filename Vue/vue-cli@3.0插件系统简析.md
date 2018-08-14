@@ -12,10 +12,10 @@ TODO：补一个项目的结构图
 // package.json
 
 "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
-  },
+  "serve": "vue-cli-service serve",
+  "build": "vue-cli-service build",
+  "lint": "vue-cli-service lint"
+}
 ```
 
 前 2 个脚本命令是项目本地安装的 @vue/cli-serve 所提供的基于 webpack 及相关的插件进行封装的本地开发/构建的服务。@vue/cli-serve 将 webpack 及相关插件提供的功能都收敛到 @vue/cli-serve 内部来实现。这 2 个命令对应于 node_modules/@vue/cli-service/lib/commands 下的 serve.js 和 build/index.js 。
@@ -175,7 +175,7 @@ module.exports = (api, options) => {
 // 有关 webpack 其他相关的配置请参照对应的源码
 ```
 
-**不同于之前使用的配置式的 webpack 使用方式，在 @vue/cli-service 所使用的所有插件当中(不管是内置还是其他开发者所提供的)，都使用的是 API 式的 webpack 使用方式**。这种方式也使得 webpack 的配置更加的灵活，当你的项目迁移至 @vue/cli@3.0 ，使用的 webpack 插件也必须要使用 API 式的配置，同时插件不仅仅要提供插件自身的功能，同时也需要帮助调用方完成插件的注册等工作。
+**不同于之前使用的配置式的 webpack 使用方式，@vue/cli-service 使用 [webpack-chain](https://github.com/mozilla-neutrino/webpack-chain) 来完成 webpack 配置的更新和修改**。这种方式也使得 webpack 的配置更加灵活，当你的项目迁移至 @vue/cli@3.0 ，使用的 webpack 插件也必须要使用 API 式的配置，同时插件不仅仅要提供插件自身的功能，同时也需要帮助调用方完成插件的注册等工作。
 
 在上面提到的关于插件统一的格式都是向外暴露一个函数，接收的第一个参数为`api`，它是由 PluginAPI.js 实例化产生的：
 
@@ -248,4 +248,4 @@ Service.js 提供服务的基类，它提供了 @vue/cli 生态当中本地开�
 
 PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应的关系。所有供 @vue/cli-service 使用的本地开发构建的插件接收的第一个参数都是 PluginAPI 的实例（api），插件使用这个实例（api）去完成 cli 命令的注册及对应服务的执行，webpack 配置的更新等。
 
-以上就是 @vue/cli-service 插件工作流。
+以上就是 @vue/cli-service 插件系统简单的分析，感兴趣的同学可以深入阅读相关源码进行学习。
