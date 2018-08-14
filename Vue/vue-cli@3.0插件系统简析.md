@@ -6,21 +6,21 @@ Vue cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模
 
 TODO：补一个项目的结构图
 
-关于 webpack 相关的配置以及 npm script都没有在模板里面直接暴露出来，而是提供了新的 npm script:
+关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
 
 ```javascript
 // package.json
 
 "scripts": {
-    "serve": "vue-cli-service serve",   
+    "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint"
   },
 ```
 
-前2个脚本命令是项目本地安装的 @vue/cli-serve 所提供的基于 webpack 及相关的插件进行封装的本地开发 + 本地构建的服务。@vue/cli-serve 将 webpack 及相关插件提供的功能都收敛到 @vue/cli-serve 内部来实现。这2个命令对应于 node_modules/@vue/cli-service/lib/commands 下的 serve.js 和 build/index.js 。
+前 2 个脚本命令是项目本地安装的 @vue/cli-serve 所提供的基于 webpack 及相关的插件进行封装的本地开发/构建的服务。@vue/cli-serve 将 webpack 及相关插件提供的功能都收敛到 @vue/cli-serve 内部来实现。这 2 个命令对应于 node_modules/@vue/cli-service/lib/commands 下的 serve.js 和 build/index.js 。
 
-在 serve.js 和 build/index.js 的内部分别暴露了一个函数及一个 defaultModes 属性供外部来使用。**事实上这两者都是作为built-in（内部）插件来供 vue-cli-service 来使用的**。
+在 serve.js 和 build/index.js 的内部分别暴露了一个函数及一个 defaultModes 属性供外部来使用。**事实上这两者都是作为 built-in（内部）插件来供 vue-cli-service 来使用的**。
 
 说到这里那么就来看看 vue-cli-service 内部是如何搭建整个插件系统的。
 
@@ -28,21 +28,21 @@ TODO：补一个项目的结构图
 
 ```javascript
 class Service {
-    constructor(context) {
-        ...
-        this.webpackChainFns = []  // 数组内部每项为一个fn
-        this.webpackRawConfigFns = []  // 数组内部每项为一个fn 或 webpack 对象字面量配置项
-        this.devServerConfigFns = []
-        this.commands = {}  // cli 命令
-        
-        ...
-        this.plugins = this.resolvePlugins(plugins, useBuiltIn)
-        ...
-    }
+  constructor(context) {
+    ...
+    this.webpackChainFns = []  // 数组内部每项为一个fn
+    this.webpackRawConfigFns = []  // 数组内部每项为一个fn 或 webpack 对象字面量配置项
+    this.devServerConfigFns = []
+    this.commands = {}  // cli 命令
+
+    ...
+    this.plugins = this.resolvePlugins(plugins, useBuiltIn)   // 完成插件的初始化
+    ...
+  }
 }
 ```
 
-在初始化 Service 实例的过程当中会完成插件的加载工作：
+在实例化 Service 的过程当中首先会完成插件的加载工作：
 
 ```javascript
  resolvePlugins(inlinePlugins, useBuiltIn) {
@@ -52,7 +52,7 @@ class Service {
     })
 
     let plugins
-    
+
     // @vue/cli-service内部提供的插件
     const builtInPlugins = [
       './commands/serve',
@@ -96,7 +96,7 @@ class Service {
  }
 ```
 
-在这个 resolvePlugins 方法当中，主要完成了对于 @vue/cli-service 内部提供的插件以及项目应用(package.json)当中需要使用的插件的加载，并将对应的插件进行缓存。我们注意到 builtInPlugins 主要分为了2类，一类为：
+在这个 resolvePlugins 方法当中，主要完成了对于 @vue/cli-service 内部提供的插件以及项目应用(package.json)当中需要使用的插件的加载，并将对应的插件进行缓存。我们注意到 builtInPlugins 主要分为了 2 类，一类为：
 
 ```javascript
 './commands/serve'
@@ -108,28 +108,34 @@ class Service {
 这一类插件在内部通过注册的方式去初始化一个新的 cli 命令，并对外暴露提供给开发者进行使用。例如在 ./commands/serve 内部，首先通过 API 的形式去注册 `vue-cli-service serve`本地开发服务：
 
 ```javascript
+// commands/serve
+
 module.exports = (api, options) => {
-    api.registerCommand('serve', {
-        description: 'start development server',
-        usage: 'vue-cli-service serve [options] [entry]',
-        options: {
-          '--open': `open browser on server start`,
-          '--copy': `copy url to clipboard on server start`,
-          '--mode': `specify env mode (default: development)`,
-          '--host': `specify host (default: ${defaults.host})`,
-          '--port': `specify port (default: ${defaults.port})`,
-          '--https': `use https (default: ${defaults.https})`,
-          '--public': `specify the public network URL for the HMR client`
-        }
-    }, async function serve(args) {
-        // do something
-    })
+  api.registerCommand(
+    'serve',
+    {
+      description: 'start development server',
+      usage: 'vue-cli-service serve [options] [entry]',
+      options: {
+        '--open': `open browser on server start`,
+        '--copy': `copy url to clipboard on server start`,
+        '--mode': `specify env mode (default: development)`,
+        '--host': `specify host (default: ${defaults.host})`,
+        '--port': `specify port (default: ${defaults.port})`,
+        '--https': `use https (default: ${defaults.https})`,
+        '--public': `specify the public network URL for the HMR client`
+      }
+    },
+    async function serve(args) {
+      // do something
+    }
+  )
 }
 ```
 
-插件对外暴露一个函数，接收到的一个参数 api 提供了 cli 命令的注册的功能。
+插件对外暴露一个函数，接收到的第一个参数 api 提供了 cli 命令的注册功能。
 
-除了上述提到的几种提供 cli 命令注册的插件外，还有一类插件为：
+除了上述提到的几种完成 cli 命令注册的插件外，还有一类插件为：
 
 ```javascript
 './config/base'
@@ -143,22 +149,27 @@ module.exports = (api, options) => {
 
 ```javascript
 module.exports = (api, options) => {
-    api.chainWebpack(webpackConfig => {
-        webpackConfig.module
-          .rule('vue')
-            .test(/\.vue$/)
-            .use('cache-loader')
-              .loader('cache-loader')
-              .options(vueLoaderCacheConfig)
-              .end()
-            .use('vue-loader')
-              .loader('vue-loader')
-              .options(Object.assign({
-                compilerOptions: {
-                  preserveWhitespace: false
-                }
-              }, vueLoaderCacheConfig))
-    })
+  api.chainWebpack(webpackConfig => {
+    webpackConfig.module
+      .rule('vue')
+      .test(/\.vue$/)
+      .use('cache-loader')
+      .loader('cache-loader')
+      .options(vueLoaderCacheConfig)
+      .end()
+      .use('vue-loader')
+      .loader('vue-loader')
+      .options(
+        Object.assign(
+          {
+            compilerOptions: {
+              preserveWhitespace: false
+            }
+          },
+          vueLoaderCacheConfig
+        )
+      )
+  })
 }
 
 // 有关 webpack 其他相关的配置请参照对应的源码
@@ -175,14 +186,14 @@ class PluginAPI {
     this.service = service  // 对应 Service 类的实例(单例)
   }
   ...
-  registerCommand (name, opts, fn) {
+  registerCommand (name, opts, fn) {  // 注册 cli 命令
     if (typeof opts === 'function') {
       fn = opts
       opts = null
     }
     this.service.commands[name] = { fn, opts: opts || {}}
   }
-  chainWebpack (fn) {
+  chainWebpack (fn) {   // 变更 webpack 配置
     this.service.webpackChainFns.push(fn)
   }
   ...
@@ -191,15 +202,50 @@ class PluginAPI {
 
 每一个插件在被调用的过程中，都会接收一个新的 PluginAPI 实例，这个 api 实例提供了：
 
-* 注册 cli 命令服务(api.registerCommand)
-* 变更 webpack 配置(api.chainWebpack)
-* resolve wepack 配置(api.resolveWebpackConfig)
-* ...
+- 注册 cli 命令服务(`api.registerCommand`)
+- 变更 webpack 配置(`api.chainWebpack`)
+- resolve wepack 配置(`api.resolveWebpackConfig`)
+- ...
 
 当 Service 实例化完成后，调用实例上的`run`方法来启动对应的 cli 命令所提供的服务。
 
+```javascript
+async run (name, args = {}, rawArgv = []) {
+  const mode = args.mode || (name === 'build' && args.watch ? 'development' : this.modes[name])
 
-以上介绍了 @vue/cli-service 插件系统当中几个核心的模块，即：Service.js 提供核心的
+  // load env variables, load user config, apply plugins
+  // 执行所有被加载进来的插件
+  this.init(mode)
+
+  ...
+  const { fn } = command
+  return fn(args, rawArgv)  // 开始执行对应的 cli 命令服务
+}
+
+init (mode = process.env.VUE_CLI_MODE) {
+  ...
+  // 注册plugins
+  // apply plugins.
+  this.plugins.forEach(({ id, apply }) => {
+    // 传入一个实例化的PluginAPI实例，插件名作为插件的id标识，在插件内部完成注册 cli 命令服务和 webpack 配置的更新的工作
+    apply(new PluginAPI(id, this), this.projectOptions)
+  })
+
+  ...
+  // apply webpack configs from project config file
+  if (this.projectOptions.chainWebpack) {
+    this.webpackChainFns.push(this.projectOptions.chainWebpack)
+  }
+  if (this.projectOptions.configureWebpack) {
+    this.webpackRawConfigFns.push(this.projectOptions.configureWebpack)
+  }
+}
+```
+
+以上介绍了 @vue/cli-service 插件系统当中几个核心的模块，即：
+
+Service.js 提供服务的基类，它提供了 @vue/cli 生态当中本地开发构建时：插件加载(包括内部插件和项目应用插件)、插件的初始化，它的单例被所有的插件所共享，插件使用它的单例去完成 webpack 的更新。
+
+PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应的关系。所有供 @vue/cli-service 使用的本地开发构建的插件接收的第一个参数都是 PluginAPI 的实例（api），插件使用这个实例（api）去完成 cli 命令的注册及对应服务的执行，webpack 配置的更新等。
 
 以上就是 @vue/cli-service 插件工作流。
-
