@@ -364,4 +364,26 @@ async function invoke (pluginName, options = {}, context = process.cwd()) {
   // 开始执行generator方法
   await runGenerator(context, plugin, pkg)
 }
+
+async function runGenerator (context, plugin, pkg = getPkg(context)) {
+  ...
+  // 实例化一个Generator实例
+  const generator = new Generator(context, {
+    pkg
+    plugins: [plugin],    // 插件提供的generator方法
+    files: await readFiles(context),  // 将项目当中的文件读取为字符串的形式保存到内存当中，被读取的文件规则具体见readFiles方法
+    completeCbs: createCompleteCbs,
+    invoking: true
+  })
+
+  ...
+  // resolveFiles 将内存当中的所有缓存的 files 输出到文件当中
+  await generator.generate({
+    extractConfigFiles: true,
+    checkExisting: true
+  })
+}
 ```
+
+和 @vue/cli-service 一样，在 @vue/cli 内部也有一个核心的类`Generator`，每个`@vue/cli`的插件对应一个`Generator`的实例。
+
