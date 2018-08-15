@@ -249,3 +249,10 @@ Service.js 提供服务的基类，它提供了 @vue/cli 生态当中本地开�
 PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应的关系。所有供 @vue/cli-service 使用的本地开发构建的插件接收的第一个参数都是 PluginAPI 的实例（api），插件使用这个实例（api）去完成 cli 命令的注册及对应服务的执行，webpack 配置的更新等。
 
 以上就是 @vue/cli-service 插件系统简单的分析，感兴趣的同学可以深入阅读相关源码进行学习。
+
+
+@vue/cli 提供了终端里面的 vue 命令，这里我们主要来看下和插件相关的命令服务。@vue/cli@3.0 提供的插件安装方式为一个 cli 服务：`vue add <plugin>`：
+
+> install a plugin and invoke its generator in an already created project
+
+执行这条命令后，@vue/cli 会帮你完成插件的下载，安装以及执行插件所提供的 generator 方法。整个流程的执行顺序大家可以通过阅读源码去深入了解。这里主要简单聊聊插件作为 @vue/cli 生态中重要的一部分它所完成的工作及提供的相关的功能。之前 1.x/2.x 的 vue-cli 工具都是基于远程模板去完成项目的初始化的工作。而 @vue/cli@3.0 主要是基于插件的 generator 方法去完成项目的初始化的工作。
