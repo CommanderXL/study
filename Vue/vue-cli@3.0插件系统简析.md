@@ -308,8 +308,60 @@ module.exports = (api, { config, lintOn = [] }, _, invoking) => {
 }
 ```
 
-和 @vue/cli-service 所使用的插件类似，@vue/cli 的插件 generator 方法也是向外暴露一个函数，接收的第一个参数 api，然后通过 api 提供的方法去完成项目应用的拓展工作(下文会具体解释这个 api 对象)。@vue/cli-plugin-eslint 插件的 generator 方法主要是完成了：vue-cli-service cli lint服务命令的添加、相关 lint 标准库的依赖添加等工作。
+和 @vue/cli-service 所使用的插件类似，@vue/cli 的插件 generator 方法也是向外暴露一个函数，接收的第一个参数 api，然后通过 api 提供的方法去完成项目应用的拓展工作(下文会具体解释这个 api 对象)。@vue/cli-plugin-eslint 插件的 generator 方法主要是完成了：vue-cli-service cli lint 服务命令的添加、相关 lint 标准库的依赖添加等工作。
 
 
+接下来就简单的梳理下 @vue/cli 安装插件以及插件是如何完成相关的功能的。
 
+例如执行`vue add vue-plugin-cube-ui`安装 cube-ui 的插件，首先：
 
+```javascript
+// @vue/cli/lib/add.js
+
+async function add (pluginName, options = {}, context = process.cwd()) {
+
+  ...
+
+  const packageManager = loadOptions().packageManager || (hasProjectYarn(context) ? 'yarn' : 'npm')
+  // 开始安装这个插件
+  await installPackage(context, packageManager, null, packageName)
+
+  log(`${chalk.green('✔')}  Successfully installed plugin: ${chalk.cyan(packageName)}`)
+  log()
+
+  // 判断插件是否提供了generator方法
+  const generatorPath = resolveModule(`${packageName}/generator`, context)
+  if (generatorPath) {
+    invoke(pluginName, options, context)
+  } else {
+    log(`Plugin ${packageName} does not have a generator to invoke`)
+  }
+}
+```
+
+```javascript
+// @vue/cli/lib/invoke.js
+
+async function invoke (pluginName, options = {}, context = process.cwd()) {
+  const pkg = getPkg(context)
+
+  ...
+  // 从项目应用package.json中获取插件名
+  const id = findPlugin(pkg.devDependencies) || findPlugin(pkg.dependencies)
+
+  ...
+
+  // 加载对应插件提供的generator方法
+  const pluginGenerator = loadModule(`${id}/generator`, context)
+
+  ...
+  const plugin = {
+    id,
+    apply: pluginGenerator,
+    options
+  }
+
+  // 开始执行generator方法
+  await runGenerator(context, plugin, pkg)
+}
+```
