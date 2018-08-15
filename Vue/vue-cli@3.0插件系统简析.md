@@ -385,5 +385,53 @@ async function runGenerator (context, plugin, pkg = getPkg(context)) {
 }
 ```
 
-和 @vue/cli-service 一样，在 @vue/cli 内部也有一个核心的类`Generator`，每个`@vue/cli`的插件对应一个`Generator`的实例。
+和 @vue/cli-service 一样，在 @vue/cli 内部也有一个核心的类`Generator`，每个`@vue/cli`的插件对应一个`Generator`的实例。在实例化`Generator`方法的过程当中，完成插件提供的 generator 方法的执行。
+
+```javascript
+// @vue/cli/lib/Generator.js
+
+module.exports = class Generator {
+  constructor (context, {
+    pkg = {},
+    plugins = [],
+    completeCbs = [],
+    files = {},
+    invoking = false
+  } = {}) {
+    this.context = context
+    this.plugins = plugins
+    this.originalPkg = pkg
+    this.pkg = Object.assign({}, pkg)
+    this.imports = {}
+    this.rootOptions = {}
+    ...
+    this.invoking = invoking
+    // for conflict resolution
+    this.depSources = {}
+    // virtual file tree
+    this.files = files
+    this.fileMiddlewares = []
+    this.postProcessFilesCbs = []
+
+    ...
+    const cliService = plugins.find(p => p.id === '@vue/cli-service')
+    const rootOptions = cliService
+      ? cliService.options
+      : inferRootOptions(pkg)
+    // apply generators from plugins
+    // 每个插件对应生成一个 GeneratorAPI 实例，并将实例 api 传入插件暴露出来的 generator 函数
+    plugins.forEach(({ id, apply, options }) => {
+      const api = new GeneratorAPI(id, this, options, rootOptions)
+      apply(api, options, rootOptions, invoking)
+    })
+  }
+}
+```
+
+再回到一开始提到 @vue/cli 会给插件提供的 generator 方法传入一个 GeneratorAPI 实例。开发者利用这个 api 实例去完成项目应用的拓展工作，这个 api 实例提供了：
+
+* 拓展 package.json 配置方法(`api.extendPackage`)
+* 利用 ejs 渲染模板文件的方法(`api.render`)
+* 内存中保存的文件字符串全部被写入文件后的回调函数(`api.onCreateComplete`)
+* 向文件当中注入`import`语法的方法(`api.injectImports`)
 
