@@ -255,4 +255,61 @@ PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应�
 
 > install a plugin and invoke its generator in an already created project
 
-执行这条命令后，@vue/cli 会帮你完成插件的下载，安装以及执行插件所提供的 generator 方法。整个流程的执行顺序大家可以通过阅读源码去深入了解。这里主要简单聊聊插件作为 @vue/cli 生态中重要的一部分它所完成的工作及提供的相关的功能。之前 1.x/2.x 的 vue-cli 工具都是基于远程模板去完成项目的初始化的工作。而 @vue/cli@3.0 主要是基于插件的 generator 方法去完成项目的初始化的工作。
+执行这条命令后，@vue/cli 会帮你完成插件的下载，安装以及执行插件所提供的 generator 方法。整个流程的执行顺序大家可以通过阅读源码去深入了解。这里主要简单聊聊插件作为 @vue/cli 生态中重要的一部分它所完成的工作及提供的相关的功能。之前 1.x/2.x 的 vue-cli 工具都是基于远程模板去完成项目的初始化的工作，它属于那种大而全的方式，在远程模板里面帮开发者将所有的配置文件初始化完成好。而 @vue/cli@3.0 主要是基于插件的 generator 方法去完成项目的初始化的工作，它将原来的大而全的模板拆解为现在基于插件系统的工作方式，每个插件完成自己所要对于项目应用的模板拓展工作。例如：@vue/cli-plugin-eslint 插件的 generator 方法内部：
+
+```javascript
+module.exports = (api, { config, lintOn = [] }, _, invoking) => {
+  if (typeof lintOn === 'string') {
+    lintOn = lintOn.split(',')
+  }
+
+  const eslintConfig = require('./eslintOptions').config(api)
+
+  const pkg = {
+    scripts: {
+      lint: 'vue-cli-service lint'
+    },
+    eslintConfig,
+    devDependencies: {}
+  }
+
+  if (config === 'airbnb') {
+    eslintConfig.extends.push('@vue/airbnb')
+    Object.assign(pkg.devDependencies, {
+      '@vue/eslint-config-airbnb': '^3.0.0-rc.10'
+    })
+  } else if (config === 'standard') {
+    eslintConfig.extends.push('@vue/standard')
+    Object.assign(pkg.devDependencies, {
+      '@vue/eslint-config-standard': '^3.0.0-rc.10'
+    })
+  } else if (config === 'prettier') {
+    eslintConfig.extends.push('@vue/prettier')
+    Object.assign(pkg.devDependencies, {
+      '@vue/eslint-config-prettier': '^3.0.0-rc.10'
+    })
+  } else {
+    // default
+    eslintConfig.extends.push('eslint:recommended')
+  }
+
+  ...
+
+  api.extendPackage(pkg)
+
+  ...
+
+  // lint & fix after create to ensure files adhere to chosen config
+  if (config && config !== 'base') {
+    api.onCreateComplete(() => {
+      require('./lint')({ silent: true }, api)
+    })
+  }
+}
+```
+
+和 @vue/cli-service 所使用的插件类似，@vue/cli 的插件 generator 方法也是向外暴露一个函数，接收的第一个参数 api，然后通过 api 提供的方法去完成项目应用的拓展工作(下文会具体解释这个 api 对象)。@vue/cli-plugin-eslint 插件的 generator 方法主要是完成了：vue-cli-service cli lint服务命令的添加、相关 lint 标准库的依赖添加等工作。
+
+
+
+
