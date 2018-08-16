@@ -20,7 +20,7 @@ TODO：补一个项目的结构图
 
 前 2 个脚本命令是项目本地安装的 @vue/cli-serve 所提供的基于 webpack 及相关的插件进行封装的本地开发/构建的服务。@vue/cli-serve 将 webpack 及相关插件提供的功能都收敛到 @vue/cli-serve 内部来实现。这 2 个命令对应于 node_modules/@vue/cli-service/lib/commands 下的 serve.js 和 build/index.js 。
 
-在 serve.js 和 build/index.js 的内部分别暴露了一个函数及一个 defaultModes 属性供外部来使用。**事实上这两者都是作为 built-in（内部）插件来供 vue-cli-service 来使用的**。
+在 serve.js 和 build/index.js 的内部分别暴露了一个函数及一个 defaultModes 属性供外部来使用。**事实上这两者都是作为 built-in（内置）插件来供 vue-cli-service 来使用的**。
 
 说到这里那么就来看看 vue-cli-service 内部是如何搭建整个插件系统的。
 
@@ -145,7 +145,7 @@ module.exports = (api, options) => {
 './config/app'
 ```
 
-这一类插件主要是完成 webpack 本地编译构建时的各种相关的配置，和提供 cli 命令注册的插件一样，webpack 配置插件同样向外暴露一个函数，接收到的第一个参数 api 提供了 chainWebpack 方法来完成 webpack 的相关配置。例如在 ./config/base 内部，完成了 webpack 的基本配置内容，例如 entry、output、加载不同文件类型的 loader 的配置：
+这一类插件主要是完成 webpack 本地编译构建时的各种相关的配置，和提供 cli 命令注册的插件一样，webpack 配置插件同样向外暴露一个函数，接收到的第一个参数 api 提供了 chainWebpack 方法来完成 webpack 的相关配置。例如在`./config/base`内部，完成了 webpack 的基本配置内容，例如 entry、output、加载不同文件类型的 loader 的配置：
 
 ```javascript
 module.exports = (api, options) => {
@@ -434,4 +434,15 @@ module.exports = class Generator {
 * 利用 ejs 渲染模板文件的方法(`api.render`)
 * 内存中保存的文件字符串全部被写入文件后的回调函数(`api.onCreateComplete`)
 * 向文件当中注入`import`语法的方法(`api.injectImports`)
+* ...
 
+
+以上介绍了 @vue/cli 和插件系统相关的几个核心的模块，即：
+
+add.js 提供了插件下载的 cli 命令服务和安装的功能；
+
+invoke.js 完成插件所提供的 generator 方法的加载和执行，同时将项目当中的文件转化为字符串缓存到内存当中；
+
+Generator.js 和插件进行桥接，@vue/cli 每次 add 一个插件时，都会实例化一个 Generator 实例与之对应；
+
+GeneratorAPI.js 和插件一一对应，是 @vue/cli 暴露给插件的 api 对象，提供了很多项目应用的拓展工作。
