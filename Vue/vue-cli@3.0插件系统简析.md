@@ -2,13 +2,14 @@
 
 Vue-cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模板的脚手架，Vue-cli@3.0 采用了一套基于插件的架构，它将部分核心功能收敛至 cli 内部，同时对开发者暴露可拓展的 API 已供开发者对 cli 的功能进行灵活的拓展和配置。接下来我们就通过 Vue-cli@3.0 的源码来看下这套插件架构是如何设计的。
 
-当你使用 `vue create <project-name>`创建一个新的 Vue 项目后，你会发现项目相较于之前的模板发生了很大的变化，
+整个插件系统当中包含2个重要的组成部分：
 
-TODO：补一个项目的结构图
+* @vue/cli，提供 cli 命令服务，例如`vue create`创建一个新的项目；
+* @vue/cli-service，提供了本地开发构建服务。
 
 ## @vue/cli-service
 
-关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
+当你使用 `vue create <project-name>`创建一个新的 Vue 项目后，你会发现项目相较于之前的模板发生了很大的变化，其中关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
 
 ```javascript
 // package.json
