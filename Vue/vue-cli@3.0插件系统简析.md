@@ -6,6 +6,8 @@ Vue-cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模
 
 TODO：补一个项目的结构图
 
+## @vue/cli-service
+
 关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
 
 ```javascript
@@ -252,6 +254,7 @@ PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应�
 
 以上就是 @vue/cli-service 插件系统简单的分析，感兴趣的同学可以深入阅读相关源码进行学习。
 
+## @vue/cli
 
 @vue/cli 提供了终端里面的 vue 命令，这里我们主要来看下和插件相关的命令服务。@vue/cli@3.0 提供的插件安装方式为一个 cli 服务：`vue add <plugin>`：
 
@@ -438,7 +441,6 @@ module.exports = class Generator {
 * 向文件当中注入`import`语法的方法(`api.injectImports`)
 * ...
 
-
 以上介绍了 @vue/cli 和插件系统相关的几个核心的模块，即：
 
 add.js 提供了插件下载的 cli 命令服务和安装的功能；
@@ -449,5 +451,16 @@ Generator.js 和插件进行桥接，@vue/cli 每次 add 一个插件时，都�
 
 GeneratorAPI.js 和插件一一对应，是 @vue/cli 暴露给插件的 api 对象，提供了很多项目应用的拓展工作。
 
+---
 
-以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 的简单分析。
+## 总结
+
+以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 简析。它们分别完成了对于插件的依赖管理，加载，生命周期的控制，它们使用约定式的方式去完成插件的调用：
+
+```javascript
+module.exports = (api) => {
+  // do something
+}
+```
+
+同时在插件系统内部也对核心功能进行了插件化的改造，方便了对于整个插件系统的拓展。
