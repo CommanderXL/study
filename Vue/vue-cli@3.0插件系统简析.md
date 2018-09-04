@@ -1,6 +1,6 @@
 # Vue-cli@3.0 插件系统简析
 
-Vue-cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模板的脚手架，Vue-cli@3.0 采用了一套基于插件的架构，它将部分核心功能收敛至 CLI 内部，同时对开发者暴露可拓展的 API 已供开发者对 CLI 的功能进行灵活的拓展和配置。接下来我们就通过 Vue-cli@3.0 的源码来看下这套插件架构是如何设计的。
+Vue-cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模板的脚手架，Vue-cli@3.0 采用了一套基于插件的架构，它将部分核心功能收敛至 CLI 内部，同时对开发者暴露可拓展的 API 以供开发者对 CLI 的功能进行灵活的拓展和配置。接下来我们就通过 Vue-cli@3.0 的源码来看下这套插件架构是如何设计的。
 
 整个插件系统当中包含2个重要的组成部分：
 
@@ -9,7 +9,7 @@ Vue-cli@3.0 是一个全新的 Vue 项目脚手架。不同于 1.x/2.x 基于模
 
 ## @vue/cli-service
 
-当你使用 `vue create <project-name>`创建一个新的 Vue 项目后，你会发现项目相较于之前的模板发生了很大的变化，其中关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
+当你使用 `vue create <project-name>`创建一个新的 Vue 项目，你会发现生成的项目相较于 1.x/2.x 初始化一个项目时从远程拉取的模板发生了很大的变化，其中关于 webpack 相关的配置以及 npm script 都没有在模板里面直接暴露出来，而是提供了新的 npm script:
 
 ```javascript
 // package.json
@@ -514,6 +514,11 @@ GeneratorAPI.js 和插件一一对应，是 @vue/cli 暴露给插件的 api 对�
 
 ## 总结
 
-以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 简析。前者主要完成了对于插件的依赖管理，项目模板的拓展等，后者主要是提供了在运行时本地开发构建的服务，同时后者也作为 @vue/cli 整个插件系统当中的内部核心插件而存在。在插件系统内部也对核心功能进行了插件化的拆解，例如 @vue/cli-service 内置的基础 webpack 配置，npm script 命令等。二者使用约定式的方式向开发者提供插件的拓展能力，具体到如何开发 @vue/cli 的插件[请戳我查阅相关文档](https://cli.vuejs.org/zh/dev-guide/plugin-dev.html)
+以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 简析。
+
+* @vue/cli 提供 vue cli 命令，负责偏好设置，生成模板、安装插件依赖的工作，例如 `vue create <projectName>`、`vue add <pluginName>`
+* @vue/cli-service 作为 @vue/cli 整个插件系统当中的内部核心插件，提供了 webpack 配置更新，本地开发构建服务
+
+前者主要完成了对于插件的依赖管理，项目模板的拓展等，后者主要是提供了在运行时本地开发构建的服务，同时后者也作为 @vue/cli 整个插件系统当中的内部核心插件而存在。在插件系统内部也对核心功能进行了插件化的拆解，例如 @vue/cli-service 内置的基础 webpack 配置，npm script 命令等。二者使用约定式的方式向开发者提供插件的拓展能力，具体到如何开发 @vue/cli 的插件[请戳我查阅相关文档](https://cli.vuejs.org/zh/dev-guide/plugin-dev.html)
 
 
