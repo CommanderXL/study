@@ -296,7 +296,7 @@ Service.js 提供服务的基类，它提供了 @vue/cli 生态当中本地开�
 
 PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应的关系。所有供 @vue/cli-service 使用的本地开发构建的插件接收的第一个参数都是 PluginAPI 的实例（`api`），插件使用这个实例去完成 CLI 命令的注册及对应服务的执行、webpack 配置的更新等。
 
-以上就是 @vue/cli-service 插件系统简单的分析，感兴趣的同学可以深入阅读相关源码进行学习。
+以上就是 @vue/cli-service 插件系统简单的分析，感兴趣的同学可以深入阅读相关源码([链接请戳我](https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-service))进行学习。
 
 ## @vue/cli
 
