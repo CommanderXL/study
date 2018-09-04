@@ -316,9 +316,11 @@ PluginAPI.js 提供供插件使用的对象接口，它和插件是一一对应�
 
 > install a plugin and invoke its generator in an already created project
 
-执行这条命令后，@vue/cli 会帮你完成插件的下载，安装以及执行插件所提供的 generator。整个流程的执行顺序大家可以通过阅读源码去深入了解。
+执行这条命令后，@vue/cli 会帮你完成插件的下载，安装以及执行插件所提供的 generator。整个流程的执行顺序可通过如下的流程图去概括：
 
 TODO: 插入流程图
+
+我们来看下具体的代码逻辑：
 
 ```javascript
 // @vue/cli/lib/add.js
@@ -512,12 +514,6 @@ GeneratorAPI.js 和插件一一对应，是 @vue/cli 暴露给插件的 api 对�
 
 ## 总结
 
-以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 简析。前者主要完成了对于插件的依赖管理，项目模板的拓展等，后者主要是提供了在运行时本地开发构建的服务，同时后者也作为 @vue/cli 整个插件系统当中的内部核心插件而存在。在插件系统内部也对核心功能进行了插件化的拆解，例如 @vue/cli-service 内置的基础 webpack 配置，npm script 命令等。同时二者使用约定式的方式向开发者提供插件的拓展能力：
-
-```javascript
-module.exports = (api) => {
-  // do something
-}
-```
+以上是对 Vue-cli@3.0 的插件系统当中两个主要部分：@vue/cli 和 @vue/cli-service 简析。前者主要完成了对于插件的依赖管理，项目模板的拓展等，后者主要是提供了在运行时本地开发构建的服务，同时后者也作为 @vue/cli 整个插件系统当中的内部核心插件而存在。在插件系统内部也对核心功能进行了插件化的拆解，例如 @vue/cli-service 内置的基础 webpack 配置，npm script 命令等。二者使用约定式的方式向开发者提供插件的拓展能力，具体到如何开发 @vue/cli 的插件[请戳我查阅相关文档](https://cli.vuejs.org/zh/dev-guide/plugin-dev.html)
 
 
