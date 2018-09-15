@@ -132,5 +132,71 @@ function resolveSlots (
 }
 ```
 
-同时在模板当中定义的 template 的标签，最终不会渲染到真实的 DOM 节点当中，而是取其子节点进行渲染。
+同时在模板当中定义的 template 的标签，最终不会渲染到真实的 DOM 节点当中，而是取其子节点进行渲染。当执行完 initRender 方法后，vue 实例上已经有相关 slot 对应的节点信息，接下来开始完成 my-component 的渲染工作。
 
+首先完成对应 my-component 的模板的编译工作，并生成对应的 render 函数：
+
+```javascript
+(function anonymous() {
+  with (this) {
+    return _c('div', {
+      on: {
+        "click": test
+      }
+    }, [_v("this is my component "), _t("demo")], 2)
+  }
+}
+)
+```
+
+render 函数执行后生成对应的 VNode，其中 `_t("demo")` 方法即完成 slot 的渲染工作：
+
+```javascript
+// 获取 slot
+ function renderSlot (
+  name,
+  fallback,
+  props,
+  bindObject
+) {
+  // 首先获取scopedSlot
+  var scopedSlotFn = this.$scopedSlots[name];
+  var nodes;
+  if (scopedSlotFn) { // scoped slot
+    props = props || {};
+    if (bindObject) {
+      if ("development" !== 'production' && !isObject(bindObject)) {
+        warn(
+          'slot v-bind without argument expects an Object',
+          this
+        );
+      }
+      props = extend(extend({}, bindObject), props);
+    }
+    nodes = scopedSlotFn(props) || fallback;
+  } else {
+    var slotNodes = this.$slots[name];
+    // warn duplicate slot usage
+    if (slotNodes) {
+      if ("development" !== 'production' && slotNodes._rendered) {
+        warn(
+          "Duplicate presence of slot \"" + name + "\" found in the same render tree " +
+          "- this will likely cause render errors.",
+          this
+        );
+      }
+      slotNodes._rendered = true;
+    }
+    nodes = slotNodes || fallback;
+  }
+
+  var target = props && props.slot;
+  if (target) {
+    return this.$createElement('template', { slot: target }, nodes)
+  } else {
+    return nodes
+  }
+}
+```
+
+在 renderSlot 方法中首先判断是否为 scopedSlot，如果不是那么便获取 vue 实例上 $slots 所对应的具名 slot 的 VNode 并返回。后面的流程便是走正常的组件渲染的过程。
