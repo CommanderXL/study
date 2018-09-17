@@ -132,7 +132,7 @@ function createElm (
 
 在渲染`VNode`过程当中，如果是自定义的`component VNode`，那么首先完成`component`的`vm`实例化，接下来递归的对子节点进行实例化
 
-注意当子节点全部实例化，并挂载到父节点后，开始调用`invokeCreateHooks`方法，触发`dom`节点`create`阶段所包含的钩子函数来完成对`dom`节点添加`attrs`，`domProps`，`dom事件`等。
+注意当子 VNode 全部渲染成真实的 dom 节点，并挂载到父节点后，开始调用`invokeCreateHooks`方法，触发`dom`节点`create`阶段所包含的钩子函数来完成对`dom`节点添加`attrs`，`domProps`，`dom事件`等：(具体的可参见 createPatchFunction 方法中对于 create 阶段所有的回调函数的初始化)
 
 ```javascript
 function invokeCreateHooks (vnode, insertedVnodeQueue) {
@@ -231,14 +231,14 @@ function add$1 (
 在本例当中，即向`input`节点绑定`input`事件：
 
 ```javascript
-input.addEventListener('input', function (e) {
+input.addEventListener('input', function ($event) {
   if ($event.target.composing)
     return;
   val = $event.target.value 
 })
 ```
 
-当改变`input`输入框的内容时，触发`input`事件执行对应的回调函数，这个时候便会改变响应式数据`val`的值，即调用`val`的`setter`方法。
+当改变`input`输入框的内容时，触发`input`事件执行对应的回调函数，这个时候便会改变响应式数据`val`的值，即调用`val`的`setter`方法。因为之前在创建 input 的 VNode 的时候，val 收集到了这个 VNode 对应的 render watcher。所以当 val 的 setter 被触发的时候，会让 input 对应的 render watcher 重新执行，这样也就会触发这个 dom 节点的 diff 和渲染的工作。
 
 
 
