@@ -99,13 +99,13 @@ export function nextTick (cb?: Function, ctx?: Object) {
       try {
         cb.call(ctx)
       } catch (e) {
-        handleError(e, ctx, 'nextTick')
+        handleError(e, ctx, 'nextTick')   // 处理当 cb 执行过程中出现的报错
       }
     } else if (_resolve) {
       _resolve(ctx)
     }
   })
-  if (!pending) {
+  if (!pending) {   // TODO: pending 在这里的作用？
     pending = true
     if (useMacroTask) {
       macroTimerFunc()
@@ -125,4 +125,4 @@ export function nextTick (cb?: Function, ctx?: Object) {
 
 在 next-tick 内部分别定义了 microTimerFunc 和 macroTimerFunc，用以存储当前宿主环境所支持的 mircoTask 和 marcoTask。在 Vue 当中使用的 marcoTask 包含了 setImmediate/messageChannel/setTimeout，mircoTask 包含了 Promise。有关 mircoTask 和 marcoTask 的区别可自行查阅相关的文档。
 
-Vue 在全局环境下提供了 Vue.nextTick 方法，在实例上提供了 $nextTick 方法以供调用。就拿全局对象上提供的 Vue.nextTick 方法来说，首先将传入的 cb 缓存至 callback 内部。
+Vue 在全局环境下提供了 Vue.nextTick 方法，在实例上提供了 $nextTick 方法以供调用。就拿全局对象上提供的 Vue.nextTick 方法来说，首先将传入的 cb 缓存至 callbacks 内部。然后根据 useMacroTask 来决定使用 macroTimerFunc 还是 microTimerFunc。在 nextTick 内部并没有直接执行传入的 cb，而是缓存至 callbacks 内部，在下一帧遍历 callbacks 内部缓存的所有 cb，这个时候这些 cb 都是同步去执行的。
