@@ -68,4 +68,44 @@ function set (target, key, val) {
 this.$set(this.obj, b, 'textttt')
 ```
 
-那么1s后，页面可以渲染出 `obj.b` 的内容。这是因为在 set 方法内部，首先会获取 `(target).__ob__` 属性，即这个 key 所对应的 plain object 的 observer 观察者，通过 `defineReactive(ob.value, key, val)`方法，将新传入的值变更为响应式的数据后调用 ob.dep.notify() 方法去遍历所有收集起来的观察者(watcher)，并触发观察者的更新，如果这个 watcher 是 render watcher，那么就能完成视图的更新。
+那么1s后，页面可以渲染出 `obj.b` 的内容。这是因为在 set 方法内部，首先会获取 `(target).__ob__` 属性，即这个 key 所对应的 plain object 的 observer 观察者，通过 `defineReactive(ob.value, key, val)`方法，将新传入的值变更为响应式的数据后调用 ob.dep.notify() 方法去遍历所有收集起来的观察者(watcher)，并触发观察者的更新，如果这个 watcher 是 render watcher，那么就能完成视图的更新。那么在这个组件的生命周期中，这个 key 所对应的 observer 是在什么时候收集到 render watcher 的呢？
+
+```javascript
+function defineReactive (
+  obj,
+  key,
+  val,
+  customSetter,
+  shallow
+) {
+  var dep = new Dep();    // 每一个 key 所对应的 dep 依赖
+
+  ...
+
+  // 递归的去将 object 的深层次数据变成响应式数据
+  var childOb = !shallow && observe(val);   // 获取 key 对应的 value 值(如果是 object 类型，那么会返回一个对应的 observer)
+  console.log('--------childOb', key, childOb)
+  Object.defineProperty(obj, key, {
+    enumerable: true,
+    configurable: true,
+    get: function reactiveGetter () {
+      var value = getter ? getter.call(obj) : val;
+      if (Dep.target) {
+        dep.depend();
+        if (childOb) {    // 如果 key 对应的 value(如果是 object)的 observe，即将当前的 watcher 加入到这个 value 的依赖当中
+          childOb.dep.depend();
+          if (Array.isArray(value)) {
+            dependArray(value);
+          }
+        }
+      }
+      return value
+    },
+    set: function reactiveSetter (newVal) {
+      ...
+    }
+  });
+}
+```
+
+事实上在组件初始化的 initData 阶段，将 data 变成响应式数据的过程中，对应到本实例就是将 obj 的值变成响应式的过程中，首先获取 obj 的值(为 plain object)的 observer 观察者实例，然后形成一个闭包。当组件实例化进入 $mount 阶段将 VNode 转化为真实的 dom 时，会调用 obj 的 getter 函数，这个时候首先完成 obj 的依赖的添加，将 render watcher 添加到 obj 的 dep 数组当中，同时因为 obj 的值的 observer 存在，那么同时将这个 render watcher 添加到 observer 的 dep 依赖当中。这样就完成了依赖的收集，那么在实际使用过程中调用实例的 this.$set 方法添加属性的时候，也就可以在属性添加完成后，通过之前收集到的 watcher 去完成页面的更新。
