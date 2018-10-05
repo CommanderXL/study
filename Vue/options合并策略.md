@@ -77,61 +77,144 @@ Vue.prototype._init = function(options) {
 }
 ```
 
-这里通过判断`options._isComponent`属性是进行内部子组件的实例化还是根组件的实例化。当是根组件的实例化的时候进入`else`的流程，调用`mergeOptions`方法完成 options 合并之前，首先调用 resolveConstructorOptions 方法获取构造函数上的 options 配置(这里不讨论单独通过Vue.extend方法完成继承的情况)。因为没有继承关系，所以这个方法最终还是返回这个构造函数上的 options 配置。第二个参数为外部传入的 options 配置，第三个参数为这个 vm 实例。最终将得到的 options 配置赋值给 vm 实例的 $options 属性上，并由这个 $options 属性去接着完成 vm 实例化。
+这里通过判断`options._isComponent`属性是进行内部子组件的实例化还是根组件的实例化。当是根组件的实例化的时候进入`else`的流程，调用`mergeOptions`方法完成 options 合并之前，首先调用 resolveConstructorOptions 方法获取构造函数上的 options 配置(这里不讨论单独通过 Vue.extend 方法完成继承的情况)。因为没有继承关系，所以这个方法最终还是返回这个构造函数上的 options 配置。第二个参数为外部传入的 options 配置，第三个参数为这个 vm 实例。最终将得到的 options 配置赋值给 vm 实例的 $options 属性上，并由这个 $options 属性去接着完成 vm 实例化。
 
 接下来我们看下`mergeOptions`方法内部到底做了些什么工作。
 
 ```javascript
 /**
  * Merge two option objects into a new one.
- * Core utility used in both instantiation and inheritance. 
+ * Core utility used in both instantiation and inheritance.
  */
 // mergeOptions Anchor
-function mergeOptions (
-  parent,
-  child,
-  vm
-) {
+function mergeOptions(parent, child, vm) {
   {
-    checkComponents(child);
+    checkComponents(child)
   }
 
   if (typeof child === 'function') {
-    child = child.options;  // 获取子组件构造函数上的 options 属性
+    child = child.options // 获取子组件构造函数上的 options 属性
   }
 
   // 将子child的props属性统一设置为Object-based的类型
-  normalizeProps(child, vm);
-  normalizeInject(child, vm); // inject 属性
-  normalizeDirectives(child); // directive 指令属性
-  var extendsFrom = child.extends;  // extends 继承
+  normalizeProps(child, vm)
+  normalizeInject(child, vm) // inject 属性
+  normalizeDirectives(child) // directive 指令属性
+  var extendsFrom = child.extends // extends 继承
   if (extendsFrom) {
-    parent = mergeOptions(parent, extendsFrom, vm);
+    parent = mergeOptions(parent, extendsFrom, vm)
   }
-  if (child.mixins) { // 混入
+  if (child.mixins) {
+    // 混入
     for (var i = 0, l = child.mixins.length; i < l; i++) {
-      parent = mergeOptions(parent, child.mixins[i], vm);
+      parent = mergeOptions(parent, child.mixins[i], vm)
     }
   }
-  var options = {};
-  var key;
+  var options = {}
+  var key
   // 遍历父 options 的 key 值，并完成不同类型的 mergeField 操作
   for (key in parent) {
-    mergeField(key);
+    mergeField(key)
   }
   for (key in child) {
     if (!hasOwn(parent, key)) {
-      mergeField(key);
+      mergeField(key)
     }
   }
-  function mergeField (key) {
-    var strat = strats[key] || defaultStrat;
+  function mergeField(key) {
+    var strat = strats[key] || defaultStrat
     // 合并父组件和子组件上的各种定义属性
-    options[key] = strat(parent[key], child[key], vm, key);
+    options[key] = strat(parent[key], child[key], vm, key)
   }
   return options
 }
 ```
 
+// TODO: 暂时跳过关于 mixins 方法的实现
 我们特别关注下经常用到的 mixins 混入。mixins 可以算做我们去实现 HOC 的一种常用的手段。一个组件可以接受一个 mixins 数组。
 
+首先遍历构造函数上的 options 的 key，执行 mergeField 方法，然后遍历实例化组件的过程中传入的 options 的 key，并执行 mergeField 方法。其中 mergeField 方法内部就是关于 options 当中各个字段预设的合并策略。
+
+- 关于 el 和 propsData 属性的合并
+
+会调用 defaultStrat 方法进行默认的合并策略：
+
+```javascript
+var defaultStrat = function(parentVal, childVal) {
+  return childVal === undefined ? parentVal : childVal
+}
+```
+
+关于 el 和 propsData 属性的合并还有一些限制就是：只允许通过`new Vue`(Vue 为根构造函数)这种形式去实例化一个 Vue 的实例。子组件的实例化过程当中是不允许传入这 2 个字段的。
+
+- 关于 data 属性的合并
+
+在实例化非组件实例时，并没有直接返回合并后的 data 的值，返回而是一个 mergedInstanceDataFn 函数：
+
+```javascript
+function mergedInstanceDataFn() {
+  // instance merge
+  var instanceData =
+    typeof childVal === 'function' ? childVal.call(vm, vm) : childVal
+  var defaultData =
+    typeof parentVal === 'function' ? parentVal.call(vm, vm) : parentVal
+  if (instanceData) {
+    return mergeData(instanceData, defaultData)
+  } else {
+    return defaultData
+  }
+}
+```
+
+当实例化的阶段进入 initState 时，才会实际执行这个 mergedInstanceDataFn 函数，且是在传入的 vm 实例的作用域下执行的。然后通过 mergeData 方法将需要继承的 data 和 实例化传入的 data 进行合并。
+
+
+- 关于生命周期钩子函数的合并
+
+```javascript
+function mergeHook (
+  parentVal,
+  childVal
+) {
+  return childVal
+    ? parentVal
+      ? parentVal.concat(childVal)
+      : Array.isArray(childVal)
+        ? childVal
+        : [childVal]
+    : parentVal
+}
+
+LIFECYCLE_HOOKS.forEach(function (hook) {
+  strats[hook] = mergeHook;
+});
+```
+
+会将每个生命周期的钩子函数都置为一个数组。
+
+
+- 关于 components, filter, directives 的合并策略
+
+```javascript
+function mergeAssets (
+  parentVal,
+  childVal,
+  vm,
+  key
+) {
+  // 创建一个以 parentVal 为原型的实例
+  var res = Object.create(parentVal || null);
+  if (childVal) {
+    "development" !== 'production' && assertObjectType(key, childVal, vm);
+    // 对实例进行拓展，将子 assets 属性和父 assets 属性建立引用关系
+    return extend(res, childVal)
+  } else {
+    return res
+  }
+}
+
+// components, filter, directives 的合并策略，通过原型继承来合并
+ASSET_TYPES.forEach(function (type) {
+  strats[type + 's'] = mergeAssets;
+});
+```
