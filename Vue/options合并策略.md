@@ -46,9 +46,37 @@ Vue.extend = function (extendOptions) {
   );
 
   ...
-  
+
   return Sub
 }
 ```
 
-这个方法接收 extendOptions 参数即为组件的定义，然后在方法内部调用 mergeOptions 方法(这个方法内部到底做了哪些工作后面会讲)，完成对于根 Vue 构造函数上的 options 属性的合并。这样便完成了组件 options 属性初始化的工作。通过`Vue.component`方法定义的全局组件，会在根 Vue 实例的 options 属性上挂载这个全局组件的构造函数。这也是为什么定义的全局组件如果要在组件当中使用时，不用在配置项里面去声明(这块的解释后面会讲)。
+这个方法接收 extendOptions 参数即为组件的定义，然后在方法内部调用 mergeOptions 方法(这个方法内部到底做了哪些工作后面会讲)去完成对于根 Vue 构造函数上的 options 属性的合并，并将合并后的 options 属性赋值给子组件的构造函数 options 属性。这样便完成了组件 options 属性初始化的工作。通过`Vue.component`方法定义的全局组件，会在根 Vue 实例的 options 属性上挂载这个全局组件的构造函数。这也是为什么定义的全局组件如果要在组件当中使用时，可直接在模板当中进行书写，而不用在配置项里面去注册声明(这块的解释后面会讲)。
+
+当组件真正进行实例化（new Vue）的阶段时，这里要分情况讨论了，首先让我们来看下根组件进行实例化:
+
+```javascript
+Vue.prototype._init = function(options) {
+  ...
+
+  if (options && options._isComponent) {
+    // optimize internal component instantiation
+    // since dynamic options merging is pretty slow, and none of the
+    // internal component options needs special treatment.
+    initInternalComponent(vm, options)
+  } else {
+    // 在vm实例上挂载的 $options
+    vm.$options = mergeOptions(
+      resolveConstructorOptions(vm.constructor), // 获取构造函数上的options
+      options || {},
+      vm
+    )
+    // console.log(vm.$options)
+  }
+
+  ...
+}
+```
+
+这里通过判断`options._isComponent`属性是进行内部子组件的实例化还是根组件的实例化。
+
