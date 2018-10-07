@@ -392,7 +392,6 @@ Vue.prototype._init = function(options) {
 function initInternalComponent (vm, options) {
   // 将 constructor 构造函数上绑定的 options 属性转到 vm.$options 上。即在 component 通过 Vue.extend 方法生成构造函数所生成的最终的 options
   var opts = vm.$options = Object.create(vm.constructor.options);
-  console.log('initInternalComponent，components options: ', vm, vm.constructor.options, options)
   // doing this because it's faster than dynamic enumeration(动态列举？).
   var parentVnode = options._parentVnode;
   opts.parent = options.parent;
@@ -415,3 +414,12 @@ function initInternalComponent (vm, options) {
 ```
 
 在这个方法内部，通过原型继承的方法完成子组件实例的 $options 配置的初始化的过程。同时根据传入的 options 配置项去完成 VNode 在最终渲染前的配置工作。
+
+
+### 总结
+
+在 Vue 进行实例化之前，组件 options 配置选项的继承始终是通过实例的构造函数去完成，构造函数的 options 合并是完成组件实例化的先行任务。
+
+其中组件的实例化和直接通过`new Vue`去完成的实例化的 options 合并过程有有些区别。组件的实例化之前，会首先在 Vue.extend 方法内部调用 mergeOptions 去完成构造函数 options 的合并，开始实例化后(`Vue.prototype._init`方法)，调用`initInternalComponent`方法，**通过继承的方法初始化实例的 $options 选项**。
+
+而通过`new Vue`的方式直接完成实例化时，是在实例化开始后，调用`mergeOptions`方法去初始化实例的 $options 配置选项。
