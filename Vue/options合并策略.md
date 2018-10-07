@@ -283,7 +283,7 @@ strats.computed = function (
 
 有关这四者的合并策略即：如果没有需要继承值，那么直接返回实例传入的值，否则通过覆盖的形式去完成值的合并的过程。
 
-在 mergeOptions 方法里面有个地方没有提到，就是关于 mixins 混入。mixins 可以算做我们去实现 HOC 的一种常用的手段。一个组件可以接受一个 mixins 数组。mergeOptions 方法首先会遍历 mixins 数组，依次将每个 mixin 混入到构造函数的 options 属性上，然后再完成和实例中传入的 options 的合并。
+在 mergeOptions 方法里面有个地方没有提到，就是关于 mixins 混入。mixins 可以算做我们去实现 HOC 的一种常用的手段。一个组件可以接受一个 mixins 数组。mergeOptions 方法首先会遍历 mixins 数组，依次将每个 mixin 混入到构造函数的 options 属性上，然后再完成和实例中传入的 options 的合并。在 Vue 的根构造函数上也提供了一个全局的 mixin 的方法`Vue.mixin`。这个全局的 mixin 方法会在 Vue 的根构造函数的 options 配置选项上混入你所传入的配置选项。
 
 ### 全局组件 options 合并
 
@@ -420,6 +420,6 @@ function initInternalComponent (vm, options) {
 
 在 Vue 进行实例化之前，组件 options 配置选项的继承始终是通过实例的构造函数去完成，构造函数的 options 合并是完成组件实例化的先行任务。
 
-其中组件的实例化和直接通过`new Vue`去完成的实例化的 options 合并过程有有些区别。组件的实例化之前，会首先在 Vue.extend 方法内部调用 mergeOptions 去完成构造函数 options 的合并，开始实例化后(`Vue.prototype._init`方法)，调用`initInternalComponent`方法，**通过继承的方法初始化实例的 $options 选项**。
+其中组件的实例化和直接通过`new Vue`去完成的实例化的 options 合并过程有有些区别。组件的实例化之前，会首先在 Vue.extend 方法内部调用`mergeOptions`去完成构造函数 options 的合并，开始实例化后(`Vue.prototype._init`方法)，调用`initInternalComponent`方法，**通过继承的方法初始化实例的 $options 选项**。
 
 而通过`new Vue`的方式直接完成实例化时，是在实例化开始后，调用`mergeOptions`方法去初始化实例的 $options 配置选项。
