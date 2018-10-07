@@ -285,11 +285,9 @@ strats.computed = function (
 
 在 mergeOptions 方法里面有个地方没有提到，就是关于 mixins 混入。mixins 可以算做我们去实现 HOC 的一种常用的手段。一个组件可以接受一个 mixins 数组。mergeOptions 方法首先会遍历 mixins 数组，依次将每个 mixin 混入到构造函数的 options 属性上，然后再完成和实例中传入的 options 的合并。在 Vue 的根构造函数上也提供了一个全局的 mixin 的方法`Vue.mixin`。这个全局的 mixin 方法会在 Vue 的根构造函数的 options 配置选项上混入你所传入的配置选项。
 
-### 全局组件 options 合并
+### 组件 options 合并
 
-### 局部组件 options 合并
-
-首先局部组件在创建 VNode 的过程中：
+组件在创建 VNode 的过程中：
 
 ```javascript
 function createComponent (
