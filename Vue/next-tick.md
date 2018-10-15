@@ -105,7 +105,7 @@ export function nextTick (cb?: Function, ctx?: Object) {
       _resolve(ctx)
     }
   })
-  if (!pending) {   // TODO: pending 在这里的作用？
+  if (!pending) {
     pending = true
     if (useMacroTask) {
       macroTimerFunc()
@@ -123,6 +123,17 @@ export function nextTick (cb?: Function, ctx?: Object) {
 
 ```
 
-在 next-tick 内部分别定义了 microTimerFunc 和 macroTimerFunc，用以存储当前宿主环境所支持的 mircoTask 和 marcoTask。在 Vue 当中使用的 marcoTask 包含了 setImmediate/messageChannel/setTimeout，mircoTask 包含了 Promise。有关 mircoTask 和 marcoTask 的区别可自行查阅相关的文档。
+在 next-tick 内部分别定义了 microTimerFunc 和 macroTimerFunc，用以存储当前宿主环境所支持的 mircoTask 和 marcoTask。在 Vue 当中使用的 marcoTask 包含了 setImmediate/messageChannel/setTimeout，mircoTask 包含了 Promise。
 
 Vue 在全局环境下提供了 Vue.nextTick 方法，在实例上提供了 $nextTick 方法以供调用。就拿全局对象上提供的 Vue.nextTick 方法来说，首先将传入的 cb 缓存至 callbacks 内部。然后根据 useMacroTask 来决定使用 macroTimerFunc 还是 microTimerFunc。在 nextTick 内部并没有直接执行传入的 cb，而是缓存至 callbacks 内部，在下一帧遍历 callbacks 内部缓存的所有 cb，这个时候这些 cb 都是同步去执行的。
+
+特别是使用 microTimerFunc 的情况下，我们可以看到首先在函数外部定义一个被 resolved 的 promise。然后在函数体内部将 flushCallbacks 方法至于`promise.then`当中：
+
+```javascript
+const p = Promise.resolve()
+  microTimerFunc = () => {
+    p.then(flushCallbacks)
+  }
+```
+
+通过代码我们得知 flushCallbacks 方法内部是通过一个 for 循环去遍历执行 callbacks 内部缓存的所有的回调函数。这样就会将这些 callbacks 放到同一帧当中去执行。
