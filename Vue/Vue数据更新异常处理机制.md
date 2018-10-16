@@ -84,7 +84,6 @@ function defineReactive (
 
   // 递归的去将 object 的深层次数据变成响应式数据
   var childOb = !shallow && observe(val);   // 获取 key 对应的 value 值(如果是 object 类型，那么会返回一个对应的 observer)
-  console.log('--------childOb', key, childOb)
   Object.defineProperty(obj, key, {
     enumerable: true,
     configurable: true,
