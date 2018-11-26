@@ -44,7 +44,6 @@ class LinkedList {
   display() {
     let curNode = this.head
     while(curNode) {
-      console.log(curNode.element)
       curNode = curNode.next
       if (curNode === this.head)
         break
@@ -64,7 +63,6 @@ class LinkedList {
   remove(element) {
     let node = this.findPrevious(element)
     node && (node.next = node.next.next)
-    console.log(this)
     --this.length
   }
 
@@ -90,11 +88,12 @@ function killNumThird() {
       if (node.element === linkedList.head.element) {
         linkedList.head = node.next
       }
-      linkedList.remove(node) 
+      linkedList.next()
+      linkedList.remove(node.element) 
       killNumThird()
     }
   }
 }
 
 killNumThird()
-console.log(linkedList)
+linkedList.display()
