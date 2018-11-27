@@ -66,6 +66,21 @@ class LinkedList {
       node = node.next
     }
   }
+
+  // 链表反转
+  reverse() {
+
+  }
+
+  // 寻找中间值
+  findMiddle() {
+
+  }
+
+  // 检测是否有环
+  checkCircle() {
+
+  }
 }
 
 const linkedList = new LinkedList('Roshan')
