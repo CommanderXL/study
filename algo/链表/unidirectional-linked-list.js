@@ -69,22 +69,72 @@ class LinkedList {
 
   // 链表反转
   reverse() {
-
+    let node = this.head
+    let nNode = null
+    let lNode = null
+    let nnNode = null
+    while(node && node.next) {
+      nNode = node.next
+      nnNode = node.next.next
+      if (lNode) {
+        node.next = lNode
+      } else {
+        nNode.next = node
+        node.next = null
+      }
+      lNode = nNode
+      node = nnNode
+      if (!nNode) {
+        node.next = lNode
+        break
+      } else if (!!nnNode) {
+        nNode.next = node
+        this.head = nNode
+        return
+      }
+    }
+    this.head = node
   }
 
   // 寻找中间值
-  findMiddle() {
-
+  findMiddleNode() {
+    let fast = this.head
+    let slow = this.head
+    while (fast.next && fast.next.next) {
+      // 快节点每次要比慢节点多移动一位
+      fast = fast.next.next
+      slow = slow.next
+    }
+    return slow
   }
 
   // 检测是否有环
   checkCircle() {
-
+    let fast = this.head.next
+    let slow = this.head
+    while(fast && fast.next) {
+      fast = fast.next.next
+      slow = slow.next
+      if (fast === slow) 
+        return true
+    }
+    return false
   }
 }
 
-const linkedList = new LinkedList('Roshan')
-linkedList.insert('影魔')
-linkedList.insert('幽鬼', '影魔')
-linkedList.insert('SA', '影魔')
-linkedList.display()
+let ll = new LinkedList(1)
+for (let i = 2; i <= 40; i++) {
+  ll.insert(i)
+}
+console.log(ll.findMiddleNode())
+// console.log(ll)
+
+
+// const linkedList = new LinkedList('Roshan')
+// linkedList.insert('影魔')
+// linkedList.insert('幽鬼', '影魔')
+// // linkedList.insert('SA', '影魔')
+// linkedList.reverse()
+// console.log(linkedList)
+// linkedList.display()
+// // linkedList.display()
