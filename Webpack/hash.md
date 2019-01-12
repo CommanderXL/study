@@ -11,7 +11,7 @@ class Compilation {
 		const hashFunction = outputOptions.hashFunction; // 所使用的 hash 函数，默认为 md5
 		const hashDigest = outputOptions.hashDigest; // 生成 hash 所使用的编码方法，默认为 hex
 		const hashDigestLength = outputOptions.hashDigestLength; // 最终输出的文件所使用的 hash 长度
-    const hash = createHash(hashFunction);
+    const hash = createHash(hashFunction); // 本次 compilation 所使用的 hash
     
     const chunks = this.chunks.slice();
     
@@ -69,4 +69,4 @@ class Chunk {
 }
 ```
 
-对这个 chunk 的 id / ids / name 以及这个 chunk 所包含的所有的 module 的 hash 进行 hash 计算。这个过程进行完后，根据这个 chunk 是否是入口 chunk 来调用对应的 updateHashForChunk 方法。这个方法结束后会暴露出一个 chunkHash 的钩子函数，并生成最终属于这个 chunk 的 hash 值。
+对这个 chunk 的 id / ids / name 以及这个 chunk 所包含的所有的 module 的 hash(chunk生成 hash 之前就已经生成好的) 进行 hash 计算。这个过程进行完后，根据这个 chunk 是否是入口 chunk 来调用对应的 updateHashForChunk 方法。这个方法结束后会暴露出一个 chunkHash 的钩子函数，并生成最终属于这个 chunk 的 hash 值。
