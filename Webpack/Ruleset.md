@@ -70,3 +70,122 @@ test/include/exclude 这3项我们平时使用较多的配置实际上是和 res
 * function
 * RegExp
 * Array(数组内部的元素类型为前3者之一)
+* Object(仅支持 or/include/test/add/not/exclude字段)
+
+接下来我们看下 Ruleset 内部是如何将原始的配置进行格式的，以及最终格式化所输出的内容。
+
+```javascript
+class RuleSet {
+  ...
+  static normalizeRule(rule, refs, ident) {
+    ...
+    if (rule.test || rule.include || rule.exclude) {
+			condition = {
+				test: rule.test,
+				include: rule.include,
+				exclude: rule.exclude
+			};
+			try {
+				newRule.resource = RuleSet.normalizeCondition(condition);
+			} catch (error) {
+				throw new Error(RuleSet.buildErrorMessage(condition, error));
+			}
+    }
+    
+    if (rule.resource) {
+			checkResourceSource("resource");
+			try {
+				newRule.resource = RuleSet.normalizeCondition(rule.resource);
+			} catch (error) {
+				throw new Error(RuleSet.buildErrorMessage(rule.resource, error));
+			}
+    }
+    
+    if (rule.resourceQuery) {
+			try {
+				newRule.resourceQuery = RuleSet.normalizeCondition(rule.resourceQuery);
+			} catch (error) {
+				throw new Error(RuleSet.buildErrorMessage(rule.resourceQuery, error));
+			}
+    }
+    
+    if (rule.issuer) {
+			try {
+				newRule.issuer = RuleSet.normalizeCondition(rule.issuer);
+			} catch (error) {
+				throw new Error(RuleSet.buildErrorMessage(rule.issuer, error));
+			}
+		}
+    ...
+  }
+
+  static normalizeCondition(condition) {
+    if (!condition) throw new Error("Expected condition but got falsy value");
+    // 如果配置数据类型为 string，那么直接使用 indexOf 作为路径匹配规则
+		if (typeof condition === "string") {
+			return str => str.indexOf(condition) === 0;
+    }
+    // 如果为 function 函数，那么使用这个开发者自己定义的 function 作为路径匹配规则
+		if (typeof condition === "function") {
+			return condition;
+    }
+    // 如果为正则表达式
+		if (condition instanceof RegExp) {
+			return condition.test.bind(condition);
+    }
+    // 如果为一个数组，那么分别处理数组当中的每一个元素，最终返回一个由 orMatcher 包装的函数，就是只要其中一个元素的匹配条件，那么就返回为 true
+		if (Array.isArray(condition)) {
+			const items = condition.map(c => RuleSet.normalizeCondition(c));
+			return orMatcher(items);
+		}
+		if (typeof condition !== "object") {
+			throw Error(
+				"Unexcepted " +
+					typeof condition +
+					" when condition was expected (" +
+					condition +
+					")"
+			);
+		}
+
+		// 匹配规则数组
+    const matchers = [];
+    // 如果为对象类型，那么最终会用一个 matchers 数组将这些条件收集起来
+		Object.keys(condition).forEach(key => {
+			const value = condition[key];
+			switch (key) {
+				case "or":
+				case "include":
+				case "test":
+					if (value) matchers.push(RuleSet.normalizeCondition(value));
+					break;
+				case "and":
+					if (value) {
+						const items = value.map(c => RuleSet.normalizeCondition(c));
+						matchers.push(andMatcher(items)); // andMatcher 必须在 items 里面都匹配
+					}
+					break;
+				case "not":
+				case "exclude":
+					if (value) {
+						const matcher = RuleSet.normalizeCondition(value);
+						matchers.push(notMatcher(matcher)); // notMatcher 必须在 matcher 之外
+					}
+					break;
+				default:
+					throw new Error("Unexcepted property " + key + " in condition");
+			}
+		});
+		if (matchers.length === 0) {
+			throw new Error("Excepted condition but got " + condition);
+		}
+		if (matchers.length === 1) {
+			return matchers[0];
+		}
+		return andMatcher(matchers);
+  }
+  ...
+}
+```
+
+在 normalizeCondition 函数执行后始终返回的是一个函数，这个函数的用途就是接受模块的路径，然后在内容使用定义好的匹配规则去看是否满足对应的要求。
