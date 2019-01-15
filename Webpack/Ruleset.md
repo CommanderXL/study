@@ -1,6 +1,6 @@
 ## Ruleset loader过滤器
 
-Ruleset 类主要作用于加载 module 时匹配符合规则的 loader。Ruleset 在内部会有一个默认的 module.defaultRules 配置，在真正加载 module 之前会和你在 webpack config 配置文件当中的自定义 module.rules 进行合并，然后转化成对应的匹配过滤器。
+Ruleset 类主要作用于过滤加载 module 时符合匹配条件规则的 loader。Ruleset 在内部会有一个默认的 module.defaultRules 配置，在真正加载 module 之前会和你在 webpack config 配置文件当中的自定义 module.rules 进行合并，然后转化成对应的匹配过滤器。
 
 其中 module.defaultRules 配置是在 `WebpackOptionsDefaulter.js` 当中完成的，得到的结果是：
 
@@ -52,4 +52,5 @@ class Ruleset {
 }
 ```
 
-我们可以看到构造函数里面定义了 normalizeRules 静态方法，它的作用实际就是对传入的 rules 配置进行序列化(格式化)的处理为统一的格式，具体处理成什么样了后文会具体梳理。
+我们可以看到构造函数里面定义了 normalizeRules 静态方法，它的作用实际就是对传入的 rules 配置进行序列化(格式化)的处理为统一的格式。
+
