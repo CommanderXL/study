@@ -2,7 +2,9 @@
 
 Ruleset 类主要作用于过滤加载 module 时符合匹配条件规则的 loader。Ruleset 在内部会有一个默认的 module.defaultRules 配置，在真正加载 module 之前会和你在 webpack config 配置文件当中的自定义 module.rules 进行合并，然后转化成对应的匹配过滤器。
 
-其中 module.defaultRules 配置是在 `WebpackOptionsDefaulter.js` 当中完成的，得到的结果是：
+webpack 文档上对于 Ruleset 的说明太过于抽象，在文档上提到的条件，结果和嵌套规则并没有做很好的说明。本文会结合示例，源码来解释下这3点具体是指哪些内容。
+
+首先我们来看下 module.defaultRules 配置是在 `WebpackOptionsDefaulter.js` 当中完成的，得到的结果是：
 
 ```javascript
 [ { type: 'javascript/auto', resolve: {} },
@@ -52,5 +54,19 @@ class Ruleset {
 }
 ```
 
-我们可以看到构造函数里面定义了 normalizeRules 静态方法，它的作用实际就是对传入的 rules 配置进行序列化(格式化)的处理为统一的格式。
+我们可以看到构造函数里面定义了 normalizeRules 静态方法，它的作用实际就是对传入的 rules 配置进行序列化(格式化)的处理为统一的格式，其中就包含了对于**条件**的序列化。在 module.defaultRules 和 webpack.config 里面有关 rules 的配置你可以理解为最原始的条件配置，这些配置通过 Ruleset 内部提供的方法格式化收敛为统一的过滤条件，最终匹配 loaders 时就是使用格式化过后的这些过滤条件。
 
+有关 webpack.config 里面暴露出来供开发者使用的(常用的)条件配置主要有：
+
+* test 
+* include
+* exclude
+* resouce
+* resourceQuery
+
+test/include/exclude 这3项我们平时使用较多的配置实际上是和 resouce 配置是等价的，2者只能存在其一，不能混用。其中test/include 用以匹配满足条件的 loader，而 exclude 用以排除满足条件 loader，resouceQuery 主要是用以在路径中带 query 参数的匹配规则，例如你的模块依赖路径为 `xxx/xxx?type=demo`, resolveQuery 的配置为 `/type=demo/`，那么便会符合对应的匹配规则。这些字段支持的数据类型有：
+
+* string
+* function
+* RegExp
+* Array(数组内部的元素类型为前3者之一)
