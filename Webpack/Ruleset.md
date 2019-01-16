@@ -189,3 +189,38 @@ class RuleSet {
 ```
 
 在 normalizeCondition 函数执行后始终返回的是一个函数，这个函数的用途就是接受模块的路径，然后使用你所定义的匹配使用去看是否满足对应的要求，如果满足那么会使用这个 loader，如果不满足那么便会过滤掉。
+
+
+以上是对于 rule condition 条件的解释，接下来看下 rule 结果的相关解释。简单来讲就是我们使用 condition 来匹配我们需要的 rule 结果，condition 和 rule 是一一对应的关系，rule 结果就是最终我们需要加载这个模块需要使用的所有相关 loader 数组。我们首先来看下哪些配置字段和 rule 结果有强相关性：
+
+* loader
+* loaders(Webpack 4.x 已废弃)
+* use
+
+这几个对应的配置写法有：
+
+```javascript
+{
+  module: {
+    rules: [
+      {
+        test: /.vue$/,
+        loader: 'vue-loader'
+      },
+      {
+        test: /.scss$/,
+        use: [
+          'vue-style-loader',
+          'css-loader',
+          {
+            loader: 'sass-loader',
+            options: {
+              data: '$color: red;'
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
