@@ -224,3 +224,85 @@ class RuleSet {
   }
 }
 ```
+
+在 RuleSet 构造函数内部使用静态方法 normalizeUse 方法来输出最终和 condition 对应的 rule 结果：
+
+```javascript
+class RuleSet {
+  static normalizeUse(use, ident) {
+		if (typeof use === "function") {
+			return data => RuleSet.normalizeUse(use(data), ident);
+		}
+		if (Array.isArray(use)) {
+			return use
+				.map((item, idx) => RuleSet.normalizeUse(item, `${ident}-${idx}`))
+				.reduce((arr, items) => arr.concat(items), []);
+		}
+		return [RuleSet.normalizeUseItem(use, ident)];
+	}
+
+	static normalizeUseItemString(useItemString) {
+		const idx = useItemString.indexOf("?");
+		if (idx >= 0) {
+			return {
+				loader: useItemString.substr(0, idx),
+				options: useItemString.substr(idx + 1)
+			};
+		}
+		return {
+			loader: useItemString,
+			options: undefined
+		};
+  }
+  
+  static normalizeUseItem(item, ident) {
+		if (typeof item === "string") {
+			return RuleSet.normalizeUseItemString(item);
+		}
+
+		const newItem = {};
+
+		if (item.options && item.query) {
+			throw new Error("Provided options and query in use");
+		}
+
+		if (!item.loader) {
+			throw new Error("No loader specified");
+		}
+
+		newItem.options = item.options || item.query;
+
+		if (typeof newItem.options === "object" && newItem.options) {
+			if (newItem.options.ident) {
+				newItem.ident = newItem.options.ident;
+			} else {
+				newItem.ident = ident;
+			}
+		}
+
+		const keys = Object.keys(item).filter(function(key) {
+			return !["options", "query"].includes(key);
+		});
+
+		for (const key of keys) {
+			newItem[key] = item[key];
+		}
+
+		return newItem;
+	}
+}
+```
+
+经过 normalizeUse 函数的格式化处理，最终的 rule 结果为一个数组，内部的 object 元素都包含 loader/options 等字段：
+
+```javascript
+[{
+  loader: 'xxx-loader',
+  options: {
+    data: '$color red'
+  }
+}, {
+  lodaer: 'xxx-loader',
+  options: 'a=b&c=d'
+}]
+```
