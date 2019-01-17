@@ -468,8 +468,10 @@ class RuleSet {
 }, {
   type: 'use',
   value: {
-    loader: 'style-loader',
-    options: 'xxx'
+    loader: 'sass-loader',
+    options: {
+      data: '$color red'
+    }
   },
   enforce: undefined 
 }]
