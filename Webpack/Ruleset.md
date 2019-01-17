@@ -476,3 +476,9 @@ class RuleSet {
 ```
 
 ### 总结
+
+RuleSet 的使用主要包含了：
+
+1. RuleSet 的实例化过程，即根据 webpack.module.rules 的配置及 webpack 内部的 rules 配置，将不同字段的不同数据类型，例如 string/RegExp/Function 等都转化为对应的过滤函数，因为 webpack 的 rules 为了满足不同的配置需求，设计的还是相对来说很灵活的，对于开发者而且可以使用灵活多样的配置形式，但是收敛到 ruleset 内部便统一转化为过滤函数的形式；
+
+2. exec 方法过滤阶段便是根据传入的不同的配置规则来递归的进行匹配，最终输出被匹配到的 loaders 数组。
