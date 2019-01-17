@@ -333,3 +333,146 @@ rules: [
 ```
 
 以上便是 RuleSet 构造函数实例化以及格式化 condition 及 rule 结果的过程。这个过程结束后，便可利用 ruleset 实例上的 exec 进行相关的匹配过滤工作。 
+
+在 webpack 正常的工作流当中，在加载对应的 module 之前首先需要知道加载这个模块具体使用哪些 loader，便是调用 ruleset 实例上的 exec 去过滤对应的 loader。
+
+具体的使用方法为：
+```
+// NormalModuleFactory.js
+
+this.ruleset.exec({
+  resource: resourcePath,  // module 的路径
+  realResource:
+    matchResource !== undefined
+      ? resource.replace(/\?.*/, "")
+      : resourcePath,
+  resourceQuery,  // module 路径上所带的 query 参数
+  issuer: contextInfo.issuer,  // 这个模块的发布者
+  compiler: contextInfo.compiler // 这个模块所使用的编译器选项
+})
+
+```
+
+接下来我们看下 exec 方法内部具体的实现：
+
+```javascript
+class RuleSet {
+  ...
+  exec(data) {
+		const result = [];
+		this._run(
+			data,
+			{
+				rules: this.rules // 根据内置的 rules 和传入的 module.rule 合并后生成的 rules
+			},
+			result
+		);
+		return result;
+  }
+  
+  _run(data, rule, result) {
+		// test conditions
+		// 一系列的匹配规则，只有通过这些匹配规则，才会将对应的 loaders 加入到数组中
+		if (rule.resource && !data.resource) return false;
+		if (rule.realResource && !data.realResource) return false;
+		if (rule.resourceQuery && !data.resourceQuery) return false;
+		if (rule.compiler && !data.compiler) return false;
+		if (rule.issuer && !data.issuer) return false;
+		if (rule.resource && !rule.resource(data.resource)) return false; // resource 匹配规则
+		if (rule.realResource && !rule.realResource(data.realResource))
+			return false;
+		if (data.issuer && rule.issuer && !rule.issuer(data.issuer)) return false;
+		if (
+			data.resourceQuery &&
+			rule.resourceQuery &&
+			!rule.resourceQuery(data.resourceQuery) // resourceQuery 的匹配规则
+		) {
+			return false;
+		}
+		if (data.compiler && rule.compiler && !rule.compiler(data.compiler)) {
+			return false;
+		}
+
+		// apply
+		const keys = Object.keys(rule).filter(key => {
+			return ![
+				"resource",
+				"realResource",
+				"resourceQuery",
+				"compiler",
+				"issuer",
+				"rules",
+				"oneOf",
+				"use",
+				"enforce"
+			].includes(key);
+		});
+		for (const key of keys) {
+			result.push({
+				type: key,
+				value: rule[key]
+			});
+		}
+
+		if (rule.use) {
+			const process = use => {
+				if (typeof use === "function") {
+					process(use(data));
+				} else if (Array.isArray(use)) {
+					use.forEach(process);
+				} else {
+					result.push({
+						type: "use",
+						value: use,
+						enforce: rule.enforce
+					});
+				}
+			};
+			process(rule.use);
+		}
+
+		if (rule.rules) {
+			for (let i = 0; i < rule.rules.length; i++) {
+				this._run(data, rule.rules[i], result);
+			}
+		}
+
+		if (rule.oneOf) {
+			for (let i = 0; i < rule.oneOf.length; i++) {
+				if (this._run(data, rule.oneOf[i], result)) break;
+			}
+		}
+
+		return true;
+	}
+}
+```
+
+过滤过程的实现应该是非常清晰的，就是递归的根据 ruleset 在实例化的时候创建的各种过滤条件(对应的不同的 Function)，以及传入的不同字段(`resouce/realsource/compiler/issuer/compiler`)，最终输出的数据格式即 webpack 文档上所说的结果为：
+
+```javascript
+[{
+  type: 'use',
+  value: {
+    loader: 'vue-style-loader',
+    options: {}
+  },
+  enforce: undefined // 可选值还有 pre/post  分别为 pre-loader 和 post-loader
+}, {
+  type: 'use',
+  value: {
+    loader: 'css-loader',
+    options: {}
+  },
+  enforce: undefined
+}, {
+  type: 'use',
+  value: {
+    loader: 'style-loader',
+    options: 'xxx'
+  },
+  enforce: undefined 
+}]
+```
+
+### 总结
