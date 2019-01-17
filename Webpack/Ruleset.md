@@ -306,3 +306,30 @@ class RuleSet {
   options: 'a=b&c=d'
 }]
 ```
+
+经过 RuleSet 内部的格式化的处理，最终输出的 rules 为：
+
+```javascript
+rules: [
+  {
+    resource: [Function],
+    resourceQuery: [Function],
+    use: [{
+      loader: 'xxx-loader',
+      options: {
+        data: '$color red'
+      }
+    }]
+  },
+  {
+    resource: [Function],
+    resourceQuery: [Function],
+    use: [{
+      loader: 'xxx-loader',
+      options: 'a=b&c=d'
+    }]
+  }
+]
+```
+
+以上便是 RuleSet 构造函数实例化以及格式化 condition 及 rule 结果的过程。这个过程结束后，便可利用 ruleset 实例上的 exec 进行相关的匹配过滤工作。 
