@@ -60,8 +60,10 @@ import a from 'raw-loader!../../utils.js'
 ```javascript
 class NormalModuleFactory {
   ...
+  // 内部嵌套 resolver 的钩子，完成相关的解析后，创建这个 module
   this.hooks.factory.tap('NormalModuleFactory', () => (result, callback) => { ... })
 
+  // 在 hooks.factory 的钩子内部进行调用，实际的作用为解析构建一共 module 所需要的 loaders 及这个 module 的相关构建信息(例如获取 module 的 packge.json等)
   this.hooks.resolver.tap('NormalModuleFactory', () => (result, callback) => { ... })
   ...
 }
@@ -99,7 +101,7 @@ elements = elements.map(identToLoaderRequest); // 获取每个loader及对应的
 import 'style-loader!css-loader!stylus-loader?a=b!../../common.styl'
 ```
 
-内联的 loader 统一会转化为：
+内联的 loader 统一格式输出为：
 
 ```javascript
 [{
@@ -115,3 +117,51 @@ import 'style-loader!css-loader!stylus-loader?a=b!../../common.styl'
 
 ```
 
+对于内联的 loader 的处理便是直接对其进行 resolve，获取对应 loader 的相关信息：
+
+```javascript
+asyncLib.parallel([
+  callback => 
+    this.resolveRequestArray(
+      contextInfo,
+      context,
+      elements,
+      loaderResolver,
+      callback
+    ),
+  callback => {
+    // 对这个 module 进行 resolve
+    ...
+    callack(null, {
+      resouceResolveData, // 模块的基础信息，包含 descriptionFilePath / descriptionFileData 等(即 package.json 等信息)
+      resource // 模块的绝对路径
+    })
+  }
+], (err, results) => {
+  const loaders = results[0] // 所有内联的 loaders
+  const resourceResolveData = results[1].resourceResolveData; // 获取模块的基本信息
+  resource = results[1].resource; // 模块的绝对路径
+  ...
+  
+  // 接下来就要开始根据引入模块的路径开始匹配对应的 loaders
+  let resourcePath =
+    matchResource !== undefined ? matchResource : resource;
+  let resourceQuery = "";
+  const queryIndex = resourcePath.indexOf("?");
+  if (queryIndex >= 0) {
+    resourceQuery = resourcePath.substr(queryIndex);
+    resourcePath = resourcePath.substr(0, queryIndex);
+  }
+  // 获取符合条件配置的 loader
+  const result = this.ruleSet.exec({
+    resource: resourcePath, // module 的绝对路径
+    realResource:
+      matchResource !== undefined
+        ? resource.replace(/\?.*/, "")
+        : resourcePath,
+    resourceQuery, // module 路径上所带的 query 参数
+    issuer: contextInfo.issuer, // 所解析的 module 的发布者
+    compiler: contextInfo.compiler 
+  });
+})
+```
