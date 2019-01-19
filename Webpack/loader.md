@@ -152,7 +152,7 @@ asyncLib.parallel([
     resourceQuery = resourcePath.substr(queryIndex);
     resourcePath = resourcePath.substr(0, queryIndex);
   }
-  // 获取符合条件配置的 loader
+  // 获取符合条件配置的 loader，具体的 ruleset 是如何匹配的请参见 ruleset 解析(https://github.com/CommanderXL/Biu-blog/issues/30)
   const result = this.ruleSet.exec({
     resource: resourcePath, // module 的绝对路径
     realResource:
@@ -163,5 +163,121 @@ asyncLib.parallel([
     issuer: contextInfo.issuer, // 所解析的 module 的发布者
     compiler: contextInfo.compiler 
   });
+
+  // result 为最终根据 module 的路径及相关匹配规则过滤后得到的 loaders，为 webpack.config 进行配置的
+  // 输出的数据格式为：
+
+  /* [{
+    type: 'use',
+    value: {
+      loader: 'vue-style-loader',
+      options: {}
+    },
+    enforce: undefined // 可选值还有 pre/post  分别为 pre-loader 和 post-loader
+  }, {
+    type: 'use',
+    value: {
+      loader: 'css-loader',
+      options: {}
+    },
+    enforce: undefined
+  }, {
+    type: 'use',
+    value: {
+      loader: 'stylus-loader',
+      options: {
+        data: '$color red'
+      }
+    },
+    enforce: undefined 
+  }] */
+
+  const settings = {};
+  const useLoadersPost = []; // post loader
+  const useLoaders = []; // normal loader
+  const useLoadersPre = []; // pre loader
+  for (const r of result) {
+    if (r.type === "use") {
+      // postLoader
+      if (r.enforce === "post" && !noPrePostAutoLoaders) {
+        useLoadersPost.push(r.value);
+      } else if (
+        r.enforce === "pre" &&
+        !noPreAutoLoaders &&
+        !noPrePostAutoLoaders
+      ) {
+        // preLoader
+        useLoadersPre.push(r.value);
+      } else if (
+        !r.enforce &&
+        !noAutoLoaders &&
+        !noPrePostAutoLoaders
+      ) {
+        // normal loader
+        useLoaders.push(r.value);
+      }
+    } else if (
+      typeof r.value === "object" &&
+      r.value !== null &&
+      typeof settings[r.type] === "object" &&
+      settings[r.type] !== null
+    ) {
+      settings[r.type] = cachedMerge(settings[r.type], r.value);
+    } else {
+      settings[r.type] = r.value;
+    }
+
+    // 当获取到 webpack.config 当中配置的 loader 后，再根据 loader 的类型进行分组(enforce 配置类型)
+    // postLoader 存储到 useLoaders 内部
+    // preLoader 存储到 usePreLoaders 内部
+    // normalLoader 存储到 useLoaders 内部
+    // 这些分组最终会决定加载一个 module 时不同 loader 之间的调用顺序
+
+    // 当分组过程进行完之后，即开始 loader 模块的 resolve 过程
+    asyncLib.parallel([
+      [
+        // resolve postLoader
+        this.resolveRequestArray.bind(
+          this,
+          contextInfo,
+          this.context,
+          useLoadersPost,
+          loaderResolver
+        ),
+        // resove normal loaders
+        this.resolveRequestArray.bind(
+          this,
+          contextInfo,
+          this.context,
+          useLoaders,
+          loaderResolver
+        ),
+        // resolve preLoader
+        this.resolveRequestArray.bind(
+          this,
+          contextInfo,
+          this.context,
+          useLoadersPre,
+          loaderResolver
+        )
+      ],
+      (err, results) => {
+        ...
+        // results[0]  ->  postLoader
+        // results[1]  ->  normalLoader
+        // results[2]  ->  preLoader
+        // 这里将所有类型的 loaders 按照一定顺序组合起来，对应于：
+        // postLoader -- inlineLoader -- normalLoader -- preLoader
+        // 最终 loader 所执行的顺序对应为： preLoader -> normalLoader -> inlineLoader -> postLoader
+        // 不同类型 loader 上的 pitch 方法执行的顺序为： postLoader.pitch -> inlineLoader.pitch -> normalLoader.pitch -> preLoader.pitch (具体loader内部执行的机制后文会单独讲解)
+        loaders = results[0].concat(loaders, results[1], results[2]);
+
+        process.nextTick(() => {
+          ...
+          // 执行回调，创建 module
+        })
+      }
+    ])
+  }
 })
 ```
