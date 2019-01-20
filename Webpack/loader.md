@@ -95,13 +95,21 @@ let resource = elements.pop(); // 获取资源的路径
 elements = elements.map(identToLoaderRequest); // 获取每个loader及对应的options配置（将inline loader的写法变更为module.rule的写法）
 ```
 
-首先是根据模块的路径规则，例如，`-!` / `!` / `!!` 来判断这个模块是否只是使用 inline loader，或者剔除掉 pre，post loader 等规则，具体的作用在下文会讲到。然后会将所有的 inline loader 转化为数组的形式，例如：
+首先是根据模块的路径规则，例如模块的路径是以这些符号开头的 `!` / `-!` / `!!` 来判断这个模块是否只是使用 inline loader，或者剔除掉 preLoader, postLoader 等规则：
+
+* `!` 忽略 webpack.config 配置当中符合规则的 normalLoader
+* `-!` 忽略 webpack.config 配置当中符合规则的 preLoader/normalLoader
+* `!!` 忽略 webpack.config 配置当中符合规则的 postLoader/preLoader/normalLoader
+
+这几个匹配规则主要适用于在 webpack.config 已经配置了对应模块使用的 loader，但是针对一些特殊的 module，你可能需要单独的定制化的 loader 去处理，而不是走常规的配置，因此可以使用这些规则来进行处理。
+
+接下来将所有的 inline loader 转化为数组的形式，例如：
 
 ```javascript
 import 'style-loader!css-loader!stylus-loader?a=b!../../common.styl'
 ```
 
-内联的 loader 统一格式输出为：
+最终 inline loader 统一格式输出为：
 
 ```javascript
 [{
@@ -117,7 +125,7 @@ import 'style-loader!css-loader!stylus-loader?a=b!../../common.styl'
 
 ```
 
-对于内联的 loader 的处理便是直接对其进行 resolve，获取对应 loader 的相关信息：
+对于 inline loader 的处理便是直接对其进行 resolve，获取对应 loader 的相关信息：
 
 ```javascript
 asyncLib.parallel([
