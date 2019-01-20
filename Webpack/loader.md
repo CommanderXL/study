@@ -49,6 +49,8 @@ module.exports = {
 import a from 'raw-loader!../../utils.js'
 ```
 
+2种不同的配置形式，在 webpack 内部有着不同的解析方式。此外，不同的配置方式也决定了最终在实际加载 module 过程中不同 loader 之间相互的执行顺序等。
+
 ### loader 的匹配
 
 在讲 loader 的匹配过程之前，首先从整体上了解下 loader 在整个 webpack 的 workflow 过程中出现的时机。
