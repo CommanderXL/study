@@ -55,7 +55,7 @@ import a from 'raw-loader!../../utils.js'
 
 在讲 loader 的匹配过程之前，首先从整体上了解下 loader 在整个 webpack 的 workflow 过程中出现的时机。
 
-// TODO: 补一张执行的流程图
+![webpack loader](../images/webpack/Loader.jpeg)
 
 可以看到在一个 module 构建过程中，首先根据 module 的依赖类型(例如 normalModuleFactory)调用对应的构造函数来创建对应的模块。在创建模块的过程中，会根据开发者的 webpack.config 当中的 rules 以及 webpack 内置的 rules 规则实例化 ruleset 匹配实例，这个 ruleset 实例在 loader 的匹配过滤过程中非常的关键，具体的源码解析可参见[Webpack Loader Ruleset 匹配规则解析](https://github.com/CommanderXL/Biu-blog/issues/30)。此外还会注册2个钩子函数:
 
