@@ -266,8 +266,8 @@ asyncLib.parallel([
         // results[0]  ->  postLoader
         // results[1]  ->  normalLoader
         // results[2]  ->  preLoader
-        // 这里将所有类型的 loaders 按照一定顺序组合起来，对应于：
-        // postLoader -- inlineLoader -- normalLoader -- preLoader
+        // 这里将构建 module 需要的所有类型的 loaders 按照一定顺序组合起来，对应于：
+        // [postLoader, inlineLoader, normalLoader, preLoader]
         // 最终 loader 所执行的顺序对应为： preLoader -> normalLoader -> inlineLoader -> postLoader
         // 不同类型 loader 上的 pitch 方法执行的顺序为： postLoader.pitch -> inlineLoader.pitch -> normalLoader.pitch -> preLoader.pitch (具体loader内部执行的机制后文会单独讲解)
         loaders = results[0].concat(loaders, results[1], results[2]);
