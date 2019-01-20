@@ -292,6 +292,6 @@ asyncLib.parallel([
 })
 ```
 
-简单总结下这个流程就是：
+简单总结下匹配的流程就是：
 
-...
+首先处理 inlineLoaders，对其进行解析，获取对应的 loader 模块的信息，接下来利用 ruleset 实例上的匹配过滤方法对 webpack.config 中配置的相关 loaders 进行匹配过滤，获取构建这个 module 所需要的配置的的 loaders，并进行解析，这个过程完成后，便进行所有 loaders 的拼装工作，并传入创建 module 的回调中。
