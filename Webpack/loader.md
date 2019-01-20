@@ -8,7 +8,6 @@
 
 ## Webpack loader 详解
 
-
 ### loader 的配置
 
 Webpack 对于一个 module 所使用的 loader 对开发者提供了2种使用方式：
@@ -57,12 +56,12 @@ import a from 'raw-loader!../../utils.js'
 
 ![webpack loader](../images/webpack/Loader.jpeg)
 
-可以看到在一个 module 构建过程中，首先根据 module 的依赖类型(例如 normalModuleFactory)调用对应的构造函数来创建对应的模块。在创建模块的过程中，会根据开发者的 webpack.config 当中的 rules 以及 webpack 内置的 rules 规则实例化 ruleset 匹配实例，这个 ruleset 实例在 loader 的匹配过滤过程中非常的关键，具体的源码解析可参见[Webpack Loader Ruleset 匹配规则解析](https://github.com/CommanderXL/Biu-blog/issues/30)。此外还会注册2个钩子函数:
+在一个 module 构建过程中，首先根据 module 的依赖类型(例如 NormalModuleFactory)调用对应的构造函数来创建对应的模块。在创建模块的过程中(`new NormalModuleFactory()`)，会根据开发者的 webpack.config 当中的 rules 以及 webpack 内置的 rules 规则实例化 ruleset 匹配实例，这个 ruleset 实例在 loader 的匹配过滤过程中非常的关键，具体的源码解析可参见[Webpack Loader Ruleset 匹配规则解析](https://github.com/CommanderXL/Biu-blog/issues/30)。实例化 ruleset 后，还会注册2个钩子函数:
 
 ```javascript
 class NormalModuleFactory {
   ...
-  // 内部嵌套 resolver 的钩子，完成相关的解析后，创建这个 module
+  // 内部嵌套 resolver 的钩子，完成相关的解析后，创建这个 normalModule
   this.hooks.factory.tap('NormalModuleFactory', () => (result, callback) => { ... })
 
   // 在 hooks.factory 的钩子内部进行调用，实际的作用为解析构建一共 module 所需要的 loaders 及这个 module 的相关构建信息(例如获取 module 的 packge.json等)
@@ -71,11 +70,7 @@ class NormalModuleFactory {
 }
 ```
 
-
-...
-
-
-接下来就调用 resolver 钩子(`hooks.resolver`)进入到了 resolve 的阶段，在真正开始 resolve loader 之前，首先就是需要匹配过滤找到构建这个 module 所需要使用的所有的 loaders。首先进行的是对于 inline loaders 的处理：
+当 NormalModuleFactory 实例化完成后，并在 compilation 内部调用这个实例的 create 方法开始真实开始创建这个 normalModule。首先调用`hooks.factory`获取对应的钩子函数，接下来就调用 resolver 钩子(`hooks.resolver`)进入到了 resolve 的阶段，在真正开始 resolve loader 之前，首先就是需要匹配过滤找到构建这个 module 所需要使用的所有的 loaders。首先进行的是对于 inline loaders 的处理：
 
 ```javascript
 // NormalModuleFactory.js
