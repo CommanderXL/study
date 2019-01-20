@@ -1,10 +1,10 @@
 提纲：
 
-1. loader 的配置
-2. loader 的匹配
-3. loader 的解析
-4. loader 的执行
-5. loader 的实践
+1. loader 的配置(done)
+2. loader 的匹配(done)
+3. loader 的解析(参见 resolve 章节)
+4. loader 的执行(TODO)
+5. loader 的实践(TODO)
 
 ## Webpack loader 详解
 
@@ -291,3 +291,7 @@ asyncLib.parallel([
   }
 })
 ```
+
+简单总结下这个流程就是：
+
+...
