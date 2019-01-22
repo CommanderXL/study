@@ -1,12 +1,12 @@
-function flatMap1(arr) {
+function flatten1(arr) {
   let res = []
   if (!Array.isArray(arr)) {
-    throw new Error('It\'s not an array')
+    return [arr]
   } else {
     for (let i = 0; i < arr.length; i++) {
       const item = arr[i]
       if (Array.isArray(item)) {
-        res.concat(flatMap(item))
+        res.concat(flatten1(item))
       } else {
         res.push(item)
       }
@@ -15,12 +15,12 @@ function flatMap1(arr) {
   return res
 }
 
-function flatMap2(arr) {
+function flatten2(arr) {
   let res = []
   if (!Array.isArray(arr)) {
-    throw new Error('It\'s not an array')
+    return [arr]
   } else {
-    res = arr.reduce((initVal, curVal) => initVal.concat(Array.isArray(curVal) ? flatMap2(curVal) : curVal), [])
+    res = arr.reduce((initVal, curVal) => initVal.concat(Array.isArray(curVal) ? flatten2(curVal) : curVal), [])
   }
 
   return res
