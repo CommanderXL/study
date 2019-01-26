@@ -174,7 +174,17 @@ exports.runLoaders = function runLoaders(options, callback) {
 		get: function() {
 			return loaderContext.loaders[loaderContext.loaderIndex].data;
 		}
-	});
+  });
+  
+  var processOptions = {
+		resourceBuffer: null, // module 的内容 buffer
+		readResource: readResource
+  };
+  // 开始执行每个 loader 上的 pitch 函数
+	iteratePitchingLoaders(processOptions, loaderContext, function(err, result) {
+    // do something...
+  });
 }
 ```
 
+这里稍微总结下就是在 runLoaders 方法的初期会对相关参数进行初始化的操作，特别是将 loaderContext 上的部分属性改写为 getter/setter 函数，这样在不同的 loader 执行的阶段可以动态的获取一些参数。
