@@ -394,7 +394,7 @@ function runSyncOrAsync(fn, context, args, callback) {
 			if(reportedError) return; // ignore
 			throw new Error("async(): The callback was already called.");
 		}
-		isSync = false;
+		isSync = false; // 同步标志位置为 false
 		return innerCallback;
   };
   // callback 的形式可以向下一个 loader 多个参数
@@ -433,17 +433,7 @@ function runSyncOrAsync(fn, context, args, callback) {
 			return callback(null, result);
 		}
 	} catch(e) {
-		if(isError) throw e;
-		if(isDone) {
-			// loader is already "done", so we cannot use the callback function
-			// for better debugging we print the error on the console
-			if(typeof e === "object" && e.stack) console.error(e.stack);
-			else console.error(e);
-			return;
-		}
-		isDone = true;
-		reportedError = true;
-		callback(e);
+		// do something
 	}
 }
 ```
