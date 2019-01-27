@@ -2,7 +2,7 @@
 
 上篇文章主要讲了 loader 的配置，匹配相关的机制。这篇主要会讲当一个 module 被创建之后，使用 loader 去处理这个 module 内容的流程机制。首先我们来总体的看下整个的流程：
 
-module 创建成功 -> module.build 开始构建 -> 
+![runLoader](../images/webpack/runLoader.jpeg)
 
 在 module 一开始构建的过程中，首先会创建一个 loaderContext 对象，它和这个 module 是一一对应的关系，而这个 module 所使用的所有 loaders 都会共享这个 loaderContext 对象，每个 loader 执行的时候上下文就是这个 loaderContext 对象，所以可以在我们写的 loader 里面通过 this 来访问。
 
@@ -129,7 +129,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 			}).concat(loaderContext.resource || "").join("!");
 		}
   });
-  // 剩下还未被调用的 loader.normal 所组成的 request 字符串
+  // 在执行 loader 提供的 pitch 函数阶段传入的参数之一，剩下还未被调用的 loader.pitch 所组成的 request 字符串
 	Object.defineProperty(loaderContext, "remainingRequest", {
 		enumerable: true,
 		get: function() {
@@ -140,7 +140,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 			}).concat(loaderContext.resource || "").join("!");
 		}
   });
-  // TODO:
+  // 在执行 loader 提供的 pitch 函数阶段传入的参数之一，包含当前 loader.pitch 所组成的 request 字符串
 	Object.defineProperty(loaderContext, "currentRequest", {
 		enumerable: true,
 		get: function() {
@@ -149,7 +149,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 			}).concat(loaderContext.resource || "").join("!");
 		}
   });
-  // TODO:
+  // 在执行 loader 提供的 pitch 函数阶段传入的参数之一，包含已经被执行的 loader.pitch 所组成的 request 字符串
 	Object.defineProperty(loaderContext, "previousRequest", {
 		enumerable: true,
 		get: function() {
