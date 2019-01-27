@@ -191,10 +191,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 
 接下来开始调用 iteratePitchingLoaders 方法执行每个 loader 上提供的 pitch 函数。大家写过 loader 的话应该都清楚，每个 loader 可以挂载一个 pitch 函数，每个 loader 提供的 pitch 方法和 loader 实际的执行顺序正好相反。这块的内容在 webpack 文档上也有详细的说明([请戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))。
 
-// TODO: vue-loader 的 pitch 函数的分析
-这些 pitch 函数并不是用来实际处理 module 的内容的，主要是可以利用 module 的 request 
-
-
+这些 pitch 函数并不是用来实际处理 module 的内容的，主要是可以利用 module 的 request，来做一些拦截处理的工作，从而达到在 loader 处理流程当中的一些定制化的处理需要，有关 pitch 函数具体的实战可以参见下一篇文档[Webpack 高手进阶-loader 实战] TODO:
 
 ```javascript
 function iteratePitchingLoaders() {
@@ -437,3 +434,5 @@ function runSyncOrAsync(fn, context, args, callback) {
 	}
 }
 ```
+
+以上就是对于 module 在构建过程中 loader 执行流程的源码分析。可能平时在使用 webpack 过程了解相关的 loader 执行规则和策略，再配合这篇对于内部机制的分析，应该会对 webpack loader 的使用有更加深刻的印象。
