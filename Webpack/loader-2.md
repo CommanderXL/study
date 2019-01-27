@@ -234,6 +234,43 @@ module.exports = function (loader, callback) {
   loader.pitch = module.pitch
 
   loader.raw = module.raw
+
+  callback()
   ...
 }
 ```
+
+当 loader 加载完后，开始执行 loadLoader 的回调：
+
+```javascript
+loadLoader(currentLoaderObject, function(err) {
+  var fn = currentLoaderObject.pitch; // 获取 pitch 函数
+  currentLoaderObject.pitchExecuted = true;
+  if(!fn) return iteratePitchingLoaders(options, loaderContext, callback); // 如果这个 loader 没有提供 pitch 函数，那么直接跳过
+
+  // 开始执行 pitch 函数
+  runSyncOrAsync(
+    fn,
+    loaderContext, [loaderContext.remainingRequest, loaderContext.previousRequest, currentLoaderObject.data = {}],
+    function(err) {
+      if(err) return callback(err);
+      var args = Array.prototype.slice.call(arguments, 1);
+      // Determine whether to continue the pitching process based on
+      // argument values (as opposed to argument presence) in order
+      // to support synchronous and asynchronous usages.
+      // 根据是否有参数返回来判断是否向下继续进行 pitch 函数的执行
+      var hasArg = args.some(function(value) {
+        return value !== undefined;
+      });
+      if(hasArg) {
+        loaderContext.loaderIndex--;
+        iterateNormalLoaders(options, loaderContext, args, callback);
+      } else {
+        iteratePitchingLoaders(options, loaderContext, callback);
+      }
+    }
+  );
+})
+```
+
+这里出现了一个 runSyncOrAsync 方法，先按住不表，后文会讲，开始执行 pitch 函数，当 pitch 函数执行完后，执行传入的回调函数。我们看到回调函数里面会判断接收到的参数的个数，除了第一个 err 参数外，如果还有其他的参数(这些参数是pitch函数执行完后传入回调函数的)，那么会直接进入 loader 的 normal 方法执行阶段，如果 pitch 函数没有返回值的话，那么进入到下一个 loader 的 pitch 函数的执行阶段。
