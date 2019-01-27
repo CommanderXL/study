@@ -273,4 +273,69 @@ loadLoader(currentLoaderObject, function(err) {
 })
 ```
 
-这里出现了一个 runSyncOrAsync 方法，先按住不表，后文会讲，开始执行 pitch 函数，当 pitch 函数执行完后，执行传入的回调函数。我们看到回调函数里面会判断接收到的参数的个数，除了第一个 err 参数外，如果还有其他的参数(这些参数是pitch函数执行完后传入回调函数的)，那么会直接进入 loader 的 normal 方法执行阶段，如果 pitch 函数没有返回值的话，那么进入到下一个 loader 的 pitch 函数的执行阶段。
+这里出现了一个 runSyncOrAsync 方法，先按住不表，后文会讲，开始执行 pitch 函数，当 pitch 函数执行完后，执行传入的回调函数。我们看到回调函数里面会判断接收到的参数的个数，除了第一个 err 参数外，如果还有其他的参数(这些参数是pitch函数执行完后传入回调函数的)，那么会直接进入 loader 的 normal 方法执行阶段，并且会直接跳过后面的 loader 执行阶段。如果 pitch 函数没有返回值的话，那么进入到下一个 loader 的 pitch 函数的执行阶段。让我们再回到 iteratePitchingLoaders 方法内部，当所有 loader 上面的 pitch 函数都执行完后，即 loaderIndex 索引值 >= loader 数组长度的时候：
+
+```javascript
+function iteratePitchingLoaders () {
+  ...
+
+  if(loaderContext.loaderIndex >= loaderContext.loaders.length)
+    return processResource(options, loaderContext, callback);
+
+  ...
+}
+
+function processResource(options, loaderContext, callback) {
+	// set loader index to last loader
+	loaderContext.loaderIndex = loaderContext.loaders.length - 1;
+
+	var resourcePath = loaderContext.resourcePath;
+	if(resourcePath) {
+		loaderContext.addDependency(resourcePath); // 添加依赖
+		options.readResource(resourcePath, function(err, buffer) {
+			if(err) return callback(err);
+			options.resourceBuffer = buffer;
+			iterateNormalLoaders(options, loaderContext, [buffer], callback);
+		});
+	} else {
+		iterateNormalLoaders(options, loaderContext, [null], callback);
+	}
+}
+```
+
+在 processResouce 方法内部调用 node api readResouce 读取 module 对应路径的文本内容，调用 iterateNormalLoaders 方法，开始进入 loader normal 方法的执行阶段。
+
+```javascript
+function iterateNormalLoaders () {
+  if(loaderContext.loaderIndex < 0)
+		return callback(null, args);
+
+	var currentLoaderObject = loaderContext.loaders[loaderContext.loaderIndex];
+
+	// iterate
+	if(currentLoaderObject.normalExecuted) {
+		loaderContext.loaderIndex--;
+		return iterateNormalLoaders(options, loaderContext, args, callback);
+	}
+
+	var fn = currentLoaderObject.normal;
+	currentLoaderObject.normalExecuted = true;
+	if(!fn) {
+		return iterateNormalLoaders(options, loaderContext, args, callback);
+	}
+
+  // buffer 和 utf8 string 之间的转化
+	convertArgs(args, currentLoaderObject.raw);
+
+	runSyncOrAsync(fn, loaderContext, args, function(err) {
+		if(err) return callback(err);
+
+		var args = Array.prototype.slice.call(arguments, 1);
+		iterateNormalLoaders(options, loaderContext, args, callback);
+	});
+}
+```
+
+在 iterateNormalLoaders 方法内部就是依照从右到左的顺序(正好与 pitch 方法执行顺序相反)依次执行每个 loader 上的 normal 方法。
+
+接下来我们看下上文提到的 runSyncOrAsync 方法内部到底是如何运行的。
