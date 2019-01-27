@@ -188,3 +188,52 @@ exports.runLoaders = function runLoaders(options, callback) {
 ```
 
 这里稍微总结下就是在 runLoaders 方法的初期会对相关参数进行初始化的操作，特别是将 loaderContext 上的部分属性改写为 getter/setter 函数，这样在不同的 loader 执行的阶段可以动态的获取一些参数。
+
+接下来开始调用 iteratePitchingLoaders 方法执行每个 loader 上提供的 pitch 函数。大家写过 loader 的话应该都清楚，每个 loader 可以挂载一个 pitch 函数，每个 loader 提供的 pitch 方法和 loader 实际的执行顺序正好相反。这块的内容在 webpack 文档上也有详细的说明([请戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))。
+
+// TODO: vue-loader 的 pitch 函数的分析
+这些 pitch 函数并不是用来实际处理 module 的内容的，主要是可以利用 module 的 request 
+
+
+
+```javascript
+function iteratePitchingLoaders() {
+  // abort after last loader
+	if(loaderContext.loaderIndex >= loaderContext.loaders.length)
+		return processResource(options, loaderContext, callback);
+
+  // 根据 loaderIndex 来获取当前需要执行的 loader
+	var currentLoaderObject = loaderContext.loaders[loaderContext.loaderIndex];
+
+  // iterate
+  // 如果被执行过，那么直接跳过这个 loader 的 pitch 函数
+	if(currentLoaderObject.pitchExecuted) {
+		loaderContext.loaderIndex++;
+		return iteratePitchingLoaders(options, loaderContext, callback);
+	}
+
+	// 加载 loader 模块
+	// load loader module
+	loadLoader(currentLoaderObject, function(err) {
+		// do something ...
+	});
+}
+```
+
+每次执行 pitch 函数前，首先根据 loaderIndex 来获取当前需要执行的 loader (currentLoaderObject)，调用 loadLoader 函数来加载这个 loader，loadLoader 内部兼容了 SystemJS，ES Module，CommonJs 这些模块定义，最终会将 loader 提供的 pitch 方法和普通方法赋值到 currentLoaderObject 上：
+
+```javascript
+// loadLoader.js
+module.exports = function (loader, callback) {
+  ...
+  var module = require(loader.path)
+ 
+  ...
+  loader.normal = module
+
+  loader.pitch = module.pitch
+
+  loader.raw = module.raw
+  ...
+}
+```
