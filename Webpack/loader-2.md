@@ -336,6 +336,114 @@ function iterateNormalLoaders () {
 }
 ```
 
-在 iterateNormalLoaders 方法内部就是依照从右到左的顺序(正好与 pitch 方法执行顺序相反)依次执行每个 loader 上的 normal 方法。
+在 iterateNormalLoaders 方法内部就是依照从右到左的顺序(正好与 pitch 方法执行顺序相反)依次执行每个 loader 上的 normal 方法。loader 不管是 pitch 方法还是 normal 方法的执行可为同步的，也可设为异步的(这里说下 normal 方法的)。一般如果你写的 loader 里面可能涉及到计算量较大的情况时，可将你的 loader 异步化，在你 loader 方法里面调用`this.async`方法，返回异步的回调函数，当你 loader 内部实际的内容执行完后，可调用这个异步的回调来进入下一个 loader 的执行。
 
-接下来我们看下上文提到的 runSyncOrAsync 方法内部到底是如何运行的。
+```javascript
+module.exports = function (content) {
+  const callback = this.async()
+  someAsyncOperation(content, function(err, result) {
+    if (err) return callback(err);
+    callback(null, result);
+  });
+}
+```
+
+除了调用 this.async 来异步化 loader 之外，还有一种方式就是在你的 loader 里面去返回一个 promise，只有当这个 promise 被 resolve 之后，才会调用下一个 loader(具体实现机制见下文)：
+
+```javascript
+module.exports = function (content) {
+  return new Promise(resolve => {
+    someAsyncOpertion(content, function(err, result) {
+      if (err) resolve(err)
+      resolve(null, result)
+    })
+  })
+}
+```
+
+
+这里还有一个地方需要注意的就是，上下游 loader 之间的数据传递过程中，如果下游的 loader 接收到的参数为一个，那么可以在上一个 loader 执行结束后，如果是同步就直接 return 出去：
+
+```javascript
+module.exports = function (content) {
+  // do something
+  return content
+}
+```
+
+如果是异步就直接调用异步回调传递下去(参见上面loader异步化)。如果下游 loader 接收的参数多余一个，那么上一个 loader 执行结束后，如果是同步那么就需要调用 loaderContext 提供的 callback 函数:
+
+```javascript
+module.exports = function (content) {
+  // do something
+  this.callback(null, content, argA, argB)
+}
+```
+
+如果是异步的还是继续调用异步回调函数传递下去(参见上面loader异步化)。具体的执行机制涉及到上文还没讲到的 runSyncOrAsync 方法，它提供了上下游 loader 调用的接口：
+
+```javascript
+function runSyncOrAsync(fn, context, args, callback) {
+	var isSync = true; // 是否为同步
+	var isDone = false;
+	var isError = false; // internal error
+	var reportedError = false;
+	// 给 loaderContext 上下文赋值 async 函数，用以将 loader 异步化，并返回异步回调
+	context.async = function async() {
+		if(isDone) {
+			if(reportedError) return; // ignore
+			throw new Error("async(): The callback was already called.");
+		}
+		isSync = false;
+		return innerCallback;
+  };
+  // callback 的形式可以向下一个 loader 多个参数
+	var innerCallback = context.callback = function() {
+		if(isDone) {
+			if(reportedError) return; // ignore
+			throw new Error("callback(): The callback was already called.");
+		}
+		isDone = true;
+		isSync = false;
+		try {
+			callback.apply(null, arguments);
+		} catch(e) {
+			isError = true;
+			throw e;
+		}
+	};
+	try {
+		// 开始执行 loader
+		var result = (function LOADER_EXECUTION() {
+			return fn.apply(context, args);
+    }());
+    // 如果为同步的执行
+		if(isSync) {
+      isDone = true;
+      // 如果 loader 执行后没有返回值，执行 callback 开始下一个 loader 执行
+			if(result === undefined)
+        return callback();
+      // loader 返回值为一个 promise 函数，放到下一个 mircoTask 中执行下一个 loader。这也是 loader 异步化的一种方式
+			if(result && typeof result === "object" && typeof result.then === "function") {
+				return result.catch(callback).then(function(r) {
+					callback(null, r);
+				});
+      }
+      // 如果 loader 执行后有返回值，执行 callback 开始下一个 loader 执行
+			return callback(null, result);
+		}
+	} catch(e) {
+		if(isError) throw e;
+		if(isDone) {
+			// loader is already "done", so we cannot use the callback function
+			// for better debugging we print the error on the console
+			if(typeof e === "object" && e.stack) console.error(e.stack);
+			else console.error(e);
+			return;
+		}
+		isDone = true;
+		reportedError = true;
+		callback(e);
+	}
+}
+```
