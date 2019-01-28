@@ -33,7 +33,7 @@ class NormalModule extends Module {
 			fs: fs
 		};
 
-    // 触发 normalModuleLoader 的钩子函数
+    // 触发 normalModuleLoader 的钩子函数，开发者可以利用这个钩子来对 loaderContext 进行拓展
 		compilation.hooks.normalModuleLoader.call(loaderContext, this);
 		if (options.loader) {
 			Object.assign(loaderContext, options.loader);
