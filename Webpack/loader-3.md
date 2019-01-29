@@ -412,6 +412,18 @@ style block 会经过以下的流程处理：
 
 source.vue?vue&type=style -> vue-loader(抽离 style block) -> stylePostLoader(处理作用域 scoped css) -> css-loader(处理相关资源引入路径) -> vue-style-loader(动态创建 style 标签插入 css)
 
+
+![vue-loader-style-block](../images/webpack/vue-loader-style-block.jpeg)
+
+
 template block 会经过以下的流程处理：
 
 source.vue?vue&type=template -> vue-loader(抽离 template block ) -> pug-plain-loader(将 pug 模块转化为 html 字符串) -> templateLoader(编译 html 模板字符串，生成 render/staticRenderFns 函数并暴露出去)
+
+
+![vue-loader-template-block](../images/webpack/vue-loader-template-block.jpeg)
+
+
+### 总结
+
+通过 vue-loader 的源码我们看到一个 vue sfc 在整个编译构建环节是怎么样一步一步处理的，这也是得益于 webpack 给开发这提供了这样一种 loader 的机制，使得开发者通过这样一种方式去对项目源码做对应的转换工作以满足相关的开发需求。结合之前的2篇有关 webpack loader 源码的分析，大家应该对 loader 有了更加深入的理解，也希望大家活学活用，利用 loader 机制去完成更多贴合实际需求的开发工作。
