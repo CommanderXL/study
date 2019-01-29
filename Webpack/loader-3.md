@@ -79,7 +79,6 @@ module.exports = function(source) {
   ...
   
 
-  // TODO: sfc 不同 block 的内容
   // 开始解析 sfc，根据不同的 block 来拆解对应的内容
   const descriptor = parse({
     source,
@@ -217,7 +216,9 @@ component.options.__file = "example/source.vue"
 export default component.exports
 ```
 
-从生成的 js module 字符串来看：将由 source.vue 提供 render函数/staticRenderFns，js script，style样式，并交由 normalizer 进行统一的格式化，最终导出 component.exports。vue-loader 在这一阶段将 vue sfc 转化为 js module 后，就进入到了 webpack 的编译环节，即对这个 js module 进行 ast 的解析以及相关依赖的收集过程，这里我用每个 request 去标记每个被收集的 module(这里只说明和 vue sfc 相关的模块内容)：
+从生成的 js module 字符串来看：将由 source.vue 提供 render函数/staticRenderFns，js script，style样式，并交由 normalizer 进行统一的格式化，最终导出 component.exports。
+
+vue-loader 在这一阶段将 vue sfc 转化为 js module 后，进入到了 webpack 的编译环节，即对这个 js module 进行 ast 的解析以及相关依赖的收集过程，这里我用每个 request 去标记每个被收集的 module(这里只说明和 vue sfc 相关的模块内容)：
 
 ```javascript
 [
@@ -245,6 +246,7 @@ class VueLoaderPlugin {
     const { rules } = new RuleSet(rawRules)
 
     // find the rule that applies to vue files
+    // 判断是否有给`.vue`或`.vue.html`进行 module.rule 的配置
     let vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue`))
     if (vueRuleIndex < 0) {
       vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue.html`))
@@ -253,6 +255,7 @@ class VueLoaderPlugin {
 
     ...
 
+    // 判断对于`.vue`或`.vue.html`配置的 module.rule 是否有 vue-loader
     // get the normlized "use" for vue files
     const vueUse = vueRule.use
     // get vue-loader options
@@ -274,6 +277,7 @@ class VueLoaderPlugin {
       }
     }
 
+    // 拓展开发者的 module.rule 配置，加入 vue-loader 内部提供的 pitcher loader
     // replace original rules
     compiler.options.module.rules = [
       pitcher,
@@ -284,13 +288,20 @@ class VueLoaderPlugin {
 }
 ```
 
-vue-loader 内部提供的 pitcher loader 的匹配条件是`resourceQuery`，即判断 module path 上的 query 参数是否存在 vue，如果存在的话，那么就需要将这个 loader 加入到构建这个 module 的 loaders 数组当中。大家可以看到上面通过 vue-loader 经过第一阶段处理收集到的 module 的 query 参数都带有 vue 这个字段，那么最终也会经过 pitcher loader 的处理。此外在 loader 的配置顺序上，pitcher loader 为第一个，因此在处理 vue sfc 模块的时候，最先也是交由 pitcher loader 来处理。
+vue-loader 内部提供的 pitcher loader 的匹配条件是`resourceQuery`，即判断 module path 上的 query 参数是否存在 vue：
+
+```javascript
+// 这种类型的 module path 就会匹配上
+'./source.vue?vue&type=template&id=27e4e96e&scoped=true&lang=pug&'
+```
+
+如果存在的话，那么就需要将这个 loader 加入到构建这个 module 的 loaders 数组当中。大家可以看到上面通过 vue-loader 经过第一阶段处理收集到的 module 的 query 参数都带有 vue 这个字段，在对这个 module 进行 loader 匹配的时候那么将会把 pitcher loader 加入到匹配到的 loader 数组当中，因此这个 module 最终也会经过 pitcher loader 的处理。此外在 loader 的配置顺序上，pitcher loader 为第一个，因此在处理 vue sfc 模块的时候，最先也是交由 pitcher loader 来处理。
 
 那么我们就来看下 vue-loader 内部提供的 pitcher loader 主要是做了哪些工作呢：
 
 1. 去除 eslint loader；
 2. 去除 pitcher loader 自身；
-3. 根据不同 type query 参数进行拦截处理，返回对应的内容，跳过后面的 loader 执行的阶段
+3. 根据不同 type query 参数进行拦截处理，返回对应的内容，跳过后面的 loader 执行的阶段，进入到 module parse 阶段
 
 ```javascript
 // vue-loader/lib/loaders/pitcher.js
@@ -381,8 +392,7 @@ export * from "-!../node_modules/vue-style-loader/index.js!../node_modules/css-l
 
 最终在编译这个 js module 的时候才真正开始处理 source.vue 当中的 style block：
 
-TODO: 对应 Loader 的作用
-source.vue?vue&type=style -> vue-loader -> stylePostLoader -> css-loader -> vue-style-loader
+source.vue?vue&type=style -> vue-loader(抽离 style block) -> stylePostLoader(处理作用域 scoped css) -> css-loader(处理相关资源引入路径) -> vue-style-loader(动态创建 style 标签插入 css)
 
 对于 template block 的处理流程类似，生成一个新的 request，这个 request 包含了 vue-loader 内部提供的 templateLoader，并返回一个 js module，并跳过后面的 loader，然后开始编译返回的 js module，相关的内容为：
 
@@ -392,7 +402,8 @@ export * from "-!../lib/loaders/templateLoader.js??vue-loader-options!../node_mo
 
 在编译这个 js module 的时候才是真正开始处理 source.vue 当中的 template block：
 
-TODO: 对应 Loader 的作用
-source.vue?vue&type=script -> vue-loader -> pug-plain-loader -> templateLoader
+source.vue?vue&type=template -> vue-loader(抽离 template block ) -> pug-plain-loader(将 pug 模块转化为 html 字符串) -> templateLoader(编译 html 模板字符串，生成 render/staticRenderFns 函数并暴露出去)
+
+
 
 
