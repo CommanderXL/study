@@ -3,8 +3,8 @@
 1. loader 的配置(done)
 2. loader 的匹配(done)
 3. loader 的解析(参见 resolve 章节)
-4. loader 的执行(TODO)
-5. loader 的实践(TODO)
+4. loader 的执行(done)
+5. loader 的实践(done)
 
 ## Webpack loader 详解
 
