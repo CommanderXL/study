@@ -95,4 +95,13 @@ class Compilation {
 }
 ```
 
-在这个过程当中首先遍历 webpack config 当中配置的入口 module，每个入口 module 都会通过`addChunk`方法去创建一个 chunk，而这个新建的 chunk 为一个空的 chunk，即不包含任何与之相关联的 module。之后实例化一个 entryPoint，而这个 entryPoint 为一个 chunkGroup，每个 chunkGroup 包含多的 chunk，同时内部会有个比较特殊的 runtimeChunk（TODO:）。到此仅仅是分别创建了 chunk 以及 chunkGroup，接下来便调用`GraphHelpers`模块提供的`connectChunkGroupAndChunk`及`connectChunkAndModule`方法来建立起 chunkGroup 和 chunk 之间的联系，以及 chunk 和入口 module 之间的联系。(TODO: 提及这2个方法内部的工作原理)
+在这个过程当中首先遍历 webpack config 当中配置的入口 module，每个入口 module 都会通过`addChunk`方法去创建一个 chunk，而这个新建的 chunk 为一个空的 chunk，即不包含任何与之相关联的 module。之后实例化一个 entryPoint，而这个 entryPoint 为一个 chunkGroup，每个 chunkGroup 包含多的 chunk，同时内部会有个比较特殊的 runtimeChunk（TODO:）。到此仅仅是分别创建了 chunk 以及 chunkGroup，接下来便调用`GraphHelpers`模块提供的`connectChunkGroupAndChunk`及`connectChunkAndModule`方法来建立起 chunkGroup 和 chunk 之间的联系，以及 chunk 和 **入口 module** 之间(这里还未涉及到依赖 module)的联系。(TODO: 提及这2个方法内部的工作原理)
+
+例如我们给的示例当中，入口 module 只配置了一个，那么进入到上面提到的这个阶段时会生成一个 chunkGroup 以及 一个 chunk，这个 chunk 目前仅仅只包含了入口 module。我们都知道 webpack 输出的 chunk 当中都会包含与之相关的 module，在编译环节进行到上面这一步仅仅建立起了 chunk 和入口 module 之间的联系，那么 chunk 是如何与其他的 module 也建立起联系呢？接下来我们就看下 webpack 在生成 chunk 的过程当中是如何与其依赖的 module 进行关联的。
+
+与此相关的便是 compilation 实例提供的`processDependenciesBlocksForChunkGroups`方法。由于这个方法内部细节较为复杂，因此这里会梳理其核心的流程：
+
+1. 遍历 module graph 模块依赖图建立起 very basic chunks graph 依赖图；
+2. 遍历第一步创建的 chunk graph 依赖图（TODO: 具体描述）
+
+在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，且遍历了与每个 module 相关的异步 blocks，在这次遍历当中主要是建立起基本的 module graph。在我们的实例当中生成的 module graph 即为(TODO: module graph):
