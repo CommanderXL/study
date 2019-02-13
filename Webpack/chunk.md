@@ -94,3 +94,5 @@ class Compilation {
   ...
 }
 ```
+
+在这个过程当中首先遍历 webpack config 当中配置的入口 module，每个入口 module 都会通过`addChunk`方法去创建一个 chunk，而这个新建的 chunk 为一个空的 chunk，即不包含任何与之相关联的 module。之后实例化一个 entryPoint，而这个 entryPoint 为一个 chunkGroup，每个 chunkGroup 包含多的 chunk，同时内部会有个比较特殊的 runtimeChunk（TODO:）。到此仅仅是分别创建了 chunk 以及 chunkGroup，接下来便调用`GraphHelpers`模块提供的`connectChunkGroupAndChunk`及`connectChunkAndModule`方法来建立起 chunkGroup 和 chunk 之间的联系，以及 chunk 和入口 module 之间的联系。(TODO: 提及这2个方法内部的工作原理)
