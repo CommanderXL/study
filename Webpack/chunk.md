@@ -104,4 +104,143 @@ class Compilation {
 1. 遍历 module graph 模块依赖图建立起 very basic chunks graph 依赖图；
 2. 遍历第一步创建的 chunk graph 依赖图（TODO: 具体描述）
 
-在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，且遍历了与每个 module 相关的异步 blocks，在这次遍历当中主要是建立起基本的 module graph。在我们的实例当中生成的 module graph 即为(TODO: module graph):
+在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步api加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 结构当中：
+
+```javascript
+const iteratorBlockPrepare = b => {
+  // console.log('the block request is', b)
+  blockInfoBlocks.push(b);
+  blockQueue.push(b);
+};
+
+for (const modules of this.modules) {
+  blockQueue = [module];
+  currentModule = module;
+  while (blockQueue.length > 0) {
+    block = blockQueue.pop();
+    blockInfoModules = new Set();
+    blockInfoBlocks = [];
+
+    if (block.variables) {
+      iterationBlockVariable(block.variables, iteratorDependency);
+    }
+
+    if (block.dependencies) {
+      iterationOfArrayCallback(block.dependencies, iteratorDependency);
+    }
+
+    if (block.blocks) {
+      iterationOfArrayCallback(block.blocks, iteratorBlockPrepare);
+    }
+
+    const blockInfo = {
+      modules: Array.from(blockInfoModules), // 依赖的 modules
+      blocks: blockInfoBlocks // 依赖的 blocks
+    };
+    // blockInfoMap 上保存了每个 module 的依赖 module 及 异步 blocks
+    blockInfoMap.set(block, blockInfo);
+  }
+}
+```
+
+在我们的实例当中生成的 module graph 即为(TODO: module graph):
+
+当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph，刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
+
+* action (需要被处理的模块类型，不同的处理类型的模块会经过不同的流程处理，初始为1)
+* block (入口 module)
+* module (入口 module)
+* chunk (seal 阶段一开始为每个入口 module 创建的空 chunk)
+* chunkGroup (entryPoint 即 chunkGroup 类型)
+
+在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中，首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段，首先根据 module graph 保存的模块映射 blockInfoMap 获取这个 module 的依赖 modules 及异步的 blocks，这里便会判断当前这个 module 所属的 chunk 当中是否包含了这个 module 的依赖，如果没有的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：为这个异步的 block 新建一个 chunk，以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步api加载模块时，webpack 最终会单独给这个模块输出一个 chunk。
+
+```javascript
+...
+const ADD_AND_ENTER_MODULE = 0;
+const ENTER_MODULE = 1;
+const PROCESS_BLOCK = 2;
+const LEAVE_MODULE = 3;
+...
+const chunkGroupToQueueItem = chunkGroup => ({
+  action: ENTER_MODULE,
+  block: chunkGroup.chunks[0].entryModule,
+  module: chunkGroup.chunks[0].entryModule,
+  chunk: chunkGroup.chunks[0],
+  chunkGroup
+});
+
+let queue = inputChunkGroups.map(chunkGroupToQueueItem).reverse()
+
+while (queue.length) {
+  while (queue.length) {
+    const queueItem = queue.pop();
+    module = queueItem.module;
+    block = queueItem.block;
+    chunk = queueItem.chunk;
+    chunkGroup = queueItem.chunkGroup;
+
+    switch (queueItem.action) {
+      case ADD_AND_ENTER_MODULE: {
+        // 添加 module 至 chunk 当中
+        // We connect Module and Chunk when not already done
+        if (chunk.addModule(module)) {
+          module.addChunk(chunk);
+        } else {
+          // already connected, skip it
+          break;
+        }
+      }
+      // fallthrough
+      case ENTER_MODULE: {
+        ...
+        queue.push({
+          action: LEAVE_MODULE,
+          block,
+          module,
+          chunk,
+          chunkGroup
+        });
+      }
+      // fallthrough
+      case PROCESS_BLOCK: {
+        // get prepared block info
+        const blockInfo = blockInfoMap.get(block);
+        // Traverse all referenced modules
+        for (let i = blockInfo.modules.length - 1; i >= 0; i--) {
+          const refModule = blockInfo.modules[i];
+          if (chunk.containsModule(refModule)) {
+            // skip early if already connected
+            continue;
+          }
+          // enqueue the add and enter to enter in the correct order
+          // this is relevant with circular dependencies
+          queue.push({
+            action: ADD_AND_ENTER_MODULE,
+            block: refModule, // 依赖 module
+            module: refModule, // 依赖 module
+            chunk, // module 所属的 chunk
+            chunkGroup // module 所属的 chunkGroup
+          });
+        }
+
+        // 开始创建异步的 chunk
+        // Traverse all Blocks
+        iterationOfArrayCallback(blockInfo.blocks, iteratorBlock);
+
+        if (blockInfo.blocks.length > 0 && module !== block) {
+          blocksWithNestedBlocks.add(block);
+        }
+        break;
+      }
+      case LEAVE_MODULE: {
+        ...
+        break;
+      }
+    }
+  }
+  const tempQueue = queue;
+  queue = queueDelayed.reverse();
+  queueDelayed = tempQueue;
+}
+```
