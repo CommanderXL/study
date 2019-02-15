@@ -147,13 +147,29 @@ for (const modules of this.modules) {
 
 当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph，刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
 
-* action (需要被处理的模块类型，不同的处理类型的模块会经过不同的流程处理，初始为1)
+* action (需要被处理的模块类型，不同的处理类型的模块会经过不同的流程处理，初始为 ENTER_MODULE(1))
 * block (入口 module)
 * module (入口 module)
 * chunk (seal 阶段一开始为每个入口 module 创建的空 chunk)
 * chunkGroup (entryPoint 即 chunkGroup 类型)
 
-在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中，首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段，首先根据 module graph 保存的模块映射 blockInfoMap 获取这个 module 的依赖 modules 及异步的 blocks，这里便会判断当前这个 module 所属的 chunk 当中是否包含了这个 module 的依赖，如果没有的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：为这个异步的 block 新建一个 chunk，以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步api加载模块时，webpack 最终会单独给这个模块输出一个 chunk。
+在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中：
+
+首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
+
+首先根据 module graph 保存的模块映射 blockInfoMap 获取这个 module 的依赖 modules 及异步的 blocks，这里便会判断当前这个 module 所属的 chunk 当中是否包含了这个 module 的依赖，如果没有的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：
+
+1. 调用`addChunkInGroup`为这个异步的 block 新建一个 chunk 以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步api加载模块时，webpack 最终会单独给这个模块输出一个 chunk，但是这个 chunk 为一个空的 chunk，没有加入任何依赖的 module；
+
+2. 建立起当前 module 所属的 chunkGroup 和 block 以及这个 block 所属的 chunkGroup 之间的依赖关系，并存储至 chunkDependencies map 表中；
+
+3. 向 queue 中添加一个新项以供下一次的遍历。这个新项的 action 类型为 PROCESS_BLOCK，module 为当前所属的 module，block 为当前 module 依赖的异步模块，chunk 及 chunkGroup 都是处理异步模块生成的。
+
+在 ENTRY_MODULE 阶段即完成了将 entry module 的依赖 module 加入到 queue 当中，这个阶段结束后即进入到了第二轮的 queue 遍历的环节：
+
+而这一轮的遍历过程当中，我们主要关注 queue 当中每项 action 类型为 ADD_AND_ENTER_MODULE 的项，进行实际的处理时，进入到 ADD_AND_ENTER_MODULE 阶段，这个阶段完成的主要工作就是判断 chunk 所依赖的 module 是否已经添加到 chunk 内部(`chunk.addModule`)，如果没有的话，那么便会将 module 加入到 chunk，并进入到 ENTRY_MODULE 阶段，进入到后面的流程(见上文)，如果已经添加过了，那么则会跳过这次遍历。
+
+
 
 ```javascript
 ...
