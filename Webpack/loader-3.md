@@ -36,11 +36,83 @@ module.exports = {
 }
 ```
 
-一个就是 module.rules 有关的配置，如果处理的 module 路径是以`.vue`形式结尾的，那么会交给 vue-loader 来处理，同时在 v15 版本会需要你使用 vue-loader 内部提供的一个 plugin，具体内容后文会说明。
+一个就是 module.rules 有关的配置，如果处理的 module 路径是以`.vue`形式结尾的，那么会交给 vue-loader 来处理，同时在 v15 版本**必须**要使用 vue-loader 内部提供的一个 plugin，它的职责是将你定义过的其它规则复制并应用到 `.vue` 文件里相应语言的块。例如，如果你有一条匹配 `/\.js$/` 的规则，那么它会应用到 `.vue` 文件里的 `<script>` 块，说到这里我们就一起先来看看这个 plugin 里面到底做了哪些工作。
+
+### VueLoaderPlugin
+
+我们都清楚 webpack plugin 的装载过程是在整个 webpack 编译周期中初始阶段，我们先来看下 VueLoaderPlugin 内部源码的实现：
+
+```javascript
+// vue-loader/lib/plugin.js
+
+class VueLoaderPlugin {
+  apply() {
+    ...
+    // use webpack's RuleSet utility to normalize user rules
+    const rawRules = compiler.options.module.rules
+    const { rules } = new RuleSet(rawRules)
+
+    // find the rule that applies to vue files
+    // 判断是否有给`.vue`或`.vue.html`进行 module.rule 的配置
+    let vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue`))
+    if (vueRuleIndex < 0) {
+      vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue.html`))
+    }
+    const vueRule = rules[vueRuleIndex]
+
+    ...
+
+    // 判断对于`.vue`或`.vue.html`配置的 module.rule 是否有 vue-loader
+    // get the normlized "use" for vue files
+    const vueUse = vueRule.use
+    // get vue-loader options
+    const vueLoaderUseIndex = vueUse.findIndex(u => {
+      return /^vue-loader|(\/|\\|@)vue-loader/.test(u.loader)
+    })
+    ...
+
+    // 创建 pitcher loader 的配置
+    const pitcher = {
+      loader: require.resolve('./loaders/pitcher'),
+      resourceQuery: query => {
+        const parsed = qs.parse(query.slice(1))
+        return parsed.vue != null
+      },
+      options: {
+        cacheDirectory: vueLoaderUse.options.cacheDirectory,
+        cacheIdentifier: vueLoaderUse.options.cacheIdentifier
+      }
+    }
+
+    // 拓展开发者的 module.rule 配置，加入 vue-loader 内部提供的 pitcher loader
+    // replace original rules
+    compiler.options.module.rules = [
+      pitcher,
+      ...clonedRules,
+      ...rules
+    ]
+  }
+}
+```
+
+这个 plugin 主要完成了以下三部分的工作：
+
+1. 判断是否有给`.vue`或`.vue.html`进行 module.rule 的配置；
+2. 判断对于`.vue`或`.vue.html`配置的 module.rule 是否有 vue-loader；
+3. 拓展开发者的 module.rule 配置，加入 vue-loader 内部提供的 pitcher loader
+
+我们看到有关 pitcher loader 的 rule 匹配条件是通过`resourceQuery`方法来进行判断的，即判断 module path 上的 query 参数是否存在 vue，例如：
+
+```javascript
+// 这种类型的 module path 就会匹配上
+'./source.vue?vue&type=template&id=27e4e96e&scoped=true&lang=pug&'
+```
+
+如果存在的话，那么就需要将这个 loader 加入到构建这个 module 的 loaders 数组当中。以上就是 VueLoaderPlugin 所做的工作，其中涉及到拓展后的 module rule 里面加入的 pitcher loader 具体做的工作后文会分析。
 
 ### Step 1
 
-接下来我们就来看下 vue-loader 的内部实现。首先来看下入口文件的相关内容：
+接下来我们看下 vue-loader 的内部实现。首先来看下入口文件的相关内容：
 
 ```javascript
 // vue-loader/lib/index.js
@@ -232,74 +304,7 @@ export default component.exports
  './source.vue?vue&type=custom&index=0&blockType=foo'
 ]
 ```
-
-在继续分析下去之前，我们来看下之前提到的 vue-loader 内部提供的 plugin 在整个 workflow 中主要是做了哪些工作：
-
-1. 判断是否有给`.vue`或`.vue.html`进行 module.rule 的配置；
-2. 判断对于`.vue`或`.vue.html`配置的 module.rule 是否有 vue-loader；
-3. 拓展开发者的 module.rule 配置，加入 vue-loader 内部提供的 pitcher loader
-
-```javascript
-// vue-loader/lib/plugin.js
-
-class VueLoaderPlugin {
-  apply() {
-    ...
-    // use webpack's RuleSet utility to normalize user rules
-    const rawRules = compiler.options.module.rules
-    const { rules } = new RuleSet(rawRules)
-
-    // find the rule that applies to vue files
-    // 判断是否有给`.vue`或`.vue.html`进行 module.rule 的配置
-    let vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue`))
-    if (vueRuleIndex < 0) {
-      vueRuleIndex = rawRules.findIndex(createMatcher(`foo.vue.html`))
-    }
-    const vueRule = rules[vueRuleIndex]
-
-    ...
-
-    // 判断对于`.vue`或`.vue.html`配置的 module.rule 是否有 vue-loader
-    // get the normlized "use" for vue files
-    const vueUse = vueRule.use
-    // get vue-loader options
-    const vueLoaderUseIndex = vueUse.findIndex(u => {
-      return /^vue-loader|(\/|\\|@)vue-loader/.test(u.loader)
-    })
-    ...
-
-    // 创建 pitcher loader 的配置
-    const pitcher = {
-      loader: require.resolve('./loaders/pitcher'),
-      resourceQuery: query => {
-        const parsed = qs.parse(query.slice(1))
-        return parsed.vue != null
-      },
-      options: {
-        cacheDirectory: vueLoaderUse.options.cacheDirectory,
-        cacheIdentifier: vueLoaderUse.options.cacheIdentifier
-      }
-    }
-
-    // 拓展开发者的 module.rule 配置，加入 vue-loader 内部提供的 pitcher loader
-    // replace original rules
-    compiler.options.module.rules = [
-      pitcher,
-      ...clonedRules,
-      ...rules
-    ]
-  }
-}
-```
-
-vue-loader 内部提供的 pitcher loader 的匹配条件是`resourceQuery`，即判断 module path 上的 query 参数是否存在 vue：
-
-```javascript
-// 这种类型的 module path 就会匹配上
-'./source.vue?vue&type=template&id=27e4e96e&scoped=true&lang=pug&'
-```
-
-如果存在的话，那么就需要将这个 loader 加入到构建这个 module 的 loaders 数组当中。大家可以看到上面通过 vue-loader 经过第一阶段处理收集到的 module 的 query 参数都带有 vue 这个字段，在对这个 module 进行 loader 匹配的时候那么将会把 pitcher loader 加入到匹配到的 loader 数组当中，因此这个 module 最终也会经过 pitcher loader 的处理。此外在 loader 的配置顺序上，pitcher loader 为第一个，因此在处理 Vue SFC 模块的时候，最先也是交由 pitcher loader 来处理。
+我们看到通过 vue-loader 处理到得到的 module path 上的 query 参数都带有 vue 字段。这里便涉及到了我们在文章开篇提到的 VueLoaderPlugin 加入的 pitcher loader。如果遇到了 query 参数上带有 vue 字段的 module path，那么就会把 pitcher loader 加入到处理这个 module 的 loaders 数组当中。因此这个 module 最终也会经过 pitcher loader 的处理。此外在 loader 的配置顺序上，pitcher loader 为第一个，因此在处理 Vue SFC 模块的时候，最先也是交由 pitcher loader 来处理。
 
 事实上对一个 Vue SFC 处理的第二阶段就是刚才提到的，Vue SFC 会经由 pitcher loader 来做进一步的处理。那么我们就来看下 vue-loader 内部提供的 pitcher loader 主要是做了哪些工作呢：
 
