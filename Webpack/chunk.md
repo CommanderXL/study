@@ -101,14 +101,13 @@ class Compilation {
 
 与此相关的便是 compilation 实例提供的`processDependenciesBlocksForChunkGroups`方法。由于这个方法内部细节较为复杂，因此这里会梳理其核心的流程：
 
-1. 遍历 module graph 模块依赖图建立起 very basic chunks graph 依赖图；
+1. 遍历 module graph 模块依赖图建立起 basic chunks graph 依赖图；
 2. 遍历第一步创建的 chunk graph 依赖图（TODO: 具体描述）
 
-在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步api加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 结构当中：
+在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步 API 加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 结构当中：
 
 ```javascript
 const iteratorBlockPrepare = b => {
-  // console.log('the block request is', b)
   blockInfoBlocks.push(b);
   blockQueue.push(b);
 };
@@ -155,11 +154,11 @@ for (const modules of this.modules) {
 
 在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中：
 
-首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
+首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一个 action 为 LEAVE_MODULE 的项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
 
 首先根据 module graph 保存的模块映射 blockInfoMap 获取这个 module 的依赖 modules 及异步的 blocks，这里便会判断当前这个 module 所属的 chunk 当中是否包含了这个 module 的依赖，如果没有的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：
 
-1. 调用`addChunkInGroup`为这个异步的 block 新建一个 chunk 以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步api加载模块时，webpack 最终会单独给这个模块输出一个 chunk，但是这个 chunk 为一个空的 chunk，没有加入任何依赖的 module；
+1. 调用`addChunkInGroup`为这个异步的 block 新建一个 chunk 以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步API 加载模块时，webpack 最终会单独给这个模块输出一个 chunk，但是这个 chunk 为一个空的 chunk，没有加入任何依赖的 module；
 
 2. 建立起当前 module 所属的 chunkGroup 和 block 以及这个 block 所属的 chunkGroup 之间的依赖关系，并存储至 chunkDependencies map 表中；
 
@@ -167,9 +166,9 @@ for (const modules of this.modules) {
 
 在 ENTRY_MODULE 阶段即完成了将 entry module 的依赖 module 加入到 queue 当中，这个阶段结束后即进入到了第二轮的 queue 遍历的环节：
 
-而这一轮的遍历过程当中，我们主要关注 queue 当中每项 action 类型为 ADD_AND_ENTER_MODULE 的项，进行实际的处理时，进入到 ADD_AND_ENTER_MODULE 阶段，这个阶段完成的主要工作就是判断 chunk 所依赖的 module 是否已经添加到 chunk 内部(`chunk.addModule`)，如果没有的话，那么便会将 module 加入到 chunk，并进入到 ENTRY_MODULE 阶段，进入到后面的流程(见上文)，如果已经添加过了，那么则会跳过这次遍历。
+而这一轮的遍历过程当中，我们主要关注 queue 当中每项 action 类型为 ADD_AND_ENTER_MODULE 的项，在进行实际的处理时，进入到 ADD_AND_ENTER_MODULE 阶段，这个阶段完成的主要工作就是判断 chunk 所依赖的 module 是否已经添加到 chunk 内部(`chunk.addModule`)，如果没有的话，那么便会将 module 加入到 chunk，并进入到 ENTRY_MODULE 阶段，进入到后面的流程(见上文)，如果已经添加过了，那么则会跳过这次遍历。
 
-以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理。
+以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理，最终的结果就是根据 module graph 建立起了 chunk graph，将原本空的 chunk 里面加入其对应的 module 依赖。
 
 
 ```javascript

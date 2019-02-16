@@ -191,7 +191,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 
 接下来开始调用 iteratePitchingLoaders 方法执行每个 loader 上提供的 pitch 函数。大家写过 loader 的话应该都清楚，每个 loader 可以挂载一个 pitch 函数，每个 loader 提供的 pitch 方法和 loader 实际的执行顺序正好相反。这块的内容在 webpack 文档上也有详细的说明([请戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))。
 
-这些 pitch 函数并不是用来实际处理 module 的内容的，主要是可以利用 module 的 request，来做一些拦截处理的工作，从而达到在 loader 处理流程当中的一些定制化的处理需要，有关 pitch 函数具体的实战可以参见下一篇文档[Webpack 高手进阶-loader 实战] TODO:
+这些 pitch 函数并不是用来实际处理 module 的内容的，主要是可以利用 module 的 request，来做一些拦截处理的工作，从而达到在 loader 处理流程当中的一些定制化的处理需要，有关 pitch 函数具体的实战可以参见下一篇文档[Webpack 高手进阶-loader 实战] TODO: 链接
 
 ```javascript
 function iteratePitchingLoaders() {
@@ -270,7 +270,7 @@ loadLoader(currentLoaderObject, function(err) {
 })
 ```
 
-这里出现了一个 runSyncOrAsync 方法，先按住不表，后文会讲，开始执行 pitch 函数，当 pitch 函数执行完后，执行传入的回调函数。我们看到回调函数里面会判断接收到的参数的个数，除了第一个 err 参数外，如果还有其他的参数(这些参数是pitch函数执行完后传入回调函数的)，那么会直接进入 loader 的 normal 方法执行阶段，并且会直接跳过后面的 loader 执行阶段。如果 pitch 函数没有返回值的话，那么进入到下一个 loader 的 pitch 函数的执行阶段。让我们再回到 iteratePitchingLoaders 方法内部，当所有 loader 上面的 pitch 函数都执行完后，即 loaderIndex 索引值 >= loader 数组长度的时候：
+这里出现了一个 runSyncOrAsync 方法，放到后文去讲，开始执行 pitch 函数，当 pitch 函数执行完后，执行传入的回调函数。我们看到回调函数里面会判断接收到的参数的个数，除了第一个 err 参数外，如果还有其他的参数(这些参数是 pitch 函数执行完后传入回调函数的)，那么会直接进入 loader 的 normal 方法执行阶段，并且会直接跳过后面的 loader 执行阶段。如果 pitch 函数没有返回值的话，那么进入到下一个 loader 的 pitch 函数的执行阶段。让我们再回到 iteratePitchingLoaders 方法内部，当所有 loader 上面的 pitch 函数都执行完后，即 loaderIndex 索引值 >= loader 数组长度的时候：
 
 ```javascript
 function iteratePitchingLoaders () {
@@ -300,7 +300,7 @@ function processResource(options, loaderContext, callback) {
 }
 ```
 
-在 processResouce 方法内部调用 node api readResouce 读取 module 对应路径的文本内容，调用 iterateNormalLoaders 方法，开始进入 loader normal 方法的执行阶段。
+在 processResouce 方法内部调用 node API readResouce 读取 module 对应路径的文本内容，调用 iterateNormalLoaders 方法，开始进入 loader normal 方法的执行阶段。
 
 ```javascript
 function iterateNormalLoaders () {
@@ -358,7 +358,6 @@ module.exports = function (content) {
 }
 ```
 
-
 这里还有一个地方需要注意的就是，上下游 loader 之间的数据传递过程中，如果下游的 loader 接收到的参数为一个，那么可以在上一个 loader 执行结束后，如果是同步就直接 return 出去：
 
 ```javascript
@@ -368,7 +367,7 @@ module.exports = function (content) {
 }
 ```
 
-如果是异步就直接调用异步回调传递下去(参见上面loader异步化)。如果下游 loader 接收的参数多余一个，那么上一个 loader 执行结束后，如果是同步那么就需要调用 loaderContext 提供的 callback 函数:
+如果是异步就直接调用异步回调传递下去(参见上面 loader 异步化)。如果下游 loader 接收的参数多于一个，那么上一个 loader 执行结束后，如果是同步那么就需要调用 loaderContext 提供的 callback 函数:
 
 ```javascript
 module.exports = function (content) {
@@ -377,7 +376,7 @@ module.exports = function (content) {
 }
 ```
 
-如果是异步的还是继续调用异步回调函数传递下去(参见上面loader异步化)。具体的执行机制涉及到上文还没讲到的 runSyncOrAsync 方法，它提供了上下游 loader 调用的接口：
+如果是异步的还是继续调用异步回调函数传递下去(参见上面 loader 异步化)。具体的执行机制涉及到上文还没讲到的 runSyncOrAsync 方法，它提供了上下游 loader 调用的接口：
 
 ```javascript
 function runSyncOrAsync(fn, context, args, callback) {
@@ -420,7 +419,7 @@ function runSyncOrAsync(fn, context, args, callback) {
       // 如果 loader 执行后没有返回值，执行 callback 开始下一个 loader 执行
 			if(result === undefined)
         return callback();
-      // loader 返回值为一个 promise 函数，放到下一个 mircoTask 中执行下一个 loader。这也是 loader 异步化的一种方式
+      // loader 返回值为一个 promise 实例，待这个实例被resolve或者reject后执行下一个 loader。这也是 loader 异步化的一种方式
 			if(result && typeof result === "object" && typeof result.then === "function") {
 				return result.catch(callback).then(function(r) {
 					callback(null, r);
