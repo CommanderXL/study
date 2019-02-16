@@ -169,6 +169,7 @@ for (const modules of this.modules) {
 
 而这一轮的遍历过程当中，我们主要关注 queue 当中每项 action 类型为 ADD_AND_ENTER_MODULE 的项，进行实际的处理时，进入到 ADD_AND_ENTER_MODULE 阶段，这个阶段完成的主要工作就是判断 chunk 所依赖的 module 是否已经添加到 chunk 内部(`chunk.addModule`)，如果没有的话，那么便会将 module 加入到 chunk，并进入到 ENTRY_MODULE 阶段，进入到后面的流程(见上文)，如果已经添加过了，那么则会跳过这次遍历。
 
+以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理。
 
 
 ```javascript
