@@ -428,6 +428,106 @@ source.vue?vue&type=template -> vue-loader(抽离 template block ) -> pug-plain-
 
 ![vue-loader-template-block](../images/webpack/vue-loader-template-block.jpeg)
 
+我们看到经过 vue-loader 处理时，会根据不同 module path 的类型(query 参数上的 type 字段)来抽离 SFC 当中不同类型的 block。这也是 vue-loader 内部定义的相关规则：
+
+```javascript
+// vue-loader/lib/index.js
+
+const qs = require('querystring')
+const selectBlock = require('./select')
+...
+
+module.exports = function (source) {
+  ...
+  const rawQuery = resourceQuery.slice(1)
+  const inheritQuery = `&${rawQuery}`
+  const incomingQuery = qs.parse(rawQuery)
+
+  ...
+  const descriptor = parse({
+    source,
+    compiler: options.compiler || loadTemplateCompiler(),
+    filename,
+    sourceRoot,
+    needMap: sourceMap
+  })
+
+  // if the query has a type field, this is a language block request
+  // e.g. foo.vue?type=template&id=xxxxx
+  // and we will return early
+  if (incomingQuery.type) {
+    return selectBlock(
+      descriptor,
+      loaderContext,
+      incomingQuery,
+      !!options.appendExtension
+    )
+  }
+  ...
+}
+```
+
+当 module path 上的 query 参数带有 type 字段，那么会直接调用 selectBlock 方法去获取 type 对应类型的 block 内容，跳过 vue-loader 后面的处理流程(这也是与 vue-loader 第一次处理这个 module时流程不一样的地方)，并进入到下一个 loader 的处理流程中，selectBlock 方法内部主要就是根据不同的 type 类型(template/script/style/custom)，来获取 descriptor 上对应类型的 content 内容并传入到下一个 loader 处理：
+
+```javascript
+module.exports = function selectBlock (
+  descriptor,
+  loaderContext,
+  query,
+  appendExtension
+) {
+  // template
+  if (query.type === `template`) {
+    if (appendExtension) {
+      loaderContext.resourcePath += '.' + (descriptor.template.lang || 'html')
+    }
+    loaderContext.callback(
+      null,
+      descriptor.template.content,
+      descriptor.template.map
+    )
+    return
+  }
+
+  // script
+  if (query.type === `script`) {
+    if (appendExtension) {
+      loaderContext.resourcePath += '.' + (descriptor.script.lang || 'js')
+    }
+    loaderContext.callback(
+      null,
+      descriptor.script.content,
+      descriptor.script.map
+    )
+    return
+  }
+
+  // styles
+  if (query.type === `style` && query.index != null) {
+    const style = descriptor.styles[query.index]
+    if (appendExtension) {
+      loaderContext.resourcePath += '.' + (style.lang || 'css')
+    }
+    loaderContext.callback(
+      null,
+      style.content,
+      style.map
+    )
+    return
+  }
+
+  // custom
+  if (query.type === 'custom' && query.index != null) {
+    const block = descriptor.customBlocks[query.index]
+    loaderContext.callback(
+      null,
+      block.content,
+      block.map
+    )
+    return
+  }
+}
+```
 
 ### 总结
 
