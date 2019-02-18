@@ -90,7 +90,7 @@ exports.runLoaders = function runLoaders(options, callback) {
 	var contextDependencies = [];
 
 	// prepare loader objects
-	loaders = loaders.map(createLoaderObject); // 处理 loaders TODO: 
+	loaders = loaders.map(createLoaderObject); // 处理 loaders 
 
   // 拓展 loaderContext 的属性
 	loaderContext.context = contextDirectory;
