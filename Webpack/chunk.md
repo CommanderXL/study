@@ -28,7 +28,50 @@ module.exports = {
 
 最终 webpack 会将 webpack runtime chunk 单独抽离成一个 chunk 后再输出成一个名为`runtime-chunk.js`的文件。
 
-而这些生成的 chunk 文件当中即是由相关的 module 模块所构成的。接下来我们就看下 webpack 在工作流当中是如何生成 chunk 的。
+而这些生成的 chunk 文件当中即是由相关的 module 模块所构成的。
+
+接下来我们就看下 webpack 在工作流当中是如何生成 chunk 的，首先我们先来看下示例：
+
+```javascript
+// a.js (webpack config 入口文件)
+import add from './b.js'
+
+console.log(add(1, 2))
+import('./c').then(del => del(1, 2))
+
+// b.js
+export default function add(n1, n2) {
+  return n1 + n2
+}
+
+// c.js
+export default function del(n1, n2) {
+  return n1 - n2
+}
+
+// webpack.config.js
+module.exports = {
+  entry: {
+    app: 'a.js'
+  },
+  output: {
+    filename: '[name].[chunkhash].js',
+    chunkFilename: '[name].bundle.[chunkhash:8].js',
+    publicPath: '/'
+  },
+  optimization: {
+    runtimeChunk: {
+      name: 'bundle'
+    }
+  },
+}
+```
+
+其中 a.js 为 webpack config 当中配置的 entry 入口文件，b.js 作为 a.js 依赖的模块(dependencies)，c.js 作为 a.js 依赖的异步模块(blocks)。最终通过 webpack 编译后，将会生成3个 chunk 文件：
+
+// TODO: 生成的3个 chunk 文件。以及每个 chunk 文件内部包含的具体的内容
+
+接下来我们就通过源码来看下 webpack 内部是通过什么样的策略去完成 chunk 的生成的。
 
 在 webpack 的工作流程当中，当所有的 module 都被编译完成后，进入到 seal 阶段会开始生成 chunk 的相关的工作：
 
@@ -95,7 +138,33 @@ class Compilation {
 }
 ```
 
-在这个过程当中首先遍历 webpack config 当中配置的入口 module，每个入口 module 都会通过`addChunk`方法去创建一个 chunk，而这个新建的 chunk 为一个空的 chunk，即不包含任何与之相关联的 module。之后实例化一个 entryPoint，而这个 entryPoint 为一个 chunkGroup，每个 chunkGroup 包含多的 chunk，同时内部会有个比较特殊的 runtimeChunk（TODO:）。到此仅仅是分别创建了 chunk 以及 chunkGroup，接下来便调用`GraphHelpers`模块提供的`connectChunkGroupAndChunk`及`connectChunkAndModule`方法来建立起 chunkGroup 和 chunk 之间的联系，以及 chunk 和 **入口 module** 之间(这里还未涉及到依赖 module)的联系。(TODO: 提及这2个方法内部的工作原理)
+在这个过程当中首先遍历 webpack config 当中配置的入口 module，每个入口 module 都会通过`addChunk`方法去创建一个 chunk，而这个新建的 chunk 为一个空的 chunk，即不包含任何与之相关联的 module。之后实例化一个 entryPoint，而这个 entryPoint 为一个 chunkGroup，每个 chunkGroup 包含多的 chunk，同时内部会有个比较特殊的 runtimeChunk(当 webpack 最终编译完成后包含的 webpack runtime 代码最终会注入到 runtimeChunk 当中)。到此仅仅是分别创建了 chunk 以及 chunkGroup，接下来便调用`GraphHelpers`模块提供的`connectChunkGroupAndChunk`及`connectChunkAndModule`方法来建立起 chunkGroup 和 chunk 之间的联系，以及 chunk 和 **入口 module** 之间(这里还未涉及到依赖 module)的联系：
+
+```javascript
+// GraphHelpers.js
+
+/**
+ * @param {ChunkGroup} chunkGroup the ChunkGroup to connect
+ * @param {Chunk} chunk chunk to tie to ChunkGroup
+ * @returns {void}
+ */
+GraphHelpers.connectChunkGroupAndChunk = (chunkGroup, chunk) => {
+	if (chunkGroup.pushChunk(chunk)) {
+		chunk.addGroup(chunkGroup);
+	}
+};
+
+/**
+ * @param {Chunk} chunk Chunk to connect to Module
+ * @param {Module} module Module to connect to Chunk
+ * @returns {void}
+ */
+GraphHelpers.connectChunkAndModule = (chunk, module) => {
+	if (module.addChunk(chunk)) {
+		chunk.addModule(module);
+	}
+};
+```
 
 例如我们给的示例当中，入口 module 只配置了一个，那么进入到上面提到的这个阶段时会生成一个 chunkGroup 以及 一个 chunk，这个 chunk 目前仅仅只包含了入口 module。我们都知道 webpack 输出的 chunk 当中都会包含与之相关的 module，在编译环节进行到上面这一步仅仅建立起了 chunk 和入口 module 之间的联系，那么 chunk 是如何与其他的 module 也建立起联系呢？接下来我们就看下 webpack 在生成 chunk 的过程当中是如何与其依赖的 module 进行关联的。
 
