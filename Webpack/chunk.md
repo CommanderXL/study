@@ -168,16 +168,19 @@ GraphHelpers.connectChunkAndModule = (chunk, module) => {
 
 例如我们给的示例当中，入口 module 只配置了一个，那么进入到上面提到的这个阶段时会生成一个 chunkGroup 以及 一个 chunk，这个 chunk 目前仅仅只包含了入口 module。我们都知道 webpack 输出的 chunk 当中都会包含与之相关的 module，在编译环节进行到上面这一步仅仅建立起了 chunk 和入口 module 之间的联系，那么 chunk 是如何与其他的 module 也建立起联系呢？接下来我们就看下 webpack 在生成 chunk 的过程当中是如何与其依赖的 module 进行关联的。
 
-与此相关的便是 compilation 实例提供的`processDependenciesBlocksForChunkGroups`方法。由于这个方法内部细节较为复杂，因此这里会梳理其核心的流程：
+与此相关的便是 compilation 实例提供的`processDependenciesBlocksForChunkGroups`方法。这个方法内部细节较为复杂，它包含了两个核心的处理流程：
 
 1. 遍历 module graph 模块依赖图建立起 basic chunks graph 依赖图；
-2. 遍历第一步创建的 chunk graph 依赖图（TODO: 具体描述）
+2. 遍历第一步创建的 chunk graph 依赖图，依据之前的 module graph 来优化 chunk graph(由于 chunk graph 是 webpack 最终输出 chunk 的依据，在这一步的处理流程当中会剔除到一些 chunk graph 重复被创建的 chunk)
+
+### 依据 module graph 建立 chunk graph
 
 在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步 API 加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 结构当中：
 
 ```javascript
 const iteratorBlockPrepare = b => {
   blockInfoBlocks.push(b);
+  // 将 block 加入到 blockQueue 当中，从而进入到下一次的遍历过程当中
   blockQueue.push(b);
 };
 
@@ -210,9 +213,10 @@ for (const modules of this.modules) {
   }
 }
 ```
-TODO: 2次遍历循环的流程描述
 在我们的实例当中生成的 module graph 即为(TODO: module graph):
 
+
+TODO: 2次遍历循环的流程描述
 当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph，刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
 
 * action (需要被处理的模块类型，不同的处理类型的模块会经过不同的流程处理，初始为 ENTER_MODULE(1))
@@ -238,6 +242,9 @@ TODO: 2次遍历循环的流程描述
 而这一轮的遍历过程当中，我们主要关注 queue 当中每项 action 类型为 ADD_AND_ENTER_MODULE 的项，在进行实际的处理时，进入到 ADD_AND_ENTER_MODULE 阶段，这个阶段完成的主要工作就是判断 chunk 所依赖的 module 是否已经添加到 chunk 内部(`chunk.addModule`)，如果没有的话，那么便会将 module 加入到 chunk，并进入到 ENTRY_MODULE 阶段，进入到后面的流程(见上文)，如果已经添加过了，那么则会跳过这次遍历。
 
 以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理，最终的结果就是根据 module graph 建立起了 chunk graph，将原本空的 chunk 里面加入其对应的 module 依赖。
+
+
+### 优化 chunk graph
 
 接下来进入到第二个步骤，遍历 chunk graph，通过和依赖的 module 之间的使用关系来建立起不同 chunkGroup 之间的父子关系，同时剔除一些没有建立起联系的 chunk。
 
