@@ -175,7 +175,7 @@ GraphHelpers.connectChunkAndModule = (chunk, module) => {
 
 ### 依据 module graph 建立 chunk graph
 
-在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步 API 加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 结构当中：
+在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步 API 加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 表(blockInfoMap)当中：
 
 ```javascript
 const iteratorBlockPrepare = b => {
@@ -184,6 +184,7 @@ const iteratorBlockPrepare = b => {
   blockQueue.push(b);
 };
 
+// 这次 compilation 包含的所有的 module
 for (const modules of this.modules) {
   blockQueue = [module];
   currentModule = module;
@@ -196,17 +197,19 @@ for (const modules of this.modules) {
       iterationBlockVariable(block.variables, iteratorDependency);
     }
 
+    // 在 blockInfoModules 数据集(set)当中添加 dependencies 中的普通 module
     if (block.dependencies) {
       iterationOfArrayCallback(block.dependencies, iteratorDependency);
     }
 
+    // 在 blockInfoBlocks 数组当中添加异步 module(block)
     if (block.blocks) {
       iterationOfArrayCallback(block.blocks, iteratorBlockPrepare);
     }
 
     const blockInfo = {
-      modules: Array.from(blockInfoModules), // 依赖的 modules
-      blocks: blockInfoBlocks // 依赖的 blocks
+      modules: Array.from(blockInfoModules),
+      blocks: blockInfoBlocks
     };
     // blockInfoMap 上保存了每个 module 的依赖 module 及 异步 blocks
     blockInfoMap.set(block, blockInfo);
@@ -225,11 +228,27 @@ TODO: 2次遍历循环的流程描述
 * chunk (seal 阶段一开始为每个入口 module 创建的空 chunk)
 * chunkGroup (entryPoint 即 chunkGroup 类型)
 
-在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中：
+在我们提供的示例当中，因为是单入口的，因此这里 queue 初始化后只有一项。
 
-首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一个 action 为 LEAVE_MODULE 的项，在后面遍历的时候使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
+```javascript
+{
+  action: ENTER_MODULE,
+  block: a.js,
+  module: a.js,
+  chunk,
+  chunkGroup: entryPoint
+}
+```
 
-首先根据 module graph 保存的模块映射 blockInfoMap 获取这个 module 的依赖 modules 及异步的 blocks，这里便会判断当前这个 module 所属的 chunk 当中是否包含了这个 module 的依赖 modules 和 blocks，如果没有的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：
+接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中：
+
+首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一个 action 为 LEAVE_MODULE 的项会在后面遍历的流程当中使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
+
+首先根据 module graph 依赖图保存的模块映射 blockInfoMap 获取这个 module（称为A） 的同步依赖 modules 及异步的 blocks。
+
+接下来遍历 modules 当中的包含的 module（称为B），判断当前这个 module(A) 所属的 chunk 当中是否包含了其依赖 modules 当中的 module(B)，如果不包含的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE（TODO: block 和 module 字段的解释），即这个新增项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。
+
+当新项被 push 至 queue 当中后，接下来开始调用`iteratorBlock`方法来处理这个 module(A) 所依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：
 
 1. 调用`addChunkInGroup`为这个异步的 block 新建一个 chunk 以及 chunkGroup，同时调用 GraphHelpers 模块提供的 connectChunkGroupAndChunk 建立起这个新建的 chunk 和 chunkGroup 之间的联系。这里新建的 chunk 也就是在你的代码当中使用异步API 加载模块时，webpack 最终会单独给这个模块输出一个 chunk，但是这个 chunk 为一个空的 chunk，没有加入任何依赖的 module；
 
