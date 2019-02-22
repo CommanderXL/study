@@ -240,11 +240,11 @@ TODO: 2次遍历循环的流程描述
 }
 ```
 
-接下来进入到 queue 的遍历环节，首先根据 action 的类型进入到对应的处理流程当中：
+接下来进入到 queue 的遍历环节，通过源码我们发现对于 queue 的处理进行了2次遍历的操作，具体为什么会需要进行2次遍历操作后文会说明。接下来根据 action 的类型进入到对应的处理流程当中：
 
 首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一个 action 为 LEAVE_MODULE 的项会在后面遍历的流程当中使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
 
-首先根据 module graph 依赖图保存的模块映射 blockInfoMap 获取这个 module（称为A） 的同步依赖 modules 及异步的 blocks。
+在这个阶段当中根据 module graph 依赖图保存的模块映射 blockInfoMap 获取这个 module（称为A） 的同步依赖 modules 及异步的 blocks。
 
 接下来遍历 modules 当中的包含的 module（称为B），判断当前这个 module(A) 所属的 chunk 当中是否包含了其依赖 modules 当中的 module(B)，如果不包含的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE（TODO: block 和 module 字段的解释），即这个新增项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。
 
