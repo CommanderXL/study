@@ -82,7 +82,42 @@ class BinarySearchTree {
     }
   }
 
-  del() {
+  del(ele) {
+    let node = this.root
+    let parent
+    while (node && node.ele !== ele) {
+      parent = node
+      if (node.ele < ele) node = node.right
+      else node = node.left
+    }
+
+    if (node === null) return
+
+    // 2.1 判断被删除的节点类型：有2个子节点
+    if (node.left && node.right) {
+      let _node = node.right
+      let _parent
+      while (_node) {
+        if (_node.left) {
+          _parent = _node
+          _node = _node.left
+        }
+      }
+      node.data = _node.data
+      node = _node
+      parent = _parent
+    }
+
+    // 2.2 判断被删除的节点的类型： 只有一个节点 或者 为叶子节点的情况
+    let child
+    if (node.left) child = node.left
+    else if (node.right) child = node.right
+    else child = null
+
+    // 3 判断被删除的节点和其父节点之间的关系，并做替换操作
+    if (!parent) this.root = null
+    else if (parent.left === node) parent.left = child
+    else parent.right = child
 
   }
 }
