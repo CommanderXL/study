@@ -251,7 +251,6 @@ for (const modules of this.modules) {
 在我们的实例当中生成的 module graph 即为(TODO: module graph):
 
 
-TODO: 2次遍历循环的流程描述
 当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph。刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
 
 * action (需要被处理的模块类型，不同的处理类型的模块会经过不同的流程处理，初始为 ENTER_MODULE(1))
@@ -272,13 +271,13 @@ TODO: 2次遍历循环的流程描述
 }
 ```
 
-接下来进入到 queue 的遍历环节，通过源码我们发现对于 queue 的处理进行了2次遍历的操作（内层和外层），具体为什么会需要进行2次遍历操作后文会说明。首先我们来看下内层的遍历操作，首先根据 action 的类型进入到对应的处理流程当中：
+接下来进入到 queue 的遍历环节，通过源码我们发现对于 queue 的处理进行了**2次遍历的操作（内层和外层）**，具体为什么会需要进行2次遍历操作后文会说明。首先我们来看下内层的遍历操作，首先根据 action 的类型进入到对应的处理流程当中：
 
 首先进入到 ENTRY_MODULE 的阶段，会在 queue 中新增一个 action 为 LEAVE_MODULE 的项会在后面遍历的流程当中使用，当 ENTRY_MODULE 的阶段进行完后，立即进入到了 PROCESS_BLOCK 阶段：
 
 在这个阶段当中根据 module graph 依赖图保存的模块映射 blockInfoMap 获取这个 module（称为A） 的同步依赖 modules 及异步依赖 blocks。
 
-接下来遍历 modules 当中的包含的 module（称为B），判断当前这个 module(A) 所属的 chunk 当中是否包含了其依赖 modules 当中的 module(B)，如果不包含的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE（TODO: block 和 module 字段的解释），即这个新增项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。
+接下来遍历 modules 当中的包含的 module（称为B），判断当前这个 module(A) 所属的 chunk 当中是否包含了其依赖 modules 当中的 module(B)，如果不包含的话，那么会在 queue 当中加入新的项，新加入的项目的 action 为 ADD_AND_ENTER_MODULE，即这个新增项在下次遍历的时候，首先会进入到 ADD_AND_ENTER_MODULE 阶段。
 
 当新项被 push 至 queue 当中后，即这个 module 依赖的还未被处理的 module(A) 被加入到 queue当中后，接下来开始调用`iteratorBlock`方法来处理这个 module(A) 依赖的所有的异步 blocks，在这个方法内部主要完成的工作是：
 
@@ -296,48 +295,66 @@ TODO: 2次遍历循环的流程描述
 
 以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理，最终的结果就是根据 module graph 建立起了 chunk graph，将原本空的 chunk 里面加入其对应的 module 依赖。
 
+chunkGroup1 包含了 a, b, d 3个 module，而 a 的异步依赖模块 c 以及 c 的同步依赖模块 d 同属于新创建的 chunkGroup2，chunkGroup2 中只有一个 chunk，而 c 的异步模块 b 属于新创建的 chunkGroup3。
+
 TODO: 插入 chunk graph
 
 
-### 优化 chunk graph
-
-接下来进入到第二个步骤，遍历 chunk graph，通过和依赖的 module 之间的使用关系来建立起不同 chunkGroup 之间的父子关系，同时剔除一些没有建立起联系的 chunk。
-
-首先还是完成一些数据的初始化工作，chunkGroupInfoMap 存放了不同 chunkGroup 相关信息：
-
-* minAvailableModules (chunkGroup 可追踪的最小 module 数据集)
-* availableModulesToBeMerged (遍历环节所使用的 module 集合)
-
 ```javascript
-/** @type {Map<ChunkGroup, ChunkGroupInfo>} */
-const chunkGroupInfoMap = new Map();
+// 创建异步的 block
+// For each async Block in graph
+/**
+ * @param {AsyncDependenciesBlock} b iterating over each Async DepBlock
+ * @returns {void}
+ */
+const iteratorBlock = b => {
+  // 1. We create a chunk for this Block
+  // but only once (blockChunkGroups map)
+  let c = blockChunkGroups.get(b);
+  if (c === undefined) {
+    c = this.namedChunkGroups.get(b.chunkName);
+    if (c && c.isInitial()) {
+      this.errors.push(
+        new AsyncDependencyToInitialChunkError(b.chunkName, module, b.loc)
+      );
+      c = chunkGroup;
+    } else {
+      // 通过 addChunkInGroup 方法创建新的 chunkGroup 及 chunk，并返回这个 chunkGroup
+      c = this.addChunkInGroup(
+        b.groupOptions || b.chunkName,
+        module, // 这个 block 所属的 module
+        b.loc,
+        b.request
+      );
+      chunkGroupCounters.set(c, { index: 0, index2: 0 });
+      blockChunkGroups.set(b, c);
+      allCreatedChunkGroups.add(c);
+    }
+  } else {
+    // TODO webpack 5 remove addOptions check
+    if (c.addOptions) c.addOptions(b.groupOptions);
+    c.addOrigin(module, b.loc, b.request);
+  }
 
-/** @type {Queue<ChunkGroup>} */
-const queue2 = new Queue(inputChunkGroups);
-for (const chunkGroup of inputChunkGroups) {
-  chunkGroupInfoMap.set(chunkGroup, {
-    minAvailableModules: undefined,
-    availableModulesToBeMerged: [new Set()]
+  // 2. We store the Block+Chunk mapping as dependency for the chunk
+  let deps = chunkDependencies.get(chunkGroup);
+  if (!deps) chunkDependencies.set(chunkGroup, (deps = []));
+  // 当前 chunkGroup 所依赖的 block 及 chunkGroup
+  deps.push({
+    block: b,
+    chunkGroup: c,
+    couldBeFiltered: true
   });
-}
-```
-
-TODO: 初始化 minAvailableModules 和 availableModulesToBeMerged 数据集
-
-获取在第一阶段的 chunkDependencies 当中缓存的 chunkGroup 的 deps 数组依赖，chunkDependencies 中保存了不同 chunkGroup 所依赖的异步 block，以及同这个 block 一同创建的 chunkGroup（目前二者仅仅是存于一个 map 结构当中，还未建立起 chunkGroup 和 block 之间的依赖关系）。
-
-如果 deps 数据不存在或者长度为0，那么会跳过遍历 deps 当中的 chunkGroup 流程，否则会为这个 chunkGroup 创建一个新的 available module 数据集 newAvailableModules，开始遍历这个 chunkGroup 当中所有的 chunk 所包含的 module，并加入到 newAvailableModules 这一数据集当中。并开始遍历这个 chunkGroup 的 deps 数组依赖，这个阶段主要完成的工作就是：
-
-1. 判断 chunkGroup 提供的 newAvailableModules(可以将 newAvailableModules 理解为这个 chunkGroup 所有 module 的集合setA)和 deps 依赖中的 chunkGroup (由异步 block 创建的 chunkGroup)所包含的 chunk 当中所有的 module 集合(setB)包含关系(TODO: 具体描述)：
- * 如果在 setB 当中有 setA 没有的 module(一般是异步的 block)，它们在 chunk graph 被当做了（edge 条件）,那说明目前已经遍历过的 chunk 里面的 module 组成的 setA 还未包含所有用到的 module，而这些未被包含的 module 就存在于 deps 依赖中的 chunkGroup 当中，因此还需要继续遍历 deps 依赖中的 chunkGroup
- * 如果在 setB 当中的所有的 module 都已经存在于了 setA 当中，说明依赖的 chunkGroup 中所有使用的 module 已经包含在了目前已经遍历过的 chunk 当中了，那么就不需要进行后面的流程，直接跳过，进行下一个的依赖遍历；
-2. 通过 GraphHelpers 模块提供的辅助函数`connectDependenciesBlockAndChunkGroup`建立起 deps 依赖中的异步 block 和 chunkGroup 的依赖关系；
-3. 通过 GraphHelpers 模块提供的辅助函数`connectChunkGroupParentAndChild`建立起 chunkGroup 和 deps 依赖中的 chunkGroup 之间的依赖关系 **（这个依赖关系也决定了在 webpack 编译完成后输出的文件当中是否会有 deps 依赖中的 chunkGroup 所包含的 chunk）**；
-4. 将 deps 依赖中的 chunkGroup 加入到 nextChunkGroups 数据集当中，接下来就进入到遍历新加入的 chunkGroup 环节。
-5. 当以上所有的遍历过程都结束后，接下来开始遍历在处理异步 block 创建的 chunkGroup，在上面的步骤过程中(TODO: 如果去描述，可以通过上面的实例来说明)，开始处理没有依赖关系的 chunkGroup，如果遇到没有任何依赖关系的 chunkGroup，那么就会将这些 chunkGroup 当中所包含的所有 chunk 从 chunk graph 依赖图当中剔除掉。最终在 webpack 编译过程结束输出文件的时候就不会生成这些 chunk。
-
-
-```javascript
+  // 异步的 block 使用创建的新的 chunkGroup
+  // 3. We enqueue the DependenciesBlock for traversal
+  queueDelayed.push({
+    action: PROCESS_BLOCK,
+    block: b,
+    module: module,
+    chunk: c.chunks[0], // 获取新创建的 chunkGroup 当中的第一个 chunk，即 block 需要被加入的 chunk
+    chunkGroup: c // 异步 block 使用新创建的 chunkGroup
+  });
+};
 ...
 const ADD_AND_ENTER_MODULE = 0;
 const ENTER_MODULE = 1;
@@ -354,8 +371,8 @@ const chunkGroupToQueueItem = chunkGroup => ({
 
 let queue = inputChunkGroups.map(chunkGroupToQueueItem).reverse()
 
-while (queue.length) {
-  while (queue.length) {
+while (queue.length) { // 外层 queue 遍历
+  while (queue.length) { // 内层 queue 遍历
     const queueItem = queue.pop();
     module = queueItem.module;
     block = queueItem.block;
@@ -425,4 +442,186 @@ while (queue.length) {
   queue = queueDelayed.reverse();
   queueDelayed = tempQueue;
 }
+```
+
+### 优化 chunk graph
+
+接下来进入到第二个步骤，遍历 chunk graph，通过和依赖的 module 之间的使用关系来建立起不同 chunkGroup 之间的父子关系，同时剔除一些没有建立起联系的 chunk。
+
+首先还是完成一些数据的初始化工作，chunkGroupInfoMap 存放了不同 chunkGroup 相关信息：
+
+* minAvailableModules (chunkGroup 可追踪的最小 module 数据集)
+* availableModulesToBeMerged (遍历环节所使用的 module 集合)
+
+```javascript
+/** @type {Map<ChunkGroup, ChunkGroupInfo>} */
+const chunkGroupInfoMap = new Map();
+
+/** @type {Queue<ChunkGroup>} */
+const queue2 = new Queue(inputChunkGroups);
+for (const chunkGroup of inputChunkGroups) {
+  chunkGroupInfoMap.set(chunkGroup, {
+    minAvailableModules: undefined,
+    availableModulesToBeMerged: [new Set()]
+  });
+}
+```
+
+TODO: 初始化 minAvailableModules 和 availableModulesToBeMerged 数据集
+
+获取在第一阶段的 chunkDependencies 当中缓存的 chunkGroup 的 deps 数组依赖，chunkDependencies 中保存了不同 chunkGroup 所依赖的异步 block，以及同这个 block 一同创建的 chunkGroup（目前二者仅仅是存于一个 map 结构当中，还未建立起 chunkGroup 和 block 之间的依赖关系）。
+
+如果 deps 数据不存在或者长度为0，那么会跳过遍历 deps 当中的 chunkGroup 流程，否则会为这个 chunkGroup 创建一个新的 available module 数据集 newAvailableModules，开始遍历这个 chunkGroup 当中所有的 chunk 所包含的 module，并加入到 newAvailableModules 这一数据集当中。并开始遍历这个 chunkGroup 的 deps 数组依赖，这个阶段主要完成的工作就是：
+
+1. 判断 chunkGroup 提供的 newAvailableModules(可以将 newAvailableModules 理解为这个 chunkGroup 所有 module 的集合setA)和 deps 依赖中的 chunkGroup (由异步 block 创建的 chunkGroup)所包含的 chunk 当中所有的 module 集合(setB)包含关系(TODO: 具体描述)：
+ * 如果在 setB 当中有 setA 没有的 module(一般是异步的 block)，它们在 chunk graph 被当做了（edge 条件）,那说明目前已经遍历过的 chunk 里面的 module 组成的 setA 还未包含所有用到的 module，而这些未被包含的 module 就存在于 deps 依赖中的 chunkGroup 当中，因此还需要继续遍历 deps 依赖中的 chunkGroup
+ * 如果在 setB 当中的所有的 module 都已经存在于了 setA 当中，说明依赖的 chunkGroup 中所有使用的 module 已经包含在了目前已经遍历过的 chunk 当中了，那么就不需要进行后面的流程，直接跳过，进行下一个的依赖遍历；
+2. 通过 GraphHelpers 模块提供的辅助函数`connectDependenciesBlockAndChunkGroup`建立起 deps 依赖中的异步 block 和 chunkGroup 的依赖关系；
+3. 通过 GraphHelpers 模块提供的辅助函数`connectChunkGroupParentAndChild`建立起 chunkGroup 和 deps 依赖中的 chunkGroup 之间的依赖关系 **（这个依赖关系也决定了在 webpack 编译完成后输出的文件当中是否会有 deps 依赖中的 chunkGroup 所包含的 chunk）**；
+4. 将 deps 依赖中的 chunkGroup 加入到 nextChunkGroups 数据集当中，接下来就进入到遍历新加入的 chunkGroup 环节。
+5. 当以上所有的遍历过程都结束后，接下来开始遍历在处理异步 block 创建的 chunkGroup 组成的数据集(allCreatedChunkGroups)，开始处理没有依赖关系的 chunkGroup(chunkGroup 之间的依赖关系是在👆第3步的过程中建立起来的)，如果遇到没有任何依赖关系的 chunkGroup，那么就会将这些 chunkGroup 当中所包含的所有 chunk 从 chunk graph 依赖图当中剔除掉。最终在 webpack 编译过程结束输出文件的时候就不会生成这些 chunk。
+
+那么在我们给出的示例当中(TODO: 示例当中这个流程的顺序图)，在上面提到的这些过程中，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。
+
+
+最终会生成的 chunk 依赖图为：TODO:(最终的 chunk 依赖图)
+
+
+```javascript
+
+/**
+ * Helper function to check if all modules of a chunk are available
+ *
+ * @param {ChunkGroup} chunkGroup the chunkGroup to scan
+ * @param {Set<Module>} availableModules the comparitor set
+ * @returns {boolean} return true if all modules of a chunk are available
+ */
+// 判断chunkGroup当中是否已经包含了所有的 availableModules
+const areModulesAvailable = (chunkGroup, availableModules) => {
+  for (const chunk of chunkGroup.chunks) {
+    for (const module of chunk.modulesIterable) {
+      // 如果在 availableModules 存在没有的 module，那么返回 false
+      if (!availableModules.has(module)) return false;
+    }
+  }
+  return true;
+};
+
+// For each edge in the basic chunk graph
+/**
+ * @param {TODO} dep the dependency used for filtering
+ * @returns {boolean} used to filter "edges" (aka Dependencies) that were pointing
+ * to modules that are already available. Also filters circular dependencies in the chunks graph
+ */
+const filterFn = dep => {
+  const depChunkGroup = dep.chunkGroup;
+  if (!dep.couldBeFiltered) return true;
+  if (blocksWithNestedBlocks.has(dep.block)) return true;
+  if (areModulesAvailable(depChunkGroup, newAvailableModules)) {
+    return false; // break, all modules are already available
+  }
+  dep.couldBeFiltered = false;
+  return true;
+};
+
+/** @type {Map<ChunkGroup, ChunkGroupInfo>} */
+const chunkGroupInfoMap = new Map();
+
+/** @type {Queue<ChunkGroup>} */
+const queue2 = new Queue(inputChunkGroups);
+for (const chunkGroup of inputChunkGroups) {
+  chunkGroupInfoMap.set(chunkGroup, {
+    minAvailableModules: undefined,
+    availableModulesToBeMerged: [new Set()]
+  });
+}
+
+...
+
+while (queue2.length) {
+  chunkGroup = queue2.dequeue();
+  const info = chunkGroupInfoMap.get(chunkGroup);
+  const availableModulesToBeMerged = info.availableModulesToBeMerged;
+  let minAvailableModules = info.minAvailableModules;
+
+  // 1. Get minimal available modules
+  // It doesn't make sense to traverse a chunk again with more available modules.
+  // This step calculates the minimal available modules and skips traversal when
+  // the list didn't shrink.
+  availableModulesToBeMerged.sort(bySetSize);
+  let changed = false;
+  for (const availableModules of availableModulesToBeMerged) {
+    if (minAvailableModules === undefined) {
+      minAvailableModules = new Set(availableModules);
+      info.minAvailableModules = minAvailableModules;
+      changed = true;
+    } else {
+      for (const m of minAvailableModules) {
+        if (!availableModules.has(m)) {
+          minAvailableModules.delete(m);
+          changed = true;
+        }
+      }
+    }
+  }
+  availableModulesToBeMerged.length = 0;
+  if (!changed) continue;
+
+  // 获取这个 chunkGroup 的 deps 数组，包含异步的 block 及 对应的 chunkGroup
+  // 2. Get the edges at this point of the graph
+  const deps = chunkDependencies.get(chunkGroup);
+  if (!deps) continue;
+  if (deps.length === 0) continue;
+
+  // 根据之前的 minAvailableModules 创建一个新的 newAvailableModules 数据集
+  // 即之前所有遍历过的 chunk 当中的 module 都会保存到这个数据集当中，不停的累加
+  // 3. Create a new Set of available modules at this points
+  newAvailableModules = new Set(minAvailableModules);
+  for (const chunk of chunkGroup.chunks) {
+    for (const m of chunk.modulesIterable) { // 这个 chunk 当中所包含的 module
+      newAvailableModules.add(m);
+    }
+  }
+
+  // 边界条件，及异步的 block 所在的 chunkGroup
+  // 4. Foreach remaining edge
+  const nextChunkGroups = new Set();
+  // 异步 block 依赖
+  for (let i = 0; i < deps.length; i++) {
+    const dep = deps[i];
+
+    // Filter inline, rather than creating a new array from `.filter()`
+    if (!filterFn(dep)) {
+      continue;
+    }
+    // 这个 block 所属的 chunkGroup，在 iteratorBlock 方法内部创建的
+    const depChunkGroup = dep.chunkGroup;
+    const depBlock = dep.block;
+
+    // 开始建立 block 和 chunkGroup 之间的关系
+    // 在为 block 创建新的 chunk 时，仅仅建立起了 chunkGroup 和 chunk 之间的关系，
+    // 5. Connect block with chunk
+    GraphHelpers.connectDependenciesBlockAndChunkGroup(
+      depBlock,
+      depChunkGroup
+    );
+
+    // 建立起新创建的 chunkGroup 和此前的 chunkGroup 之间的相互联系
+    // 6. Connect chunk with parent
+    GraphHelpers.connectChunkGroupParentAndChild(chunkGroup, depChunkGroup);
+
+    nextChunkGroups.add(depChunkGroup);
+  }
+
+  // 7. Enqueue further traversal
+  for (const nextChunkGroup of nextChunkGroups) {
+    ...
+
+    // As queue deduplicates enqueued items this makes sure that a ChunkGroup
+    // is not enqueued twice
+    queue2.enqueue(nextChunkGroup);
+  }
+}
+
+...
 ```
