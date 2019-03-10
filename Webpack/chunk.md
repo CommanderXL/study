@@ -1,10 +1,12 @@
 ## Chunk
 
-一些概念及其相互之间的关系：
+这篇文章主要是通过源码去探索下 webpack 是如何通过在编译环节创建的 module graph 来生成对应的 chunk graph。
 
-1. chunkGroup
-2. chunk
-3. module
+首先来了解一些概念及其相互之间的关系：
+
+1. chunkGroup，由 chunk 组成，一个 chunkGroup 可以包含多个 chunk，在生成/优化 chunk graph 时会用到；
+2. chunk，由 module 组成，一个 chunk 可以包含多个 module，它是 webpack 编译打包后输出的最终文件；
+3. module，就是不同的资源文件，包含了你的代码中提供的例如：js/css/图片 等文件，在编译环节，webpack 会根据不同 module 之间的依赖关系去组合生成 chunk
 
 我们都知道 webpack 打包构建时会根据你的具体业务代码和 webpack 相关配置来决定输出的最终文件，具体的文件的名和文件数量也与此相关。而这些文件就被称为 chunk。例如在你的业务当中使用了异步分包的 API：
 
@@ -197,7 +199,7 @@ GraphHelpers.connectChunkAndModule = (chunk, module) => {
 };
 ```
 
-例如在示例当中，入口 module 只配置了一个，那么在处理 entryPoints 阶段时会生成一个 chunkGroup 以及 一个 chunk，这个 chunk 目前仅仅只包含了入口 module。我们都知道 webpack 输出的 chunk 当中都会包含与之相关的 module，在编译环节进行到上面这一步仅仅建立起了 chunk 和入口 module 之间的联系，那么 chunk 是如何与其他的 module 也建立起联系呢？接下来我们就看下 webpack 在生成 chunk 的过程当中是如何与其依赖的 module 进行关联的。
+例如在示例当中，入口 module 只配置了一个，那么在处理 entryPoints 阶段时会生成一个 chunkGroup 以及一个 chunk，这个 chunk 目前仅仅只包含了入口 module。我们都知道 webpack 输出的 chunk 当中都会包含与之相关的 module，在编译环节进行到上面这一步仅仅建立起了 chunk 和入口 module 之间的联系，那么 chunk 是如何与其他的 module 也建立起联系呢？接下来我们就看下 webpack 在生成 chunk 的过程当中是如何与其依赖的 module 进行关联的。
 
 与此相关的便是 compilation 实例提供的`processDependenciesBlocksForChunkGroups`方法。这个方法内部细节较为复杂，它包含了两个核心的处理流程：
 
@@ -295,7 +297,7 @@ for (const modules of this.modules) {
 
 以上是在`processDependenciesBlocksForChunkGroups`方法内部对于 module graph 和 chunk graph 的初步处理，最终的结果就是根据 module graph 建立起了 chunk graph，将原本空的 chunk 里面加入其对应的 module 依赖。
 
-chunkGroup1 包含了 a, b, d 3个 module，而 a 的异步依赖模块 c 以及 c 的同步依赖模块 d 同属于新创建的 chunkGroup2，chunkGroup2 中只有一个 chunk，而 c 的异步模块 b 属于新创建的 chunkGroup3。
+entryPoint 包含了 a, b, d 3个 module，而 a 的异步依赖模块 c 以及 c 的同步依赖模块 d 同属于新创建的 chunkGroup2，chunkGroup2 中只有一个 chunk，而 c 的异步模块 b 属于新创建的 chunkGroup3。
 
 TODO: 插入 chunk graph
 
@@ -467,13 +469,11 @@ for (const chunkGroup of inputChunkGroups) {
 }
 ```
 
-TODO: 初始化 minAvailableModules 和 availableModulesToBeMerged 数据集
-
 获取在第一阶段的 chunkDependencies 当中缓存的 chunkGroup 的 deps 数组依赖，chunkDependencies 中保存了不同 chunkGroup 所依赖的异步 block，以及同这个 block 一同创建的 chunkGroup（目前二者仅仅是存于一个 map 结构当中，还未建立起 chunkGroup 和 block 之间的依赖关系）。
 
 如果 deps 数据不存在或者长度为0，那么会跳过遍历 deps 当中的 chunkGroup 流程，否则会为这个 chunkGroup 创建一个新的 available module 数据集 newAvailableModules，开始遍历这个 chunkGroup 当中所有的 chunk 所包含的 module，并加入到 newAvailableModules 这一数据集当中。并开始遍历这个 chunkGroup 的 deps 数组依赖，这个阶段主要完成的工作就是：
 
-1. 判断 chunkGroup 提供的 newAvailableModules(可以将 newAvailableModules 理解为这个 chunkGroup 所有 module 的集合setA)和 deps 依赖中的 chunkGroup (由异步 block 创建的 chunkGroup)所包含的 chunk 当中所有的 module 集合(setB)包含关系(TODO: 具体描述)：
+1. 判断 chunkGroup 提供的 newAvailableModules(可以将 newAvailableModules 理解为这个 chunkGroup 所有 module 的集合setA)和 deps 依赖中的 chunkGroup (由异步 block 创建的 chunkGroup)所包含的 chunk 当中所有的 module 集合(setB)包含关系：
  * 如果在 setB 当中有 setA 没有的 module(一般是异步的 block)，它们在 chunk graph 被当做了（edge 条件）,那说明目前已经遍历过的 chunk 里面的 module 组成的 setA 还未包含所有用到的 module，而这些未被包含的 module 就存在于 deps 依赖中的 chunkGroup 当中，因此还需要继续遍历 deps 依赖中的 chunkGroup
  * 如果在 setB 当中的所有的 module 都已经存在于了 setA 当中，说明依赖的 chunkGroup 中所有使用的 module 已经包含在了目前已经遍历过的 chunk 当中了，那么就不需要进行后面的流程，直接跳过，进行下一个的依赖遍历；
 2. 通过 GraphHelpers 模块提供的辅助函数`connectDependenciesBlockAndChunkGroup`建立起 deps 依赖中的异步 block 和 chunkGroup 的依赖关系；
@@ -481,7 +481,7 @@ TODO: 初始化 minAvailableModules 和 availableModulesToBeMerged 数据集
 4. 将 deps 依赖中的 chunkGroup 加入到 nextChunkGroups 数据集当中，接下来就进入到遍历新加入的 chunkGroup 环节。
 5. 当以上所有的遍历过程都结束后，接下来开始遍历在处理异步 block 创建的 chunkGroup 组成的数据集(allCreatedChunkGroups)，开始处理没有依赖关系的 chunkGroup(chunkGroup 之间的依赖关系是在👆第3步的过程中建立起来的)，如果遇到没有任何依赖关系的 chunkGroup，那么就会将这些 chunkGroup 当中所包含的所有 chunk 从 chunk graph 依赖图当中剔除掉。最终在 webpack 编译过程结束输出文件的时候就不会生成这些 chunk。
 
-那么在我们给出的示例当中(TODO: 示例当中这个流程的顺序图)，在上面提到的这些过程中，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。
+那么在我们给出的示例当中(TODO: 示例当中这个流程的顺序图)，在上面提到的这些过程中，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。而在处理 chunkGroup2 的过程当中，
 
 
 最终会生成的 chunk 依赖图为：TODO:(最终的 chunk 依赖图)
