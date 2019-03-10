@@ -96,13 +96,12 @@ module.exports = {
 }
 ```
 
-不同模块之间的依赖关系可以通过下图来表示：
+其中 a.js 为 webpack config 当中配置的 entry 入口文件，a.js 依赖 b.js/c.js，而 b.js 依赖 d.js，c.js 依赖 d.js/b.js。最终通过 webpack 编译后，将会生成3个 chunk 文件，其中：
 
-TODO: 补一个依赖关系图
+* bundle.js - 包含了 webpack runtime module 代码
+* app.bundle.js - 包含了 a.js/b.js/d.js 的代码
+* 2.bundle.js - 包含了 c.js 的代码
 
-其中 a.js 为 webpack config 当中配置的 entry 入口文件，b.js 作为 a.js 依赖的模块(dependencies)，c.js 作为 a.js 依赖的异步模块(blocks)。最终通过 webpack 编译后，将会生成3个 chunk 文件：
-
-// TODO: 生成的3个 chunk 文件。以及每个 chunk 文件内部包含的具体的内容
 
 接下来我们就通过源码来看下 webpack 内部是通过什么样的策略去完成 chunk 的生成的。
 
@@ -250,7 +249,9 @@ for (const modules of this.modules) {
   }
 }
 ```
-在我们的实例当中生成的 module graph 即为(TODO: module graph):
+在我们的实例当中生成的 module graph 即为：
+
+![module-graph](../images/webpack/module-graph.jpeg)
 
 
 当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph。刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
@@ -299,7 +300,7 @@ for (const modules of this.modules) {
 
 entryPoint 包含了 a, b, d 3个 module，而 a 的异步依赖模块 c 以及 c 的同步依赖模块 d 同属于新创建的 chunkGroup2，chunkGroup2 中只有一个 chunk，而 c 的异步模块 b 属于新创建的 chunkGroup3。
 
-TODO: 插入 chunk graph
+![chunk-graph](../images/webpack/chunk-graph.jpeg)
 
 
 ```javascript
@@ -481,10 +482,12 @@ for (const chunkGroup of inputChunkGroups) {
 4. 将 deps 依赖中的 chunkGroup 加入到 nextChunkGroups 数据集当中，接下来就进入到遍历新加入的 chunkGroup 环节。
 5. 当以上所有的遍历过程都结束后，接下来开始遍历在处理异步 block 创建的 chunkGroup 组成的数据集(allCreatedChunkGroups)，开始处理没有依赖关系的 chunkGroup(chunkGroup 之间的依赖关系是在👆第3步的过程中建立起来的)，如果遇到没有任何依赖关系的 chunkGroup，那么就会将这些 chunkGroup 当中所包含的所有 chunk 从 chunk graph 依赖图当中剔除掉。最终在 webpack 编译过程结束输出文件的时候就不会生成这些 chunk。
 
-那么在我们给出的示例当中(TODO: 示例当中这个流程的顺序图)，在上面提到的这些过程中，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。而在处理 chunkGroup2 的过程当中，
+那么在我们给出的示例当中，经过在上面提到的这些步骤，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。而在处理 chunkGroup2 的过程当中，却发现它所依赖的 chunkGroup3 中的 module(d.js) 已经处于 entryPoint 当中，那么 chunkGroup3 内所包含的 chunk 最终会从 chunk graph 被剔除掉，这样这个 chunk 最终也不会被输出到目标文件夹当中。
 
 
-最终会生成的 chunk 依赖图为：TODO:(最终的 chunk 依赖图)
+最终会生成的 chunk 依赖图为：
+
+![chunk-graph-2](../images/webpack/chunk-graph-2.jpeg)
 
 
 ```javascript
