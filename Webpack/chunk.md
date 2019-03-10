@@ -625,3 +625,5 @@ while (queue2.length) {
 
 ...
 ```
+
+以上就是通过源码分析了 webpack 是如何构建 module graph，以及是如何通过 module graph 去生成 chunk graph 的，当你读完这篇文章后应该就大致了解了在你每次构建完成后，你的项目应用中目标输出文件夹出现的不同的 chunk 文件是经过哪些过程而产生的。
