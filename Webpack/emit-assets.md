@@ -4,3 +4,83 @@
 
 在 createChunkAssets 方法内部会对最终需要输出的 chunk 进行遍历，根据这个 chunk 是否包含有 webpack runtime 代码来决定使用的渲染模板。那我们首先来看下包含有 webpack runtime 代码的 chunk 是如何输出最终的 chunk 文本内容的。
 
+这种情况下使用的 mainTemplate，调用实例上的 getRenderManifest 方法获取 manifest 配置数组，其中每项包含的字段内容为:
+
+```javascript
+// hooks.manifest.tap 钩子函数
+
+result.push({
+  render: () =>
+    // 这个 chunk 最终会调用这个 render 函数去完成文本的输出工作
+    compilation.mainTemplate.render(
+      hash,
+      chunk,
+      moduleTemplates.javascript,
+      dependencyTemplates
+    ),
+  filenameTemplate,
+  pathOptions: {
+    noChunkHash: !useChunkHash,
+    contentHashType: 'javascript',
+    chunk
+  },
+  identifier: `chunk${chunk.id}`,
+  // 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
+  hash: useChunkHash ? chunk.hash : fullHash
+})
+```
+
+接下来会判断这个 chunk 是否有被之前已经输出过(输出过的 chunk 是会被缓存起来的)。如果没有的话，那么就会调用 render 方法去完成这个 chunk 的文本输出工作，即：`compilation.maniTemplate.render`方法。
+
+```javascript
+// ManiTemplate.js
+
+module.exports = class Manifest extends Tapable {
+  ...
+  /**
+	 * @param {string} hash hash to be used for render call
+	 * @param {Chunk} chunk Chunk instance
+	 * @param {ModuleTemplate} moduleTemplate ModuleTemplate instance for render
+	 * @param {Map<Function, DependencyTemplate>} dependencyTemplates dependency templates
+	 * @returns {ConcatSource} the newly generated source from rendering
+	 */
+	render(hash, chunk, moduleTemplate, dependencyTemplates) { // 主要完成 webpack runtime 代码的拼接工作
+		const buf = this.renderBootstrap( 
+			hash,
+			chunk,
+			moduleTemplate,
+			dependencyTemplates
+		);
+		let source = this.hooks.render.call(
+			new OriginalSource(
+				Template.prefix(buf, " \t") + "\n",
+				"webpack/bootstrap"
+			),
+			chunk,
+			hash,
+			moduleTemplate,
+			dependencyTemplates
+		);
+		if (chunk.hasEntryModule()) {
+			source = this.hooks.renderWithEntry.call(source, chunk, hash);
+		}
+		if (!source) {
+			throw new Error(
+				"Compiler error: MainTemplate plugin 'render' should return something"
+			);
+		}
+		chunk.rendered = true;
+		return new ConcatSource(source, ";");
+	}
+  ...
+}
+
+```
+
+在这个方法内部主要就是完成了 webpack runtime 代码的拼接工作，最终返回 ConcatSource 类型的(TODO: source 类型的描述)
+
+TODO: 这里需要分情况说明下是否将 webpack runtime 单独抽成一个 chunk 的配置以及对应的工作流。
+
+
+RuntimeTemplate
+ModuleTemplate
