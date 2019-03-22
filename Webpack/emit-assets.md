@@ -30,12 +30,12 @@ result.push({
 })
 ```
 
-接下来会判断这个 chunk 是否有被之前已经输出过(输出过的 chunk 是会被缓存起来的)。如果没有的话，那么就会调用 render 方法去完成这个 chunk 的文本输出工作，即：`compilation.maniTemplate.render`方法。
+接下来会判断这个 chunk 是否有被之前已经输出过(输出过的 chunk 是会被缓存起来的)。如果没有的话，那么就会调用 render 方法去完成这个 chunk 的文本输出工作，即：`compilation.mainTemplate.render`方法。
 
 ```javascript
-// ManiTemplate.js
+// MainTemplate.js
 
-module.exports = class Manifest extends Tapable {
+module.exports = class MainTemplate extends Tapable {
   ...
   /**
 	 * @param {string} hash hash to be used for render call
@@ -82,5 +82,15 @@ module.exports = class Manifest extends Tapable {
 TODO: 这里需要分情况说明下是否将 webpack runtime 单独抽成一个 chunk 的配置以及对应的工作流。
 
 
-RuntimeTemplate
-ModuleTemplate
+接下来我们看下不包含 webpack runtime 代码的 chunk 是如何输出得到最终的内容的。首先我们来了解下2个和输出 chunk 内容相关的类：
+
+* runtimeTemplate
+* moduleTemplate
+
+其中 runtimeTemplate 类主要是提供了和模块类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么最终导出的代码会带有`__esModule`标识。而 moduleTemplate 类主要是对外暴露了 render 方法，内部调用对应的 module.source 用以来完成每个 module 最终代码的生成。
+
+每个 chunk 最终代码的生成即对应 this.renderJavascript 方法：
+
+
+MainTemplate
+ChunkTemplate
