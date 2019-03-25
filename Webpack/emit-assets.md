@@ -6,27 +6,33 @@
 
 这种情况下使用的 mainTemplate，调用实例上的 getRenderManifest 方法获取 manifest 配置数组，其中每项包含的字段内容为:
 
+// TODO: 简单的介绍下 JavascriptModulesPlugin 插件的用途
+
 ```javascript
 // hooks.manifest.tap 钩子函数
 
-result.push({
-  render: () =>
-    // 这个 chunk 最终会调用这个 render 函数去完成文本的输出工作
-    compilation.mainTemplate.render(
-      hash,
-      chunk,
-      moduleTemplates.javascript,
-      dependencyTemplates
-    ),
-  filenameTemplate,
-  pathOptions: {
-    noChunkHash: !useChunkHash,
-    contentHashType: 'javascript',
-    chunk
-  },
-  identifier: `chunk${chunk.id}`,
-  // 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
-  hash: useChunkHash ? chunk.hash : fullHash
+compilation.mainTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', () => {
+	...
+	result.push({
+		render: () =>
+			// 这个 chunk 最终会调用这个 render 函数去完成文本的输出工作
+			compilation.mainTemplate.render(
+				hash,
+				chunk,
+				moduleTemplates.javascript,
+				dependencyTemplates
+			),
+		filenameTemplate,
+		pathOptions: {
+			noChunkHash: !useChunkHash,
+			contentHashType: 'javascript',
+			chunk
+		},
+		identifier: `chunk${chunk.id}`,
+		// 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
+		hash: useChunkHash ? chunk.hash : fullHash
+	})
+	...
 })
 ```
 
@@ -45,7 +51,7 @@ module.exports = class MainTemplate extends Tapable {
 	 * @returns {ConcatSource} the newly generated source from rendering
 	 */
 	render(hash, chunk, moduleTemplate, dependencyTemplates) { // 主要完成 webpack runtime 代码的拼接工作
-		const buf = this.renderBootstrap( 
+		const buf = this.renderBootstrap(
 			hash,
 			chunk,
 			moduleTemplate,
@@ -81,16 +87,89 @@ module.exports = class MainTemplate extends Tapable {
 
 TODO: 这里需要分情况说明下是否将 webpack runtime 单独抽成一个 chunk 的配置以及对应的工作流。
 
+接下来我们看下不包含 webpack runtime 代码的 chunk (使用 chunkTemplate 渲染模板)是如何输出得到最终的内容的。首先我们来了解下 2 个和输出 chunk 内容相关的类：
 
-接下来我们看下不包含 webpack runtime 代码的 chunk 是如何输出得到最终的内容的。首先我们来了解下2个和输出 chunk 内容相关的类：
+- RuntimeTemplate
+- ModuleTemplate
 
-* runtimeTemplate
-* moduleTemplate
+其中 RuntimeTemplate 类主要是提供了和模块类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
+而 ModuleTemplate 类主要是对外暴露了 render 方法，在这个方法内部会调用对应的 module.source 用以来完成每个 module 最终代码的生成。
 
-其中 runtimeTemplate 类主要是提供了和模块类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么最终导出的代码会带有`__esModule`标识。而 moduleTemplate 类主要是对外暴露了 render 方法，内部调用对应的 module.source 用以来完成每个 module 最终代码的生成。
+chunkTemplate 同样调用 getRenderManifest 方法来获取对应的 manifest 配置数组：
 
-每个 chunk 最终代码的生成即对应 this.renderJavascript 方法：
+```javascript
+// JavascriptModulesPlugin.js
 
+class JavascriptModulesPlugin {
+	apply(compiler) {
+		compiler.hooks.compilation.tap('JavascriptModulesPlugin', (compilation, { normalModuleFactory }) => {
+			...
+			// chunkTemplate hooks.manifest 钩子函数
+			compilation.chunkTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', (result, options) => {
+				...
+				result.push({
+					render: () =>
+						// 每个 chunk 代码的生成即调用 JavascriptModulesPlugin 提供的 renderJavascript 方法来进行生成
+						this.renderJavascript(
+							compilation.chunkTemplate, // chunk模板
+							chunk, // 需要生成的 chunk 实例
+							moduleTemplates.javascript, // 模块类型
+							dependencyTemplates // 不同依赖所对应的渲染模板
+						),
+					filenameTemplate,
+					pathOptions: {
+						chunk,
+						contentHashType: 'javascript'
+					},
+					identifier: `chunk${chunk.id}`,
+					hash: chunk.hash
+				})
+				...
+			})
+			...
+		})
+	}
+
+	renderJavascript(chunkTemplate, chunk, moduleTemplate, dependencyTemplates) {
+		const moduleSources = Template.renderChunkModules(
+			chunk,
+			m => typeof m.source === "function",
+			moduleTemplate,
+			dependencyTemplates
+		)
+		const core = chunkTemplate.hooks.modules.call(
+			moduleSources,
+			chunk,
+			moduleTemplate,
+			dependencyTemplates
+		)
+		let source = chunkTemplate.hooks.render.call(
+			core,
+			chunk,
+			moduleTemplate,
+			dependencyTemplates
+		)
+		if (chunk.hasEntryModule()) {
+			source = chunkTemplate.hooks.renderWithEntry.call(source, chunk)
+		}
+		chunk.rendered = true
+		return new ConcatSource(source, ";")
+	}
+}
+
+```
+
+接下来便调用 JavascriptModulesPlugin 这个插件提供的 renderJavascript 方法开始生成每个 chunk 所依赖的 module 的最终代码，首先进入 Template 这个基类提供的`Template.renderChunkModules`方法：
+
+```javascript
+class Template {
+	...
+	renderChunkModules() {
+
+	}
+	...
+}
+```
 
 MainTemplate
 ChunkTemplate
