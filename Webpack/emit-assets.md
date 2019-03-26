@@ -164,11 +164,136 @@ class JavascriptModulesPlugin {
 ```javascript
 class Template {
 	...
-	renderChunkModules() {
+	/**
+	 * @param {WithId[]} modules a collection of modules to get array bounds for
+	 * @returns {[number, number] | false} returns the upper and lower array bounds
+	 * or false if not every module has a number based id
+	 */
+	static getModulesArrayBounds(modules) {
+		let maxId = -Infinity;
+		let minId = Infinity;
+		for (const module of modules) {
+			if (typeof module.id !== "number") return false;
+			if (maxId < module.id) maxId = /** @type {number} */ (module.id);
+			if (minId > module.id) minId = /** @type {number} */ (module.id);
+		}
+		if (minId < 16 + ("" + minId).length) {
+			// add minId x ',' instead of 'Array(minId).concat(…)'
+			minId = 0;
+		}
+		const objectOverhead = modules
+			.map(module => (module.id + "").length + 2)
+			.reduce((a, b) => a + b, -1);
+		const arrayOverhead =
+			minId === 0 ? maxId : 16 + ("" + minId).length + maxId;
+		return arrayOverhead < objectOverhead ? [minId, maxId] : false;
+	}
 
+	/**
+	 * @param {Chunk} chunk chunk whose modules will be rendered
+	 * @param {ModuleFilterPredicate} filterFn function used to filter modules from chunk to render
+	 * @param {ModuleTemplate} moduleTemplate ModuleTemplate instance used to render modules
+	 * @param {TODO | TODO[]} dependencyTemplates templates needed for each module to render dependencies
+	 * @param {string=} prefix applying prefix strings
+	 * @returns {ConcatSource} rendered chunk modules in a Source object
+	 */
+	static renderChunkModules(
+		chunk,
+		filterFn,
+		moduleTemplate,
+		dependencyTemplates,
+		prefix = ""
+	) {
+		const source = new ConcatSource();
+		const modules = chunk.getModules().filter(filterFn); // 通过过滤函数获取满足条件的 module
+		let removedModules;
+		if (chunk instanceof HotUpdateChunk) {
+			removedModules = chunk.removedModules;
+		}
+		if (
+			modules.length === 0 &&
+			(!removedModules || removedModules.length === 0)
+		) {
+			source.add("[]");
+			return source;
+		}
+		// 遍历这个 chunk 所需要渲染的 module，调用 moduleTemplate 模板提供的 render 去渲染 module 最终代码
+		/** @type {{id: string|number, source: Source|string}[]} */
+		const allModules = modules.map(module => {
+			return {
+				id: module.id,
+				source: moduleTemplate.render(module, dependencyTemplates, { // 渲染每个 module
+					chunk
+				})
+			};
+		});
+		if (removedModules && removedModules.length > 0) {
+			for (const id of removedModules) {
+				allModules.push({
+					id,
+					source: "false"
+				});
+			}
+		}
+		// 获取这个 chunk 当中所包含的所有的 module 的 id 边界，如果是有限的 id 边界，那么会返回一个数组: [minId, maxId]
+		// 如果是没有边界的，那么最终会通过对象的形式出现在 chunk 当中
+		const bounds = Template.getModulesArrayBounds(allModules);
+		if (bounds) {
+			// Render a spare array
+			const minId = bounds[0];
+			const maxId = bounds[1];
+			console.log('minId and maxId:', minId, maxId)
+			if (minId !== 0) {
+				source.add(`Array(${minId}).concat(`);
+			}
+			source.add("[\n");
+			/** @type {Map<string|number, {id: string|number, source: Source|string}>} */
+			const modules = new Map();
+			for (const module of allModules) {
+				modules.set(module.id, module);
+			}
+			for (let idx = minId; idx <= maxId; idx++) {
+				const module = modules.get(idx);
+				if (idx !== minId) {
+					source.add(",\n");
+				}
+				source.add(`/* ${idx} */`);
+				if (module) {
+					// console.log('module.source: ', module.source)
+					source.add("\n");
+					source.add(module.source); // 添加每个 module 最终输出的代码
+				}
+			}
+			source.add("\n" + prefix + "]");
+			if (minId !== 0) {
+				source.add(")");
+			}
+		} else {
+			// Render an object
+			source.add("{\n");
+			allModules.sort(stringifyIdSortPredicate).forEach((module, idx) => {
+				if (idx !== 0) {
+					source.add(",\n");
+				}
+				source.add(`\n/***/ ${JSON.stringify(module.id)}:\n`);
+				source.add(module.source);
+			});
+			source.add(`\n\n${prefix}}`);
+		}
+		return source;
 	}
 	...
 }
+```
+
+在 renderChunkModules 方法内部，首先通过 filerFn 来获取所有需要被渲染的 module，接下来依次遍历这些 module，在遍历的过程中调用 moduleTemplate 模板上的 render 完成每个 module 的渲染工作(后文会单独讲)，我们都知道在 seal 阶段，会调用 applyModuleIds 方法完成所有的 module 的 id 分配工作，最终每个 module 都有一个唯一标识 id。在 Template 类上提供了静态方法 getModulesArrayBounds 用以获取当前需要被渲染 chunk 当中所包含的 module 的 id 范围大小，而这个范围大小决定了 module 在 chunk 是以数组的形式还是 key(module id)/value(Fn) 键值对的形式被渲染出来。
+
+通过 import 等异步API加载的 module，会被单独分配到一个 chunk 当中，这个 chunk 当中只包含这一个异步的 module，调用`Template.getModulesArrayBounds`方法后，获取的值为false，最终这个 chunk 被渲染出来所包含的 module 是 key/value 的形式：
+
+```javascript
+(window["webpackJsonp"] = window["webpackJsonp"] || []).push([[2],{
+	5(module id): module.source(Fn)
+}])
 ```
 
 MainTemplate
