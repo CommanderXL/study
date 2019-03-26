@@ -296,5 +296,37 @@ class Template {
 }])
 ```
 
+TODO: 普通的 chunk 最终渲染出来的形式
+
+刚才上文中提到了在遍历 module 的过程中调用`moduleTemplate.render`方法完成了 module 的渲染工作:
+
+```javascript
+class ModuleTemplate extends Tabable {
+	...
+	/**
+	 * @param {Module} module the module
+	 * @param {TODO} dependencyTemplates templates for dependencies
+	 * @param {TODO} options render options
+	 * @returns {Source} the source
+	 */
+	 render(module, dependencyTemplates, options) {
+			const moduleSource = module.source(
+				dependencyTemplates,
+				this.runtimeTemplate,
+				this.type
+			);
+
+			const moduleSourcePostContent = this.hooks.content.call(...)
+			const moduleSourcePostModule = this.hooks.module.call(...)
+			const moduleSourcePostRender = this.hooks.render.call(...)
+			return this.hooks.package.call(...)
+	 }
+}
+```
+
+在接下去讲之前，回忆下在创建 NormalModule 
+
+<!-- 每个 NormalModule 实例上都有 source 方法，其内部调用在 module 创建初期获取的 generator 生成器的 generate 方法去生成 module 代码。 -->
+
 MainTemplate
 ChunkTemplate
