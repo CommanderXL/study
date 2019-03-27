@@ -324,9 +324,97 @@ class ModuleTemplate extends Tabable {
 }
 ```
 
-在接下去讲之前，回忆下在创建 NormalModule 
+在接下去讲之前，回忆下通过 NormalModuleFactory 创建 NormalModule 过程中会调用 createGenerator 方法获取最终渲染这个 module 所需要的 generator 生成器。
 
-<!-- 每个 NormalModule 实例上都有 source 方法，其内部调用在 module 创建初期获取的 generator 生成器的 generate 方法去生成 module 代码。 -->
+```javascript
+class NormalModuleFactory extends Tapable {
+	...
+	createGenerator(type, generatorOptions = {}) {
+		// 通过 NormalModuleFactory 暴露出去的 createGenerator 钩子来获取对应的 generator 生成器
+		const generator = this.hooks.createGenerator
+			.for(type)
+			.call(generatorOptions);
+		if (!generator) {
+			throw new Error(`No generator registered for ${type}`);
+		}
+		this.hooks.generator.for(type).call(generator, generatorOptions);
+		return generator;
+	}
+	...
+}
+```
+
+每个 NormalModule 实例上都有 source 方法，其内部调用在 module 创建初期获取的 generator 生成器的 generate 方法去生成 module 代码，这才进入到生成 module 代码最核心的步骤：
+
+```javascript
+class JavascriptGenerator {
+	generate(module, dependencyTemplates, runtimeTemplate) {
+		const originalSource = module.originalSource(); // 获取这个 module 的 originSource
+		if (!originalSource) {
+			return new RawSource("throw new Error('No source available');");
+		}
+
+		const source = new ReplaceSource(originalSource);
+
+		this.sourceBlock(
+			module,
+			module,
+			[],
+			dependencyTemplates,
+			source,
+			runtimeTemplate
+		);
+
+		return source;
+	}
+
+	sourceBlock(
+		module,
+		block,
+		availableVars,
+		dependencyTemplates,
+		source,
+		runtimeTemplate
+	) {
+		// 处理这个 module 的 dependency 的渲染模板内容
+		for (const dependency of block.dependencies) {
+			this.sourceDependency(
+				dependency,
+				dependencyTemplates,
+				source,
+				runtimeTemplate
+			);
+		}
+
+		...
+
+		for (const childBlock of block.blocks) {
+			this.sourceBlock(
+				module,
+				childBlock,
+				availableVars.concat(vars),
+				dependencyTemplates,
+				source,
+				runtimeTemplate
+			);
+		}
+	}
+
+	// 获取对应的 template 方法并执行，完成依赖的渲染工作
+	sourceDependency(dependency, dependencyTemplates, source, runtimeTemplate) {
+		const template = dependencyTemplates.get(dependency.constructor);
+		if (!template) {
+			throw new Error(
+				"No template for dependency: " + dependency.constructor.name
+			);
+		}
+		template.apply(dependency, source, runtimeTemplate, dependencyTemplates);
+	}
+}
+```
+
+这里我们来看几个依赖是如何渲染得到最终输入的内容的。
+
 
 MainTemplate
 ChunkTemplate
