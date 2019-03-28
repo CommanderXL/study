@@ -413,7 +413,9 @@ class JavascriptGenerator {
 }
 ```
 
-这里我们来看几个依赖是如何渲染得到最终输入的内容的。
+generate 方法首先获取 module 原始的文本内容，并创建一个 replaceSource 实例，在每个 module 通过 parser 解析器解析后，获得的相关 dependency 依赖都会记录对应的源码位置，位置信息主要就是用于在 replaceSource 实例当中，完成相关依赖的模板内容的替换工作，生成最终的 module 代码，大家如果有兴趣的话，可以阅读下([webpack-sources](https://github.com/webpack/webpack-sources/blob/master/lib/ReplaceSource.js)源码当中 replaceSource 实例实现文本替换的算法)。
+
+这里我们来看几个依赖是如何渲染得到最终输出的内容的。
 
 
 MainTemplate
