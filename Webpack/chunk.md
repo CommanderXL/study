@@ -205,6 +205,10 @@ GraphHelpers.connectChunkAndModule = (chunk, module) => {
 1. 遍历 module graph 模块依赖图建立起 basic chunk graph 依赖图；
 2. 遍历第一步创建的 chunk graph 依赖图，依据之前的 module graph 来优化 chunk graph(由于 chunk graph 是 webpack 最终输出 chunk 的依据，在这一步的处理流程当中会剔除到一些 chunk graph 重复被创建的 chunk)
 
+我们先通过一个整体的流程图来大致了解下这个方法内部的处理过程：
+
+![chunk-process](../images/webpack/chunk-process.png)
+
 ### 依据 module graph 建立 chunk graph
 
 在第一个步骤中，首先对这次 compliation 收集到的 modules 进行一次遍历，在遍历 module 的过程中，会对这个 module 的 dependencies 依赖进行处理，获取这个 module 的依赖模块，同时还会处理这个 module 的 blocks(即在你的代码通过异步 API 加载的模块)，每个异步 block 都会被加入到遍历的过程当中，被当做一个 module 来处理。因此在这次遍历的过程结束后会建立起基本的 module graph，包含普通的 module 及异步 module(block)，最终存储到一个 map 表(blockInfoMap)当中：
