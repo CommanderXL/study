@@ -255,7 +255,7 @@ for (const modules of this.modules) {
 ```
 在我们的实例当中生成的 module graph 即为：
 
-![module-graph](../images/webpack/module-graph.jpeg)
+![chunk-module-graph](../images/webpack/chunk-module-graph.jpeg)
 
 
 当基础的 module graph (即`blockInfoMap`)生成后，接下来开始根据 module graph 去生成 basic chunk graph。刚开始仍然是数据的处理，将传入的 entryPoint(chunkGroup) 转化为一个新的 queue，queue 数组当中每一项包含了：
