@@ -9,6 +9,36 @@
 
 #### 泛型接口
 
+大家都了解 interface 相关的概念，主要就是用于描述一个对象的行为类型。既然泛型是代表一个参数类型的参数，那么运用到 interface 当中：
+
+```javascript
+interface IGenericsIdentityFn {
+  <T>(arg: T): T
+}
+
+function identity<T>(arg: T): T {
+  return arg
+}
+
+let myIdentity: IGenericsIdentityFn = identity
+```
+
+这里的泛型主要是运用到了 interface 当中某一个函数当中，TS还允许将泛型参数当做这个 interface 接口的类型参数。这样在使用接口的过程中就能清晰的知道这个接口使用的是哪种泛型类型。
+
+```javascript
+interface IGenericsIdentityFn<T> {
+  (arg: T): T
+}
+
+function identity<T>(arg: T): T {
+  return arg
+}
+
+let myIdentity: IGenericsIdentityFn<number> = identity
+```
+
+在这里使用 IGenericsIdentityFn 泛型的时候，需要制定一个具体的类型，这样就固化了 myIdentity 接收到的参数类型了。
+
 #### 泛型约束
 
 虽然使用泛型允许我们可以创建能兼容多种数据类型的模块，但是在实际的使用过程中，不同的模块/函数等在代码编译环节，并不知道你最终在运行时使用的数据类型，所以在写相关代码的时候是需要通过一定的申明或者是约束条件去保证参数类型的合理。例如下面的例子：
