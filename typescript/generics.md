@@ -5,8 +5,6 @@
 
 ### 几种泛型类型
 
-#### 泛型类
-
 #### 泛型接口
 
 大家都了解 interface 相关的概念，主要就是用于描述一个对象的行为类型。既然泛型是代表一个参数类型的参数，那么运用到 interface 当中：
@@ -38,6 +36,23 @@ let myIdentity: IGenericsIdentityFn<number> = identity
 ```
 
 在这里使用 IGenericsIdentityFn 泛型的时候，需要制定一个具体的类型，这样就固化了 myIdentity 接收到的参数类型了。
+
+#### 泛型类
+
+和泛型接口的写法类似
+
+```javascript
+class GenericsNumber<T> {
+  zeroValue: T
+  add: (x: T, Y: T) => T
+}
+
+let myGenericsNumber = new GenericsNumber<number>()
+myGenericsNumber.zeroValue = 0
+myGenericsNumber.add = function (x, y) { return x + y }
+```
+
+泛型类指的实例部分的类型，类的静态属性部分是不能使用这个泛型类型的
 
 #### 泛型约束
 
