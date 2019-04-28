@@ -37,8 +37,45 @@ interface Foo2 {
   x: number
   y: string // Error，这个索引类型
 }
+```
 
+和索引类型相关的还有**索引类型查询操作符**和**索引访问操作符**2个概念：
+
+#### 索引类型查询操作符
+
+它属于类型**语法**：keyof T，对于任意类型 T，使用索引类型查询操作符 keyof 后，返回的结果为这个类型上所有的公共属性名的联合。
+
+```javascript
+interface Person {
+  name: string
+  age: number
+}
+
+let person: keyof Person // keyof 获取 Person 接口为 'name' 和 'age' 的联合类型 'name' | 'age'，因此 person 最终的类型为字符串字面量 'name' | 'age'
+```
+
+#### 索引访问操作符
+
+它属于**类型语法**。通过一个例子来看下这个索引访问操作符的具体使用：
+
+```javascript
+function pluck<T, K extends keyof T>(o: T, names: K[]): T[K][] {
+  return names.map(name => o[name])
+}
+
+interface Person {
+  name: string
+  age: number
+}
+
+let person: Person = {
+  name: 'foo',
+  age: '20'
+}
+
+let strings: string[] = pluck(person, ['name'])
 ```
 
 
 ### 映射类型
+
