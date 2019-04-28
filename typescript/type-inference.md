@@ -64,5 +64,4 @@ TS会根据 window.onmousedown 这个函数的类型自动推断出赋值的函�
 在这里举的宿主环境提供的方法有类型推断的例子和上面一个先定义函数类型，然后通过添加函数类型的例子是一样的，这种类型的推断的方式也被称为“上下文归类”。
 
 
-https://jkchao.github.io/typescript-book-chinese/typings/typeInference.html#%E8%B5%8B%E5%80%BC 示例
 https://juejin.im/post/5bc6b7a25188255c9e0300fa 类型推断技巧
