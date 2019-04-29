@@ -79,3 +79,18 @@ let strings: string[] = pluck(person, ['name'])
 
 ### 映射类型
 
+在TS当中提供了一些内置的映射类型，即将原始的类型定义转化为新的类型定义。例如：
+
+```javascript
+interface Person {
+  name: string,
+  age: number
+}
+
+// 现在希望使用一个映射类型，将原始的类型当中的属性都转化为可选的
+type Partial<T> = {
+  [K in keyof T]?: T[K]
+}
+
+// 通过 Partial 映射类型，最终就可以得到一个新的类型，其属性都是可选的
+```
