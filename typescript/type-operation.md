@@ -122,5 +122,3 @@ type b1 = Boxed<string> // BoxedValue<string>
 type b2 = Boxed<number[]> // BoxedArray<number>
 type b3 = Boxed<string | number[]> // BoxeValue<string> | BoxedArray<number>
 ```
-
-## is 操作符
