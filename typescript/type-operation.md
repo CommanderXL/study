@@ -93,8 +93,34 @@ type Readonly<T> = {
 
 ## extends 操作符
 
+类型继承操作符。
+
 [extends和implements操作符之间的区别](https://stackoverflow.com/questions/38834625/whats-the-difference-between-extends-and-implements-in-typescript)
 
 ## ? 条件类型操作符
+
+`U extends K ? X : Y` 如果类型 U 能赋值给类型 K，那么最终的类型为 X，否则为 Y。
+
+例如几个内置的TS条件类型：
+
+```javascript
+type Exclude<T, U> = T extends U ? never: T
+
+type Extract<T, U> = T extends U ? T : never
+
+type NonNullable<T> = T extends null | undefined ? never : T
+```
+
+需要注意的是，如果待检查的类型 U 为联合类型，那么最终为衍变成分布式的条件类型，`U extends K ? X : Y`，其中类型 U 为联合类型：`A | B | C`，那么最终会被解析为`(A extends K ? X : Y) | (B extends K ? X : Y) | (C extends K ? X : Y)`例如：
+
+```javascript
+type BoxedValue<T> = { value: T }
+type BoxedArray<T> = { array: T[] }
+type Boxed<T> = T extends any[] ? BoxedArray<T[number]> : BoxedValue<T>
+
+type b1 = Boxed<string> // BoxedValue<string>
+type b2 = Boxed<number[]> // BoxedArray<number>
+type b3 = Boxed<string | number[]> // BoxeValue<string> | BoxedArray<number>
+```
 
 ## is 操作符
