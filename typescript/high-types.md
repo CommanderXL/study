@@ -1,5 +1,28 @@
 ## 高级类型
 
+### 交叉类型
+
+交叉类型即将多个类型合并为一个类型，使用`&`类型操作符来完成，大多是在混入(mixins)或者是不适合用OO的地方使用这种类型操作符，但是应用非常的广泛。看一个例子：
+
+```javascript
+type TypeA = {
+  name: string
+}
+
+type TypeB = {
+  age: number
+}
+
+type Type = TypeA & TypeB
+
+const foo: Type = { // Error. 没有定义 age 属性
+  name: 'foo'
+}
+const bar: Type = { // Error. 没有定义 name 属性
+  age: 18
+}
+```
+
 ### 索引类型
 
 索引类型即指在通过索引去访问对象时，这些索引所支持的类型种类。在TS当中索引类型仅支持: `string`、`number`、`symbols`三种类型。其中**动态属性名也被称作为索引签名**
