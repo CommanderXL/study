@@ -28,7 +28,7 @@ compilation.mainTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', () 
 			contentHashType: 'javascript',
 			chunk
 		},
-		identifier: `chunk${chunk.id}`,
+		identifier: `chunk${chunk.id}`, // 使用 chunk.id 来作为当前 chunk 的标识符
 		// 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
 		hash: useChunkHash ? chunk.hash : fullHash
 	})
@@ -42,6 +42,35 @@ compilation.mainTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', () 
 // MainTemplate.js
 
 module.exports = class MainTemplate extends Tapable {
+	...
+	constructor() {
+		// 注册 render 钩子函数
+		this.hooks.render.tap(
+			"MainTemplate",
+			(bootstrapSource, chunk, hash, moduleTemplate, dependencyTemplates) => {
+				const source = new ConcatSource();
+				source.add("/******/ (function(modules) { // webpackBootstrap\n");
+				source.add(new PrefixSource("/******/", bootstrapSource));
+				source.add("/******/ })\n");
+				source.add(
+					"/************************************************************************/\n"
+				);
+				source.add("/******/ (");
+				source.add(
+					// 调用 modules 钩子函数，用以渲染 runtime chunk 当中所需要被渲染的 module
+					this.hooks.modules.call(
+						new RawSource(""),
+						chunk,
+						hash,
+						moduleTemplate,
+						dependencyTemplates
+					)
+				);
+				source.add(")");
+				return source;
+			}
+		);
+	}
   ...
   /**
 	 * @param {string} hash hash to be used for render call
@@ -50,13 +79,15 @@ module.exports = class MainTemplate extends Tapable {
 	 * @param {Map<Function, DependencyTemplate>} dependencyTemplates dependency templates
 	 * @returns {ConcatSource} the newly generated source from rendering
 	 */
-	render(hash, chunk, moduleTemplate, dependencyTemplates) { // 主要完成 webpack runtime 代码的拼接工作
+	render(hash, chunk, moduleTemplate, dependencyTemplates) {
+		// 生成 webpack runtime bootstrap 代码
 		const buf = this.renderBootstrap(
 			hash,
 			chunk,
 			moduleTemplate,
 			dependencyTemplates
 		);
+		// 调用 render 钩子函数
 		let source = this.hooks.render.call(
 			new OriginalSource(
 				Template.prefix(buf, " \t") + "\n",
@@ -83,9 +114,94 @@ module.exports = class MainTemplate extends Tapable {
 
 ```
 
-在这个方法内部主要就是完成了 webpack runtime 代码的拼接工作，最终返回 ConcatSource 类型的(TODO: source 类型的描述)
+这个方法内部首先调用 renderBootstrap 方法完成 webpack runtime bootstrap 代码的拼接工作，接下来调用 render hook，这个 render hook 是在 MainTemplate 的构造函数里面就完成了注册。我们可以看到这个 hook 内部，主要是在 runtime bootstrap 代码外面完成了一层包装，然后调用 modules hook 开始进行这个 runtime chunk 当中需要渲染的 module 的生成工作(具体每个 module 如何去完成代码的拼接渲染工作后文会讲)。render hook 调用完后，即得到了包含 webpack runtime bootstrap 代码的 chunk 代码，最终返回一个 ConcatSource 类型实例。
 
-TODO: 这里需要分情况说明下是否将 webpack runtime 单独抽成一个 chunk 的配置以及对应的工作流。
+不过这里需要注意是 webpack config 提供了一个代码优化配置选项：是否将 runtime chunk 单独抽离成一个 chunk 并输出到最终的文件当中。这也决定了最终在 render hook 生成 runtime chunk 代码时最终所包含的内容。首先我们来看下相关配置信息：
+
+```javascript
+// webpack.config.js
+module.exports = {
+	...
+	optimization: {
+		runtimeChunk: {
+			name: 'bundle'
+		}
+	}
+	...
+}
+```
+
+通过进行 optimization 字段的配置，可以出发 RuntimeChunkPlugin 插件的注册相关的事件。
+
+```javascript
+module.exports = class RuntimeChunkPlugin {
+	constructor(options) {
+		this.options = Object.assign(
+			{
+				name: entrypoint => `runtime~${entrypoint.name}`
+			},
+			options
+		);
+	}
+
+	apply(compiler) {
+		compiler.hooks.thisCompilation.tap("RuntimeChunkPlugin", compilation => {
+			// 在 seal 阶段，生成最终的 chunk graph 后触发这个钩子函数，用以生成新的 runtime chunk
+			compilation.hooks.optimizeChunksAdvanced.tap("RuntimeChunkPlugin", () => {
+				// 遍历所有的 entrypoints(chunkGroup)
+				for (const entrypoint of compilation.entrypoints.values()) {
+					// 获取每个 entrypoints 的 runtimeChunk(chunk)
+					const chunk = entrypoint.getRuntimeChunk();
+					// 最终需要生成的 runtimeChunk 的文件名
+					let name = this.options.name;
+					if (typeof name === "function") {
+						name = name(entrypoint);
+					}
+					if (
+						chunk.getNumberOfModules() > 0 ||
+						!chunk.preventIntegration ||
+						chunk.name !== name
+					) {
+						// 新建一个 runtime 的 chunk，在 compilation.chunks 中也会新增这一个 chunk。
+						// 这样在最终生成的 chunk 当中会包含一个 runtime chunk
+						const newChunk = compilation.addChunk(name);
+						newChunk.preventIntegration = true;
+						// 将这个新的 chunk 添加至 entrypoint(chunk) 当中，那么 entrypoint 也就多了一个新的 chunk
+						entrypoint.unshiftChunk(newChunk);
+						newChunk.addGroup(entrypoint);
+						// 将这个新生成的 chunk 设置为这个 entrypoint 的 runtimeChunk
+						entrypoint.setRuntimeChunk(newChunk);
+					}
+				}
+			});
+		});
+	}
+};
+```
+
+这样便通过 RuntimeChunkPlugin 这个插件将 webpack runtime bootstrap 单独抽离至一个 chunk 当中输出。最终这个 runtime chunk 仅仅只包含了 webpack bootstrap 相关的代码，不会包含其他需要输出的 module 代码。当然，如果你不想将 runtime chunk 单独抽离出来，那么这部分 runtime 代码最终会被打包进入到包含 runtime chunk 的 chunk 当中，这个 chunk 最终输出文件内容就不仅仅需要包含这个 chunk 当中依赖的不同 module 的最终代码，同时也需要包含 webpack bootstrap 代码。
+
+```javascript
+var window = window || {}
+
+// webpackBootstrap
+(function(modules) {
+	// 包含了 webpack bootstrap 的代码
+})([
+/* 0 */   // module 0 的最终代码
+(function(module, __webpack_exports__, __webpack_require__) {
+
+}),
+/* 1 */   // module 1 的最终代码
+(function(module, __webpack_exports__, __webpack_require__) {
+
+})
+])
+
+module.exports = window['webpackJsonp']
+```
+
+以上就是有关使用 MainTemplate 去渲染完成 runtime chunk 的有关内容。
 
 接下来我们看下不包含 webpack runtime 代码的 chunk (使用 chunkTemplate 渲染模板)是如何输出得到最终的内容的。首先我们来了解下 2 个和输出 chunk 内容相关的类：
 
