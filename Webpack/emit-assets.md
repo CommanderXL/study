@@ -385,7 +385,228 @@ class Template {
 // TODO: 补一个 JsonpTemplate 和 JsonpMainTemplatePlugin、JsonChunkTemplatePlugin、JsonpHotUpdateChunkTemplatePlugin 之间的关系图
 
 
-这样也就完成了不包含 runtime bootstrap 代码的 chunk 的整体渲染工作。上面解读的主要是 chunk 层面的渲染工作。接下来让我们来看下在 chunk 渲染过程中，如何对每个所依赖的 module 进行渲染拼接代码的。
+这样也就完成了不包含 runtime bootstrap 代码的 chunk 的整体渲染工作。以上解读的主要是 chunk 层面的渲染工作。
+
+接下来让我们来看下在 chunk 渲染过程中，如何对每个所依赖的 module 进行渲染拼接代码的，即在 Template 类当中提供的 renderChunkModules 方法中，遍历这个 chunk 当中所有依赖的 module 过程中，调用 moduleTemplate.render 完成每个 module 的代码渲染拼接工作。
+
+
+首先我们来了解下3个和输出 module 代码相关的模板：
+
+- RunTemplate
+- ModuleTemplate
+- dependencyTemplates
+
+其中 RunTemplate 模板类主要是提供了和 module 类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
+
+ModuleTemplate 模板类主要是对外暴露了 render 方法，通过调用 moduleTemplate 实例上的 render 方法，即完成每个 module 的代码渲染工作。
+
+// TODO: 讲解
+dependencyTemplates 模板数组主要是保存了每个 module 不同依赖的模板，在输出最终代码的时候会通过 dependencyTemplates 来完成模板的替换工作。
+
+接下来我们就来看下 ModuleTemplate 这个模板类：
+
+
+```javascript
+// ModuleTemplate.js
+module.exports = class ModuleTemplate extends Tapable {
+	constructor(runtimeTemplate, type) {
+		this.runtimeTemplate = runtimeTemplate
+		this.type = type
+		this.hooks = {
+			content: new SyncWaterfallHook([]),
+			module: new SyncWaterfallHook([]),
+			render: new SyncWaterfallHook([]),
+			package: new SyncWaterfallHook([]),
+			hash: new SyncHook([])
+		}
+	}
+
+	render(module, dependencyTemplates, options) {
+		try {
+			// replaceSource
+			const moduleSource = module.source(
+				dependencyTemplates,
+				this.runtimeTemplate,
+				this.type
+			);
+			const moduleSourcePostContent = this.hooks.content.call(
+				moduleSource,
+				module,
+				options,
+				dependencyTemplates
+			);
+			const moduleSourcePostModule = this.hooks.module.call(
+				moduleSourcePostContent,
+				module,
+				options,
+				dependencyTemplates
+			);
+			// 添加编译 module 外层包裹的函数
+			const moduleSourcePostRender = this.hooks.render.call(
+				moduleSourcePostModule,
+				module,
+				options,
+				dependencyTemplates
+			);
+			return this.hooks.package.call(
+				moduleSourcePostRender,
+				module,
+				options,
+				dependencyTemplates
+			);
+		} catch (e) {
+			e.message = `${module.identifier()}\n${e.message}`;
+			throw e;
+		}
+	}
+}
+```
+
+// TODO: 补一个 render 方法内部的流程图
+
+
+首先调用 module.source 方法，传入 dependencyTemplates, runtimeTemplate，以及渲染类型 type（默认为 javascript）。在每个 module 上定义的 source 方法：
+
+```javascript
+// NormalModule.js
+class NormalModule extends Module {
+	...
+	source(dependencyTemplates, runtimeTemplate, type = "javascript") {
+		const hashDigest = this.getHashDigest(dependencyTemplates);
+		const cacheEntry = this._cachedSources.get(type);
+		if (cacheEntry !== undefined && cacheEntry.hash === hashDigest) {
+			// We can reuse the cached source
+			return cacheEntry.source;
+		}
+		// JavascriptGenerator
+		const source = this.generator.generate(
+			this,
+			dependencyTemplates, // 依赖的模板
+			runtimeTemplate,
+			type
+		);
+
+		const cachedSource = new CachedSource(source);
+		this._cachedSources.set(type, {
+			source: cachedSource,
+			hash: hashDigest
+		});
+		return cachedSource;
+	}
+	...
+}
+```
+
+我们看到在 module.source 方法内部调用了 generator.generate 方法，那么这个 generator 又是从哪里来的呢？事实上在通过 NormalModuleFactory 创建 NormalModule 的过程即完成了 generator 的创建，以用来生成每个 module 最终渲染的 javascript 代码：
+
+```javascript
+// JavascriptGenerator.js
+class JavascriptGenerator {
+	generate(module, dependencyTemplates, runtimeTemplate) {
+		const originalSource = module.originalSource(); // 获取这个 module 的 originSource
+		if (!originalSource) {
+			return new RawSource("throw new Error('No source available');");
+		}
+		
+		// 创建一个 ReplaceSource 类型的 source 实例
+		const source = new ReplaceSource(originalSource);
+
+		this.sourceBlock(
+			module,
+			module,
+			[],
+			dependencyTemplates,
+			source,
+			runtimeTemplate
+		);
+
+		return source;
+	}
+
+	sourceBlock(
+		module,
+		block,
+		availableVars,
+		dependencyTemplates,
+		source,
+		runtimeTemplate
+	) {
+		// 处理这个 module 的 dependency 的渲染模板内容
+		for (const dependency of block.dependencies) {
+			this.sourceDependency(
+				dependency,
+				dependencyTemplates,
+				source,
+				runtimeTemplate
+			);
+		}
+
+		...
+
+		for (const childBlock of block.blocks) {
+			this.sourceBlock(
+				module,
+				childBlock,
+				availableVars.concat(vars),
+				dependencyTemplates,
+				source,
+				runtimeTemplate
+			);
+		}
+	}
+
+	// 获取对应的 template 方法并执行，完成依赖的渲染工作
+	sourceDependency(dependency, dependencyTemplates, source, runtimeTemplate) {
+		const template = dependencyTemplates.get(dependency.constructor);
+		if (!template) {
+			throw new Error(
+				"No template for dependency: " + dependency.constructor.name
+			);
+		}
+		template.apply(dependency, source, runtimeTemplate, dependencyTemplates);
+	}
+}
+```
+
+在 JavascriptGenerator 提供的 generate 方法主要的作用就是遍历这个 module 的所有依赖，根据 module 经过 parser 编译器记录的位置关系，最终会完成代码的替换工作。即每一种依赖都对应一个模板渲染方法，在 generate 方法里面主要就是找到每个依赖的类型，并调用其提供的模板方法。
+
+我们可以来看一个例子：
+
+```javascript
+// a.js (webpack config 配置的入口文件)
+import add from './b.js'
+
+add(1, 2)
+
+// b.js
+export default function add(n1, n2) {
+	return n1 + n2
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
