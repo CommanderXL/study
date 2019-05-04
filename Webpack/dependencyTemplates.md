@@ -203,13 +203,15 @@ module.exports = HarmonyModulesPlugin;
 当 webpack 创建新的 compilation 对象后，便执行`compiler.hooks.compilation`注册的钩子内部的方法。其中主要完成了以下几项工作：
 
 1.设置不同依赖类型的 moduleFactory，例如设置`HarmonyImportSpecifierDependency`依赖类型的 moduleFactory 为`normalModuleFactory`；
+
 2.设置不同依赖类型的 dependencyTemplate，例如设置`HarmonyImportSpecifierDependency`依赖类型的模板为`new HarmonyImportSpecifierDependency.Template()`实例；
+
 3.注册 normalModuleFactory.hooks.parser 钩子函数，每当新建一个 normalModule 时这个钩子函数都会被执行，即触发 handler 函数的执行。handler 函数内部去初始化各种 plugin，注册相关的 hooks。
 
 
 我们首先来看下 handler 函数内部初始化的几个 plugin 里面注册的和 parser 编译相关的插件。
 
-1.`HarmonyDetectionParserPlugin`
+### HarmonyDetectionParserPlugin
 
 ```javascript
 // HarmonyDetectionParserPlugin.js
@@ -348,8 +350,9 @@ HarmonyInitDependency.Template = class HarmonyInitDependencyTemplate {
 	}
 }
 ```
+### HarmonyImportDependencyParserPlugin
 
-接下来我们再来看 HarmonyModulesPlugin 插件里面初始化的第二个插件`HarmonyImportDependencyParserPlugin`：
+接下来我们再来看 HarmonyModulesPlugin 插件里面初始化的第二个插件`HarmonyImportDependencyParserPlugin`，这个插件主要完成的工作是和 ES Module 当中使用 import 语法相关：
 
 ```javascript
 module.exports = class HarmonyImportDependencyParserPlugin {
@@ -428,6 +431,121 @@ HarmonyImportSpecifierDependency.Template = class HarmonyImportSpecifierDependen
 	}
 };
 ```
+将源码中引入的其他模块的依赖变量名进行字符串的替换，具体可以查阅`RuntimeTemplate.exportFromImport`方法。
 
+我们来看个例子：
 
+```javascript
+// 在 parse 编译过程中，触发 hooks.importSpecifier 钩子，通过 map 记录对应变量名
+import { add } from './add.js'
 
+// 触发 hooks.call 钩子，给 module 加入 HarmonyImportSpecifierDependency 依赖
+add(1, 2)
+
+--- 
+
+// 最终生成的代码为：
+/* harmony import */ var _add__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(1);
+
+Object(_b__WEBPACK_IMPORTED_MODULE_0__["add"])(1, 2);
+```
+
+### HarmonyExportDependencyParserPlugin 
+
+这个插件主要完成的是和 ES Module 当中使用 export 语法相关的工作：
+
+```javascript
+module.exports = class HarmonyExportDependencyParserPlugin {
+	constructor(moduleOptions) {
+		this.strictExportPresence = moduleOptions.strictExportPresence;
+	}
+
+	apply(parser) {
+		parser.hooks.export.tap(
+			"HarmonyExportDependencyParserPlugin",
+			statement => {
+        ...
+				const dep = new HarmonyExportHeaderDependency(...);
+				...
+				parser.state.current.addDependency(dep);
+				return true;
+			}
+		);
+		parser.hooks.exportImport.tap(
+			"HarmonyExportDependencyParserPlugin",
+			(statement, source) => {
+        ...
+				const sideEffectDep = new HarmonyImportSideEffectDependency(...);
+				...
+				parser.state.current.addDependency(sideEffectDep);
+				return true;
+			}
+		);
+		parser.hooks.exportExpression.tap(
+			"HarmonyExportDependencyParserPlugin",
+			(statement, expr) => {
+        ...
+				const dep = new HarmonyExportExpressionDependency(...);
+        ...
+				parser.state.current.addDependency(dep);
+				return true;
+			}
+		);
+		parser.hooks.exportDeclaration.tap(
+			"HarmonyExportDependencyParserPlugin",
+			statement => {}
+		);
+		parser.hooks.exportSpecifier.tap(
+			"HarmonyExportDependencyParserPlugin",
+			(statement, id, name, idx) => {
+        ...
+				if (rename === "imported var") {
+					const settings = parser.state.harmonySpecifier.get(id);
+					dep = new HarmonyExportImportedSpecifierDependency(...);
+				} else {
+					dep = new HarmonyExportSpecifierDependency(...);
+				}
+				parser.state.current.addDependency(dep);
+				return true;
+			}
+		);
+		parser.hooks.exportImportSpecifier.tap(
+			"HarmonyExportDependencyParserPlugin",
+			(statement, source, id, name, idx) => {
+				...
+				const dep = new HarmonyExportImportedSpecifierDependency(...);
+				...
+				parser.state.current.addDependency(dep);
+				return true;
+			}
+		);
+	}
+};
+```
+
+parse 在编译源码过程中，根据你使用的不同的 ES Module export 语法去触发不通过的 hooks，然后给当前编译的 module 加入对应的依赖 module。还是通过2个例子来看：
+
+```javascript
+// export 一个 add 标识符，在 parse 环节会触发 hooks.exportSpecifier 钩子，会在当前 module 加入一个 HarmonyExportSpecifierDependency 依赖
+export function add() {} 
+
+---
+
+// 最终在输出文件当中输出的内容为
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "add", function() { return add; });
+
+function add() {}
+```
+
+```javascript
+// export 从 add.js 模块加载的 add 标识符，在 parse 环节会触发 hooks.exportImportSpecifier 钩子，会在当前 module 加入一个 HarmonyExportImportedSpecifierDependency 依赖
+export { add } from './add'
+
+---
+
+// 最终在输出文件当中输出的内容为
+/* harmony import */ var _add__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(1);
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "add", function() { return _add__WEBPACK_IMPORTED_MODULE_0__["add"]; });
+```
+
+具体替换的工作可以查阅`HarmonyExportSpecifierDependency.Template`和`HarmonyExportImportedSpecifierDependency.Template`提供的依赖模板函数。
