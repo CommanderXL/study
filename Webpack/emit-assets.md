@@ -1,6 +1,8 @@
 ## 文件输出
 
-当所有的 moduleId 和 chunkId 都分配完之后，调用 createChunkAssets 方法来决定最终输出到每个 chunk 当中对应的文本内容是什么。
+上篇文章主要是梳理了有关 chunk 是如何分析其依赖，以及如何将有依赖关系的 module 统一组织到一个 chunk 当中的。接下来在 seal 阶段又会进行各种相关的优化工作，例如给所有需要输出成文件的 chunk 分配 id 值，以及给 chunk 当中包含的 module 分配 id 值等等工作。
+
+其中在这些优化工作完成后会调用 createChunkAssets 方法来决定最终输出到每个 chunk 当中对应的文本内容是什么。
 
 在 createChunkAssets 方法内部会对最终需要输出的 chunk 进行遍历，根据这个 chunk 是否包含有 webpack runtime 代码来决定使用的渲染模板。那我们首先来看下包含有 webpack runtime 代码的 chunk 是如何输出最终的 chunk 文本内容的。
 
@@ -693,368 +695,85 @@ add(1, 2)
 
 到此为止，有关 renderJavascript 方法的流程已经梳理完毕了，这也是非 runtime bootstrap chunk 代码最终的输出时的处理流程。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-首先我们来了解下 2 个和输出 chunk 内容相关的类：
-
-- RuntimeTemplate
-- ModuleTemplate
-- dependencyTemplates
-
-其中 RuntimeTemplate 类主要是提供了和模块类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
-而 ModuleTemplate 类主要是对外暴露了 render 方法，在这个方法内部会调用对应的 module.source 用以来完成每个 module 最终代码的生成。
-
-chunkTemplate 同样调用 getRenderManifest 方法来获取对应的 manifest 配置数组：
+以上就是有关 chunk 代码生成的流程分析即 createChunkAssets，当这个流程进行完后，所有需要生成到文件的 chunk 最终会保存至compilation 的一个 key/value 结构当中： 
 
 ```javascript
-// JavascriptModulesPlugin.js
-
-class JavascriptModulesPlugin {
-	apply(compiler) {
-		compiler.hooks.compilation.tap('JavascriptModulesPlugin', (compilation, { normalModuleFactory }) => {
-			...
-			// chunkTemplate hooks.manifest 钩子函数
-			compilation.chunkTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', (result, options) => {
-				...
-				result.push({
-					render: () =>
-						// 每个 chunk 代码的生成即调用 JavascriptModulesPlugin 提供的 renderJavascript 方法来进行生成
-						this.renderJavascript(
-							compilation.chunkTemplate, // chunk模板
-							chunk, // 需要生成的 chunk 实例
-							moduleTemplates.javascript, // 模块类型
-							dependencyTemplates // 不同依赖所对应的渲染模板
-						),
-					filenameTemplate,
-					pathOptions: {
-						chunk,
-						contentHashType: 'javascript'
-					},
-					identifier: `chunk${chunk.id}`,
-					hash: chunk.hash
-				})
-				...
-			})
-			...
-		})
-	}
-
-	renderJavascript(chunkTemplate, chunk, moduleTemplate, dependencyTemplates) {
-		const moduleSources = Template.renderChunkModules(
-			chunk,
-			m => typeof m.source === "function",
-			moduleTemplate,
-			dependencyTemplates
-		)
-		const core = chunkTemplate.hooks.modules.call(
-			moduleSources,
-			chunk,
-			moduleTemplate,
-			dependencyTemplates
-		)
-		let source = chunkTemplate.hooks.render.call(
-			core,
-			chunk,
-			moduleTemplate,
-			dependencyTemplates
-		)
-		if (chunk.hasEntryModule()) {
-			source = chunkTemplate.hooks.renderWithEntry.call(source, chunk)
-		}
-		chunk.rendered = true
-		return new ConcatSource(source, ";")
-	}
+compilation.assets = {
+	[输出文件路径名]: ConcatSource(最终 chunk 输出的代码)
 }
-
 ```
 
-接下来便调用 JavascriptModulesPlugin 这个插件提供的 renderJavascript 方法开始生成每个 chunk 所依赖的 module 的最终代码，首先进入 Template 这个基类提供的`Template.renderChunkModules`方法：
+接下来还会针对保存在内容当中的这些 assets 资源做相关的优化工作，同时会暴露出一些钩子供开发者对于这些资源做相关的操作，例如可以使用 compilation.optimizeChunkAssets 钩子函数去往 chunk 内添加代码等等，有关这些钩子的说明具体可以查阅[webpack文档上有关assets优化的内容](https://webpack.docschina.org/api/compilation-hooks/#additionalassets)。当 assets 资源相关的优化工作结束后，seal 阶段也就结束了。这时候便会执行 seal 函数接受到 callback。具体内容可查阅 compiler 编译器对象提供的 run 方法。这个 callback 方法内容会执行到 compiler.emitAssets 方法：
 
 ```javascript
-class Template {
+// Compiler.js
+class Compiler extends Tapable {
 	...
-	/**
-	 * @param {WithId[]} modules a collection of modules to get array bounds for
-	 * @returns {[number, number] | false} returns the upper and lower array bounds
-	 * or false if not every module has a number based id
-	 */
-	static getModulesArrayBounds(modules) {
-		let maxId = -Infinity;
-		let minId = Infinity;
-		for (const module of modules) {
-			if (typeof module.id !== "number") return false;
-			if (maxId < module.id) maxId = /** @type {number} */ (module.id);
-			if (minId > module.id) minId = /** @type {number} */ (module.id);
-		}
-		if (minId < 16 + ("" + minId).length) {
-			// add minId x ',' instead of 'Array(minId).concat(…)'
-			minId = 0;
-		}
-		const objectOverhead = modules
-			.map(module => (module.id + "").length + 2)
-			.reduce((a, b) => a + b, -1);
-		const arrayOverhead =
-			minId === 0 ? maxId : 16 + ("" + minId).length + maxId;
-		return arrayOverhead < objectOverhead ? [minId, maxId] : false;
-	}
+	emitAssets(compilation, callback) {
+		let outputPath;
+		const emitFiles = err => {
+			if (err) return callback(err);
 
-	/**
-	 * @param {Chunk} chunk chunk whose modules will be rendered
-	 * @param {ModuleFilterPredicate} filterFn function used to filter modules from chunk to render
-	 * @param {ModuleTemplate} moduleTemplate ModuleTemplate instance used to render modules
-	 * @param {TODO | TODO[]} dependencyTemplates templates needed for each module to render dependencies
-	 * @param {string=} prefix applying prefix strings
-	 * @returns {ConcatSource} rendered chunk modules in a Source object
-	 */
-	static renderChunkModules(
-		chunk,
-		filterFn,
-		moduleTemplate,
-		dependencyTemplates,
-		prefix = ""
-	) {
-		const source = new ConcatSource();
-		const modules = chunk.getModules().filter(filterFn); // 通过过滤函数获取满足条件的 module
-		let removedModules;
-		if (chunk instanceof HotUpdateChunk) {
-			removedModules = chunk.removedModules;
-		}
-		if (
-			modules.length === 0 &&
-			(!removedModules || removedModules.length === 0)
-		) {
-			source.add("[]");
-			return source;
-		}
-		// 遍历这个 chunk 所需要渲染的 module，调用 moduleTemplate 模板提供的 render 去渲染 module 最终代码
-		/** @type {{id: string|number, source: Source|string}[]} */
-		const allModules = modules.map(module => {
-			return {
-				id: module.id,
-				source: moduleTemplate.render(module, dependencyTemplates, { // 渲染每个 module
-					chunk
-				})
-			};
+			asyncLib.forEach(
+				compilation.assets,
+				(source, file, callback) => {
+					let targetFile = file;
+					const queryStringIdx = targetFile.indexOf("?");
+					if (queryStringIdx >= 0) {
+						targetFile = targetFile.substr(0, queryStringIdx);
+					}
+
+					const writeOut = err => {
+						if (err) return callback(err);
+						const targetPath = this.outputFileSystem.join(
+							outputPath,
+							targetFile
+						);
+						if (source.existsAt === targetPath) {
+							source.emitted = false;
+							return callback();
+						}
+						let content = source.source();
+
+						if (!Buffer.isBuffer(content)) {
+							content = Buffer.from(content, "utf8");
+						}
+
+						source.existsAt = targetPath;
+						source.emitted = true;
+						this.outputFileSystem.writeFile(targetPath, content, callback);
+					};
+
+					if (targetFile.match(/\/|\\/)) {
+						const dir = path.dirname(targetFile);
+						this.outputFileSystem.mkdirp(
+							this.outputFileSystem.join(outputPath, dir),
+							writeOut
+						);
+					} else {
+						writeOut();
+					}
+				},
+				err => {
+					if (err) return callback(err);
+
+					this.hooks.afterEmit.callAsync(compilation, err => {
+						if (err) return callback(err);
+
+						return callback();
+					});
+				}
+			);
+		};
+
+		this.hooks.emit.callAsync(compilation, err => {
+			if (err) return callback(err);
+			outputPath = compilation.getPath(this.outputPath);
+			this.outputFileSystem.mkdirp(outputPath, emitFiles);
 		});
-		if (removedModules && removedModules.length > 0) {
-			for (const id of removedModules) {
-				allModules.push({
-					id,
-					source: "false"
-				});
-			}
-		}
-		// 获取这个 chunk 当中所包含的所有的 module 的 id 边界，如果是有限的 id 边界，那么会返回一个数组: [minId, maxId]
-		// 如果是没有边界的，那么最终会通过对象的形式出现在 chunk 当中
-		const bounds = Template.getModulesArrayBounds(allModules);
-		if (bounds) {
-			// Render a spare array
-			const minId = bounds[0];
-			const maxId = bounds[1];
-			console.log('minId and maxId:', minId, maxId)
-			if (minId !== 0) {
-				source.add(`Array(${minId}).concat(`);
-			}
-			source.add("[\n");
-			/** @type {Map<string|number, {id: string|number, source: Source|string}>} */
-			const modules = new Map();
-			for (const module of allModules) {
-				modules.set(module.id, module);
-			}
-			for (let idx = minId; idx <= maxId; idx++) {
-				const module = modules.get(idx);
-				if (idx !== minId) {
-					source.add(",\n");
-				}
-				source.add(`/* ${idx} */`);
-				if (module) {
-					// console.log('module.source: ', module.source)
-					source.add("\n");
-					source.add(module.source); // 添加每个 module 最终输出的代码
-				}
-			}
-			source.add("\n" + prefix + "]");
-			if (minId !== 0) {
-				source.add(")");
-			}
-		} else {
-			// Render an object
-			source.add("{\n");
-			allModules.sort(stringifyIdSortPredicate).forEach((module, idx) => {
-				if (idx !== 0) {
-					source.add(",\n");
-				}
-				source.add(`\n/***/ ${JSON.stringify(module.id)}:\n`);
-				source.add(module.source);
-			});
-			source.add(`\n\n${prefix}}`);
-		}
-		return source;
 	}
 	...
 }
 ```
 
-在 renderChunkModules 方法内部，首先通过 filerFn 来获取所有需要被渲染的 module，接下来依次遍历这些 module，在遍历的过程中调用 moduleTemplate 模板上的 render 完成每个 module 的渲染工作(后文会单独讲)，我们都知道在 seal 阶段，会调用 applyModuleIds 方法完成所有的 module 的 id 分配工作，最终每个 module 都有一个唯一标识 id。在 Template 类上提供了静态方法 getModulesArrayBounds 用以获取当前需要被渲染 chunk 当中所包含的 module 的 id 范围大小，而这个范围大小决定了 module 在 chunk 是以数组的形式还是 key(module id)/value(Fn) 键值对的形式被渲染出来。
-
-通过 import 等异步API加载的 module，会被单独分配到一个 chunk 当中，这个 chunk 当中只包含这一个异步的 module，调用`Template.getModulesArrayBounds`方法后，获取的值为false，最终这个 chunk 被渲染出来所包含的 module 是 key/value 的形式：
-
-```javascript
-(window["webpackJsonp"] = window["webpackJsonp"] || []).push([[2],{
-	5(module id): module.source(Fn)
-}])
-```
-
-TODO: 普通的 chunk 最终渲染出来的形式
-
-刚才上文中提到了在遍历 module 的过程中调用`moduleTemplate.render`方法完成了 module 的渲染工作:
-
-```javascript
-class ModuleTemplate extends Tabable {
-	...
-	/**
-	 * @param {Module} module the module
-	 * @param {TODO} dependencyTemplates templates for dependencies
-	 * @param {TODO} options render options
-	 * @returns {Source} the source
-	 */
-	 render(module, dependencyTemplates, options) {
-			const moduleSource = module.source(
-				dependencyTemplates,
-				this.runtimeTemplate,
-				this.type
-			);
-
-			const moduleSourcePostContent = this.hooks.content.call(...)
-			const moduleSourcePostModule = this.hooks.module.call(...)
-			const moduleSourcePostRender = this.hooks.render.call(...)
-			return this.hooks.package.call(...)
-	 }
-}
-```
-
-在接下去讲之前，回忆下通过 NormalModuleFactory 创建 NormalModule 过程中会调用 createGenerator 方法获取最终渲染这个 module 所需要的 generator 生成器。
-
-```javascript
-class NormalModuleFactory extends Tapable {
-	...
-	createGenerator(type, generatorOptions = {}) {
-		// 通过 NormalModuleFactory 暴露出去的 createGenerator 钩子来获取对应的 generator 生成器
-		const generator = this.hooks.createGenerator
-			.for(type)
-			.call(generatorOptions);
-		if (!generator) {
-			throw new Error(`No generator registered for ${type}`);
-		}
-		this.hooks.generator.for(type).call(generator, generatorOptions);
-		return generator;
-	}
-	...
-}
-```
-
-每个 NormalModule 实例上都有 source 方法，其内部调用在 module 创建初期获取的 generator 生成器的 generate 方法去生成 module 代码，这才进入到生成 module 代码最核心的步骤：
-
-```javascript
-class JavascriptGenerator {
-	generate(module, dependencyTemplates, runtimeTemplate) {
-		const originalSource = module.originalSource(); // 获取这个 module 的 originSource
-		if (!originalSource) {
-			return new RawSource("throw new Error('No source available');");
-		}
-
-		const source = new ReplaceSource(originalSource);
-
-		this.sourceBlock(
-			module,
-			module,
-			[],
-			dependencyTemplates,
-			source,
-			runtimeTemplate
-		);
-
-		return source;
-	}
-
-	sourceBlock(
-		module,
-		block,
-		availableVars,
-		dependencyTemplates,
-		source,
-		runtimeTemplate
-	) {
-		// 处理这个 module 的 dependency 的渲染模板内容
-		for (const dependency of block.dependencies) {
-			this.sourceDependency(
-				dependency,
-				dependencyTemplates,
-				source,
-				runtimeTemplate
-			);
-		}
-
-		...
-
-		for (const childBlock of block.blocks) {
-			this.sourceBlock(
-				module,
-				childBlock,
-				availableVars.concat(vars),
-				dependencyTemplates,
-				source,
-				runtimeTemplate
-			);
-		}
-	}
-
-	// 获取对应的 template 方法并执行，完成依赖的渲染工作
-	sourceDependency(dependency, dependencyTemplates, source, runtimeTemplate) {
-		const template = dependencyTemplates.get(dependency.constructor);
-		if (!template) {
-			throw new Error(
-				"No template for dependency: " + dependency.constructor.name
-			);
-		}
-		template.apply(dependency, source, runtimeTemplate, dependencyTemplates);
-	}
-}
-```
-
-generate 方法首先获取 module 原始的文本内容，并创建一个 replaceSource 实例，在每个 module 通过 parser 解析器解析后，获得的相关 dependency 依赖都会记录对应的源码位置，位置信息主要就是用于在 replaceSource 实例当中，完成相关依赖的模板内容的替换工作，生成最终的 module 代码，大家如果有兴趣的话，可以阅读下([webpack-sources](https://github.com/webpack/webpack-sources/blob/master/lib/ReplaceSource.js)源码当中 replaceSource 实例实现文本替换的算法)。
-
-这里我们来看几个依赖是如何渲染得到最终输出的内容的。
-
-
-MainTemplate
-ChunkTemplate
+在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码输入至最终的文件。
