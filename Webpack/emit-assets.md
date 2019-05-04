@@ -392,19 +392,18 @@ class Template {
 
 首先我们来了解下3个和输出 module 代码相关的模板：
 
-- RunTemplate
-- ModuleTemplate
+- RuntimeTemplate
 - dependencyTemplates
+- ModuleTemplate
 
-其中 RunTemplate 模板类主要是提供了和 module 类型相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
-
-ModuleTemplate 模板类主要是对外暴露了 render 方法，通过调用 moduleTemplate 实例上的 render 方法，即完成每个 module 的代码渲染工作。
+其中 RuntimeTemplate 顾名思义，这个模板类主要是提供了和 module 运行时相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
 
 // TODO: 讲解
 dependencyTemplates 模板数组主要是保存了每个 module 不同依赖的模板，在输出最终代码的时候会通过 dependencyTemplates 来完成模板的替换工作。
 
-接下来我们就来看下 ModuleTemplate 这个模板类：
+ModuleTemplate 模板类主要是对外暴露了 render 方法，通过调用 moduleTemplate 实例上的 render 方法，即完成每个 module 的代码渲染工作，这也是每个 module 输出最终代码的入口方法。
 
+接下来我们来看下 ModuleTemplate 这个模板类：
 
 ```javascript
 // ModuleTemplate.js
@@ -464,6 +463,7 @@ module.exports = class ModuleTemplate extends Tapable {
 
 // TODO: 补一个 render 方法内部的流程图
 
+module.source -> hooks.content -> hooks.module -> hooks.render -> hooks.package
 
 首先调用 module.source 方法，传入 dependencyTemplates, runtimeTemplate，以及渲染类型 type（默认为 javascript）。在每个 module 上定义的 source 方法：
 
@@ -568,21 +568,135 @@ class JavascriptGenerator {
 }
 ```
 
-在 JavascriptGenerator 提供的 generate 方法主要的作用就是遍历这个 module 的所有依赖，根据 module 经过 parser 编译器记录的位置关系，最终会完成代码的替换工作。即每一种依赖都对应一个模板渲染方法，在 generate 方法里面主要就是找到每个依赖的类型，并调用其提供的模板方法。
+在 JavascriptGenerator 提供的 generate 方法主要的作用就是遍历这个 module 的所有依赖，根据 module 经过 parser 编译器记录的位置关系，最终会完成代码的替换工作。即每一种依赖都对应一个模板渲染方法，在 generate 方法里面主要就是找到每个依赖的类型，并调用其提供的模板方法，那么这部分是怎么工作的呢？具体请参见TODO: dependencyTemplates.md。
 
-我们可以来看一个例子：
+
+hooks.content / hooks.module
+
+
+当上面2个 hooks 都执行完后，开始触发 hooks.render 钩子：
 
 ```javascript
-// a.js (webpack config 配置的入口文件)
-import add from './b.js'
+// FunctionModuleTemplatePlugin.js
+class FunctionModuleTemplatePlugin {
+	apply(moduleTemplate) {
+		moduleTemplate.hooks.render.tap(
+			"FunctionModuleTemplatePlugin",
+			(moduleSource, module) => {
+				const source = new ConcatSource();
+				const args = [module.moduleArgument]; // module
+				// TODO remove HACK checking type for javascript
+				if (module.type && module.type.startsWith("javascript")) {
+					args.push(module.exportsArgument); // __webpack_exports__
+					if (module.hasDependencies(d => d.requireWebpackRequire !== false)) {
+						// 判断这个模块内部是否使用了被引入的其他模块，如果有的话，那么就需要加入 __webpack_require__
+						args.push("__webpack_require__");  // __webpack_require__
+					}
+				} else if (module.type && module.type.startsWith("json")) {
+					// no additional arguments needed
+				} else {
+					args.push(module.exportsArgument, "__webpack_require__");
+				}
+				source.add("/***/ (function(" + args.join(", ") + ") {\n\n");
+				if (module.buildInfo.strict) source.add('"use strict";\n'); // harmony module 会使用 use strict; 严格模式
+				// 将 moduleSource 代码包裹至这个函数当中
+				source.add(moduleSource);
+				source.add("\n\n/***/ })");
+				return source;
+			}
+		)
+	}
+}
+```
+
+这个钩子函数主要的工作就是完成对上面已经完成的 module 代码进行一层包裹，包裹的内容主要是 webpack 自身的一套模块加载系统，包括模块导入，导出等，我们通过最终的代码可以生成的最终形式
+
+```javascript
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+// module 最终生成的代码被包裹在这个函数内部
+// TODO: __webpack_exports__ / __webpack_require__ 分别的功能
+
+/***/ })
+```
+
+当 hooks.render 钩子触发后完成 module 代码的包裹后，触发 hooks.package 钩子，这个主要是用于在 module 代码中添加注释的功能，就不展开说了，具体查阅`FunctionModuleTemplatePlugin.js`。
+
+到这里就完成了对于一个 module 的代码的渲染工作，最终在每个 chunk 当中的每一个 module 代码也就是在此生成，module 生成之后便返回到`renderJavascript`方法当中，继续后面生成每个 chunk 最终代码的过程中了。
+
+
+接下来触发 chunkTemplate.hooks.modules 钩子函数，如果你需要对于 chunk 代码有所修改，那么在这里可以通过 plugin 注册 hooks.modules 钩子函数来完成相关的工作。这个钩子触发后，继续触发 chunkTemplate.hooks.render 钩子函数，在`JsonpChunkTemplatePlugin`这个插件当中注册了对应的钩子函数：
+
+```javascript
+class JsonpChunkTemplatePlugin {
+	/**
+	 * @param {ChunkTemplate} chunkTemplate the chunk template
+	 * @returns {void}
+	 */
+	apply(chunkTemplate) {
+		chunkTemplate.hooks.render.tap(
+			"JsonpChunkTemplatePlugin",
+			(modules, chunk) => {
+				const jsonpFunction = chunkTemplate.outputOptions.jsonpFunction;
+				const globalObject = chunkTemplate.outputOptions.globalObject;
+				const source = new ConcatSource();
+				const prefetchChunks = chunk.getChildIdsByOrders().prefetch;
+				source.add(
+					`(${globalObject}[${JSON.stringify(
+						jsonpFunction
+					)}] = ${globalObject}[${JSON.stringify(
+						jsonpFunction
+					)}] || []).push([${JSON.stringify(chunk.ids)},`
+				);
+				source.add(modules);
+				const entries = getEntryInfo(chunk);
+				if (entries.length > 0) {
+					source.add(`,${JSON.stringify(entries)}`);
+				} else if (prefetchChunks && prefetchChunks.length) {
+					source.add(`,0`);
+				}
+
+				if (prefetchChunks && prefetchChunks.length) {
+					source.add(`,${JSON.stringify(prefetchChunks)}`);
+				}
+				source.add("])");
+				return source;
+			}
+		)
+	}
+}
+```
+
+这个钩子函数主要完成的工作就是将这个 chunk 当中所有已经渲染好的 module 的代码再一次进行包裹组装，生成这个 chunk 最终的代码，也就是最终会被写入到文件当中的代码。我们来看个例子：
+
+```javascript
+// a.js
+import { add } from './add.js'
 
 add(1, 2)
 
-// b.js
-export default function add(n1, n2) {
-	return n1 + n2
-}
+
+-------
+// 在 webpack config 配置环节将 webpack runtime bootstrap 代码单独打包成一个 chunk，那么最终 a.js 所在的 chunk输出的代码是：
+
+(window["webpackJsonp"] = window["webpackJsonp"] || []).push([[1],[
+/* 0 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+			// module id 为0的 module 输出代码，即 a.js 最终输出的代码
+/***/ }),
+/* 1 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+			// module id 为1的 module 输出代码，即 add.js 最终输出的代码
+/***/ })
+],[[0,0]]]);
 ```
+
+到此为止，有关 renderJavascript 方法的流程已经梳理完毕了，这也是非 runtime bootstrap chunk 代码最终的输出时的处理流程。
+
+
+
+
+
 
 
 
