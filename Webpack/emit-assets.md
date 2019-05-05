@@ -2,6 +2,7 @@
 
 上篇文章主要是梳理了有关 chunk 是如何分析其依赖，以及如何将有依赖关系的 module 统一组织到一个 chunk 当中的。接下来在 seal 阶段又会进行各种相关的优化工作，例如给所有需要输出成文件的 chunk 分配 id 值，以及给 chunk 当中包含的 module 分配 id 值等等工作。
 
+// TODO: 一个总体的流程图
 其中在这些优化工作完成后会调用 createChunkAssets 方法来决定最终输出到每个 chunk 当中对应的文本内容是什么。
 
 ```javascript
@@ -10,7 +11,28 @@
 class Compilation extends Tapable {
 	...
 	createChunkAssets() {
-		
+		for (let i = 0; i < this.chunks.length; i++) {
+			const chunk = this.chunks[i]
+			try {
+				const template = chunk.hasRuntime()
+					? this.mainTemplate
+					: this.chunkTemplate;
+				const manifest = template.getRenderManifest({
+					chunk,
+					hash: this.hash, // 这次 compilation 的 hash 值
+					fullHash: this.fullHash, // 这次 compilation 未被截断的 hash 值
+					outputOptions,
+					moduleTemplates: this.moduleTemplates,
+					dependencyTemplates: this.dependencyTemplates
+				}); // [{ render(), filenameTemplate, pathOptions, identifier, hash }]
+				for (const fileManifest of manifest) {
+					...
+					fileManifeset.render() // 渲染生成每个 chunk 最终输出的代码
+					...
+				}
+			}
+			....
+		}
 	}
 	...
 }
