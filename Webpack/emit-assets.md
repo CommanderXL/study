@@ -326,7 +326,7 @@ class JavascriptModulesPlugin {
 
 这样当获取到了 chunk 渲染所需的 manifest 配置项后，即开始调用 render 函数开始渲染这个 chunk 最终的输出内容了，即对应于 JavascriptModulesPlugin 上的 renderJavascript 方法。
 
-// TODO: 补一张流程图。主要是经历了3个阶段的处理过程
+![emit-assets-chunk](../images/webpack/emit-assets-chunk.jpeg)
 
 1. Template.renderChunkModules 获取每个 chunk 当中所依赖的所有 module 最终需要渲染的代码
 2. chunkTemplate.hooks.modules 触发 hooks.modules 钩子，用以在最终生成 chunk 代码前对 chunk 最修改
@@ -416,9 +416,6 @@ class Template {
 }
 ```
 
-// TODO: 补一个 renderChunkModules 的处理流程图
-// TODO: 补一个 JsonpTemplate 和 JsonpMainTemplatePlugin、JsonChunkTemplatePlugin、JsonpHotUpdateChunkTemplatePlugin 之间的关系图
-
 这样也就完成了不包含 runtime bootstrap 代码的 chunk 的整体渲染工作。以上梳理的主要是 chunk 层面的渲染工作：首先生成这个 chunk 当中包含的所有 module 代码，然后触发 hooks.modules 钩子函数以满足在最终生成 chunk 前对代码的修改工作，最终 触发 hooks.render 函数完成对 chunk 代码添加 webpack runtime 运行时代码的包裹工作。
 
 接下来让我们来看下在 chunk 渲染过程中，如何对每个所依赖的 module 进行渲染拼接代码的，即在 Template 类当中提供的 renderChunkModules 方法中，遍历这个 chunk 当中所有依赖的 module 过程中，调用 moduleTemplate.render 完成每个 module 的代码渲染拼接工作。
@@ -493,9 +490,7 @@ module.exports = class ModuleTemplate extends Tapable {
 }
 ```
 
-// TODO: 补一个 render 方法内部的流程图
-
-module.source -> hooks.content -> hooks.module -> hooks.render -> hooks.package
+![emit-assets-module](../images/webpack/emit-assets-module.jpeg)
 
 首先调用 module.source 方法，传入 dependencyTemplates, runtimeTemplate，以及渲染类型 type（默认为 javascript）。在每个 module 上定义的 source 方法：
 
@@ -700,7 +695,7 @@ class JsonpChunkTemplatePlugin {
 }
 ```
 
-这个钩子函数主要完成的工作就是将这个 chunk 当中所有已经渲染好的 module 的代码再一次进行包裹组装，生成这个 chunk 最终的代码，也就是最终会被写入到文件当中的代码。我们来看个例子：
+这个钩子函数主要完成的工作就是将这个 chunk 当中所有已经渲染好的 module 的代码再一次进行包裹组装，生成这个 chunk 最终的代码，也就是最终会被写入到文件当中的代码。与此相关的是 JsonpTemplatePlugin，这个插件内部注册了 chunkTemplate.hooks.render 的钩子函数，在这个函数里面完成了 chunk 代码外层的包裹工作。我们来看个通过这个钩子函数处理后生成的 chunk 代码的例子：
 
 ```javascript
 // a.js
