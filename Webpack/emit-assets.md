@@ -4,38 +4,75 @@
 
 其中在这些优化工作完成后会调用 createChunkAssets 方法来决定最终输出到每个 chunk 当中对应的文本内容是什么。
 
-在 createChunkAssets 方法内部会对最终需要输出的 chunk 进行遍历，根据这个 chunk 是否包含有 webpack runtime 代码来决定使用的渲染模板。那我们首先来看下包含有 webpack runtime 代码的 chunk 是如何输出最终的 chunk 文本内容的。
+```javascript
+// Compilation.js
+
+class Compilation extends Tapable {
+	...
+	createChunkAssets() {
+		
+	}
+	...
+}
+```
+
+在 createChunkAssets 方法内部会对最终需要输出的 chunk 进行遍历，根据这个 chunk 是否包含有 webpack runtime 代码来决定使用的渲染模板(mainTemplate/chunkTemplate)。其中 mainTemplate 主要用于包含 webpack runtime bootstrap 的 chunk 代码渲染生成工作，chunkTemplate 主要用于普通 chunk 的代码渲染工作。我们首先来看下包含有 webpack runtime 代码的 chunk 是如何输出最终的 chunk 文本内容的。
+
+### mainTemplate 渲染生成包含 webpack runtime bootstrap 代码的 chunk
+
 
 这种情况下使用的 mainTemplate，调用实例上的 getRenderManifest 方法获取 manifest 配置数组，其中每项包含的字段内容为:
 
-// TODO: 简单的介绍下 JavascriptModulesPlugin 插件的用途
+```javascript
+// MainTemplate.js
+class MainTemplate extends Tapable {
+	...
+	getRenderManifest(options) {
+		const result = [];
+
+		this.hooks.renderManifest.call(result, options);
+
+		return result;
+	}
+	...
+}
+```
+
+getRenderManifeset 方法内部实际上是触发了 JavascruotModulesPlugin 内部注册的 hooks.renderManifest 钩子函数：
 
 ```javascript
-// hooks.manifest.tap 钩子函数
-
-compilation.mainTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', () => {
-	...
-	result.push({
-		render: () =>
-			// 这个 chunk 最终会调用这个 render 函数去完成文本的输出工作
-			compilation.mainTemplate.render(
-				hash,
-				chunk,
-				moduleTemplates.javascript,
-				dependencyTemplates
-			),
-		filenameTemplate,
-		pathOptions: {
-			noChunkHash: !useChunkHash,
-			contentHashType: 'javascript',
-			chunk
-		},
-		identifier: `chunk${chunk.id}`, // 使用 chunk.id 来作为当前 chunk 的标识符
-		// 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
-		hash: useChunkHash ? chunk.hash : fullHash
-	})
-	...
-})
+// JavascriptModulesPlugin.js
+class JavascriptModulesPlugin {
+	apply(compiler) {
+		compiler.hooks.compilation.tap(
+			'JavascriptModulesPlugin',
+			(compilation, { normalModuleFactory }) => {
+				compilation.mainTemplate.hooks.renderManifest.tap('JavascriptModulesPlugin', () => {
+					...
+					result.push({
+						render: () =>
+							// 这个 chunk 最终会调用这个 render 函数去完成文本的输出工作
+							compilation.mainTemplate.render(
+								hash,
+								chunk,
+								moduleTemplates.javascript,
+								dependencyTemplates
+							),
+						filenameTemplate,
+						pathOptions: {
+							noChunkHash: !useChunkHash,
+							contentHashType: 'javascript',
+							chunk
+						},
+						identifier: `chunk${chunk.id}`, // 使用 chunk.id 来作为当前 chunk 的标识符
+						// 使用 chunkHash 还是这次 compilation 编译的 hash 值，判断的依据为 output 当中的配置是否包含 hash
+						hash: useChunkHash ? chunk.hash : fullHash
+					})
+					...
+				})
+			})
+	}
+}
 ```
 
 接下来会判断这个 chunk 是否有被之前已经输出过(输出过的 chunk 是会被缓存起来的)。如果没有的话，那么就会调用 render 方法去完成这个 chunk 的文本输出工作，即：`compilation.mainTemplate.render`方法。
@@ -205,6 +242,8 @@ module.exports = window['webpackJsonp']
 
 以上就是有关使用 MainTemplate 去渲染完成 runtime chunk 的有关内容。
 
+### chunkTemplate 渲染生成普通 chunk 代码
+
 接下来我们看下不包含 webpack runtime 代码的 chunk (使用 chunkTemplate 渲染模板)是如何输出得到最终的内容的。
 
 首先调用 ChunkTemplate 类上提供的 getRenderManifest 方法来获取 chunk manifest 相关的内容。
@@ -254,14 +293,7 @@ class JavascriptModulesPlugin {
 			...
 		})
 	}
-}
-```
 
-这样通过触发 renderManifest hook 获取到了渲染这个 chunk manifest 配置项。和 MainTemplate 获取到的 manifest 数组不同的主要地方就在于其中的 render 函数，这里可以看到的就是渲染每个 chunk 是调用的 JavascriptModulesPlugin 这个插件上提供的 render 函数：
-
-```javascript
-class JavascriptModulePlugin {
-	...
 	renderJavascript(chunkTemplate, chunk, moduleTemplate, dependencyTemplates) {
 		const moduleSources = Template.renderChunkModules(
 			chunk,
@@ -287,19 +319,20 @@ class JavascriptModulePlugin {
 		chunk.rendered = true
 		return new ConcatSource(source, ";")
 	}
-	...
 }
 ```
+
+这样通过触发 renderManifest hook 获取到了渲染这个 chunk manifest 配置项。和 MainTemplate 获取到的 manifest 数组不同的主要地方就在于其中的 render 函数，这里可以看到的就是渲染每个 chunk 是调用的 JavascriptModulesPlugin 这个插件上提供的 render 函数。
 
 这样当获取到了 chunk 渲染所需的 manifest 配置项后，即开始调用 render 函数开始渲染这个 chunk 最终的输出内容了，即对应于 JavascriptModulesPlugin 上的 renderJavascript 方法。
 
 // TODO: 补一张流程图。主要是经历了3个阶段的处理过程
 
-1. Template.renderChunkModules. 获取每个 chunk 当中所依赖的所有 module 最终需要渲染的代码
-2. chunkTemplate.hooks.modules
-3. chunkTemplate.hooks.render. 当上面2个步骤都进行完后，调用 hooks.render 钩子函数，完成这个 chunk 最终的渲染，即在外层添加包裹函数。
+1. Template.renderChunkModules 获取每个 chunk 当中所依赖的所有 module 最终需要渲染的代码
+2. chunkTemplate.hooks.modules 触发 hooks.modules 钩子，用以在最终生成 chunk 代码前对 chunk 最修改
+3. chunkTemplate.hooks.render 当上面2个步骤都进行完后，调用 hooks.render 钩子函数，完成这个 chunk 最终的渲染，即在外层添加包裹函数。
 
-首先调用 Template 类提供的 renderChunkModules 方法：
+我们先来看下 Template 类提供的 renderChunkModules 方法：
 
 ```javascript
 class Template {
@@ -386,11 +419,9 @@ class Template {
 // TODO: 补一个 renderChunkModules 的处理流程图
 // TODO: 补一个 JsonpTemplate 和 JsonpMainTemplatePlugin、JsonChunkTemplatePlugin、JsonpHotUpdateChunkTemplatePlugin 之间的关系图
 
-
-这样也就完成了不包含 runtime bootstrap 代码的 chunk 的整体渲染工作。以上解读的主要是 chunk 层面的渲染工作。
+这样也就完成了不包含 runtime bootstrap 代码的 chunk 的整体渲染工作。以上梳理的主要是 chunk 层面的渲染工作：首先生成这个 chunk 当中包含的所有 module 代码，然后触发 hooks.modules 钩子函数以满足在最终生成 chunk 前对代码的修改工作，最终 触发 hooks.render 函数完成对 chunk 代码添加 webpack runtime 运行时代码的包裹工作。
 
 接下来让我们来看下在 chunk 渲染过程中，如何对每个所依赖的 module 进行渲染拼接代码的，即在 Template 类当中提供的 renderChunkModules 方法中，遍历这个 chunk 当中所有依赖的 module 过程中，调用 moduleTemplate.render 完成每个 module 的代码渲染拼接工作。
-
 
 首先我们来了解下3个和输出 module 代码相关的模板：
 
@@ -400,12 +431,11 @@ class Template {
 
 其中 RuntimeTemplate 顾名思义，这个模板类主要是提供了和 module 运行时相关的代码输出方法，例如你的 module 使用的是 esModule 类型，那么导出的代码模块会带有`__esModule`标识，而通过 import 语法引入的外部模块都会通过`/* harmony import */`注释来进行标识。
 
-// TODO: 讲解
-dependencyTemplates 模板数组主要是保存了每个 module 不同依赖的模板，在输出最终代码的时候会通过 dependencyTemplates 来完成模板的替换工作。
+dependencyTemplates 模板数组主要是保存了每个 module 不同依赖的模板，在输出最终代码的时候会通过 dependencyTemplates 来完成模板代码的替换工作。
 
 ModuleTemplate 模板类主要是对外暴露了 render 方法，通过调用 moduleTemplate 实例上的 render 方法，即完成每个 module 的代码渲染工作，这也是每个 module 输出最终代码的入口方法。
 
-接下来我们来看下 ModuleTemplate 这个模板类：
+我们来看下 ModuleTemplate 这个模板类：
 
 ```javascript
 // ModuleTemplate.js
@@ -572,7 +602,6 @@ class JavascriptGenerator {
 
 在 JavascriptGenerator 提供的 generate 方法主要的作用就是遍历这个 module 的所有依赖，根据 module 经过 parser 编译器记录的位置关系，最终会完成代码的替换工作。即每一种依赖都对应一个模板渲染方法，在 generate 方法里面主要就是找到每个依赖的类型，并调用其提供的模板方法，那么这部分是怎么工作的呢？具体请参见TODO: dependencyTemplates.md。
 
-
 接下来触发 hooks.content 、 hooks.module 这2个钩子函数，主要是用来对于 module 完成依赖代码替换后的代码处理工作，开发者可以通过注册相关的钩子完成对于 module 代码的改造，因为这个时候得到代码还没有在外层包裹 webpack runtime 的代码，因此在这2个钩子函数对于 module 代码做改造最合适。
 
 当上面2个 hooks 都执行完后，开始触发 hooks.render 钩子：
@@ -705,7 +734,7 @@ compilation.assets = {
 }
 ```
 
-接下来还会针对保存在内容当中的这些 assets 资源做相关的优化工作，同时会暴露出一些钩子供开发者对于这些资源做相关的操作，例如可以使用 compilation.optimizeChunkAssets 钩子函数去往 chunk 内添加代码等等，有关这些钩子的说明具体可以查阅[webpack文档上有关assets优化的内容](https://webpack.docschina.org/api/compilation-hooks/#additionalassets)。当 assets 资源相关的优化工作结束后，seal 阶段也就结束了。这时候便会执行 seal 函数接受到 callback。具体内容可查阅 compiler 编译器对象提供的 run 方法。这个 callback 方法内容会执行到 compiler.emitAssets 方法：
+接下来针对保存在内容当中的这些 assets 资源做相关的优化工作，同时会暴露出一些钩子供开发者对于这些资源做相关的操作，例如可以使用 compilation.optimizeChunkAssets 钩子函数去往 chunk 内添加代码等等，有关这些钩子的说明具体可以查阅[webpack文档上有关assets优化的内容](https://webpack.docschina.org/api/compilation-hooks/#additionalassets)。当 assets 资源相关的优化工作结束后，seal 阶段也就结束了。这时候执行 seal 函数接受到 callback，进入到 webpack 后续的流程。具体内容可查阅 compiler 编译器对象提供的 run 方法。这个 callback 方法内容会执行到 compiler.emitAssets 方法：
 
 ```javascript
 // Compiler.js
@@ -778,4 +807,4 @@ class Compiler extends Tapable {
 }
 ```
 
-在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码输入至最终的文件。
+在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码写入至最终的文件。
