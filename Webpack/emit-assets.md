@@ -573,8 +573,7 @@ class JavascriptGenerator {
 在 JavascriptGenerator 提供的 generate 方法主要的作用就是遍历这个 module 的所有依赖，根据 module 经过 parser 编译器记录的位置关系，最终会完成代码的替换工作。即每一种依赖都对应一个模板渲染方法，在 generate 方法里面主要就是找到每个依赖的类型，并调用其提供的模板方法，那么这部分是怎么工作的呢？具体请参见TODO: dependencyTemplates.md。
 
 
-hooks.content / hooks.module
-
+接下来触发 hooks.content 、 hooks.module 这2个钩子函数，主要是用来对于 module 完成依赖代码替换后的代码处理工作，开发者可以通过注册相关的钩子完成对于 module 代码的改造，因为这个时候得到代码还没有在外层包裹 webpack runtime 的代码，因此在这2个钩子函数对于 module 代码做改造最合适。
 
 当上面2个 hooks 都执行完后，开始触发 hooks.render 钩子：
 
@@ -611,21 +610,24 @@ class FunctionModuleTemplatePlugin {
 }
 ```
 
-这个钩子函数主要的工作就是完成对上面已经完成的 module 代码进行一层包裹，包裹的内容主要是 webpack 自身的一套模块加载系统，包括模块导入，导出等，我们通过最终的代码可以生成的最终形式
+这个钩子函数主要的工作就是完成对上面已经完成的 module 代码进行一层包裹，包裹的内容主要是 webpack 自身的一套模块加载系统，包括模块导入，导出等，每个 module 代码最终生成的形式为：
 
 ```javascript
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 // module 最终生成的代码被包裹在这个函数内部
-// TODO: __webpack_exports__ / __webpack_require__ 分别的功能
+// __webpack_exports__ / __webpack_require__ 相关的功能可以阅读 webpack runtime bootstrap 代码去了解
 
 /***/ })
 ```
 
 当 hooks.render 钩子触发后完成 module 代码的包裹后，触发 hooks.package 钩子，这个主要是用于在 module 代码中添加注释的功能，就不展开说了，具体查阅`FunctionModuleTemplatePlugin.js`。
 
-到这里就完成了对于一个 module 的代码的渲染工作，最终在每个 chunk 当中的每一个 module 代码也就是在此生成，module 生成之后便返回到`renderJavascript`方法当中，继续后面生成每个 chunk 最终代码的过程中了。
+到这里就完成了对于一个 module 的代码的渲染工作，最终在每个 chunk 当中的每一个 module 代码也就是在此生成。
 
+---
+
+module 代码生成之后便返回到上文`JavascriptModulePlugin.renderJavascript`方法当中，继续后面生成每个 chunk 最终代码的过程中了。
 
 接下来触发 chunkTemplate.hooks.modules 钩子函数，如果你需要对于 chunk 代码有所修改，那么在这里可以通过 plugin 注册 hooks.modules 钩子函数来完成相关的工作。这个钩子触发后，继续触发 chunkTemplate.hooks.render 钩子函数，在`JsonpChunkTemplatePlugin`这个插件当中注册了对应的钩子函数：
 
