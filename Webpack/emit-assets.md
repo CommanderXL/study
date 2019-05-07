@@ -2,7 +2,6 @@
 
 上篇文章主要是梳理了有关 chunk 是如何分析其依赖，以及如何将有依赖关系的 module 统一组织到一个 chunk 当中的。接下来在 seal 阶段又会进行各种相关的优化工作，例如给所有需要输出成文件的 chunk 分配 id 值，以及给 chunk 当中包含的 module 分配 id 值等等工作。
 
-// TODO: 一个总体的流程图
 其中在这些优化工作完成后会调用 createChunkAssets 方法来决定最终输出到每个 chunk 当中对应的文本内容是什么。
 
 ```javascript
@@ -824,4 +823,6 @@ class Compiler extends Tapable {
 }
 ```
 
-在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码写入至最终的文件。
+在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码写入至最终的文件。最终有关 emit assets 输出最终 chunk 文件的流程图见下：
+
+![emit-assets-main-process](../images/webpack/emit-assets-main-process.jpeg)
