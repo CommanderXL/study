@@ -826,3 +826,7 @@ class Compiler extends Tapable {
 在这个方法当中首先触发 hooks.emit 钩子函数，即将进行写文件的流程。接下来开始创建目标输出文件夹，并执行 emitFiles 方法，将内存当中保存的 assets 资源输出到目标文件夹当中，这样就完成了内存中保存的 chunk 代码写入至最终的文件。最终有关 emit assets 输出最终 chunk 文件的流程图见下：
 
 ![emit-assets-main-process](../images/webpack/emit-assets-main-process.jpeg)
+
+
+
+// TODO: additionalAssets 文件的输出
