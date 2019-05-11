@@ -98,6 +98,8 @@ https://github.com/Microsoft/TypeScript/issues/7185
 https://tasaid.com/blog/2019022017450863.html
 https://tasaid.com/blog/20171102225101.html#import-dao-ru-he-export-dao-chu
 
+TODO: ts-node repl
+
 * `export as namespace xxx`
 
 这个语法主要是为了解决一些库即可以通过模块的形式去引入，也可以通过`<script>`标签的形式全局引入(一般这些库的设计都是定义一个独有的全局变量，通过对这个全局变量进行拓展)，即被称为`UMD`库。当你通过`<script>`标签这种形式引入的话，那么就需要一个声明文件进行一个全局的声明。为了解决这个问题，TS提供了`export as namespace`这个语法，可以将这个 namespace 名声明为全局的，其内部声明的其他的类型、函数、变量等都为这个 namespace 的子属性。
