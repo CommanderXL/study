@@ -486,7 +486,7 @@ for (const chunkGroup of inputChunkGroups) {
 4. 将 deps 依赖中的 chunkGroup 加入到 nextChunkGroups 数据集当中，接下来就进入到遍历新加入的 chunkGroup 环节。
 5. 当以上所有的遍历过程都结束后，接下来开始遍历在处理异步 block 创建的 chunkGroup 组成的数据集(allCreatedChunkGroups)，开始处理没有依赖关系的 chunkGroup(chunkGroup 之间的依赖关系是在👆第3步的过程中建立起来的)，如果遇到没有任何依赖关系的 chunkGroup，那么就会将这些 chunkGroup 当中所包含的所有 chunk 从 chunk graph 依赖图当中剔除掉。最终在 webpack 编译过程结束输出文件的时候就不会生成这些 chunk。
 
-那么在我们给出的示例当中，经过在上面提到的这些步骤，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，因此下一阶段就是遍历异步 block c 所被包含的 chunkGroup2。而在处理 chunkGroup2 的过程当中，却发现它所依赖的 chunkGroup3 中的 module(d.js) 已经处于 entryPoint 当中，那么 chunkGroup3 内所包含的 chunk 最终会从 chunk graph 被剔除掉，这样这个 chunk 最终也不会被输出到目标文件夹当中。
+那么在我们给出的示例当中，经过在上面提到的这些步骤，第一阶段处理 entryPoint(chunkGroup)，以及其包含的所有的 module，在处理过程中发现这个 entryPoint 依赖异步 block c，它包含在了 blocksWithNestedBlocks 数据集当中，依据对应的过滤规则，是需要继续遍历异步 block c 所在的 chunkGroup2。接下来在处理 chunkGroup2 的过程当中，它依赖 chunkGroup3，且这个 chunkGroup3 包含异步 block d，因为在第一阶段处理 entryPoint 过程中完成了一轮 module 集的收集，其中就包含了同步的 module d，这里可以想象得到的是同步的 module d 和异步 block d 最终只可能输出一个，且同步的 module d 要比异步的 block d 的优先级更高。因此最终模块 d 的代码会以同步的 module d 的形式被输出到 entryPoint 所包含的 chunk 当中，这样包含异步 block d 的 chunkGroup3 也就相应的不会再被输出，即会被从 chunk graph 当中剔除掉。
 
 
 最终会生成的 chunk 依赖图为：
