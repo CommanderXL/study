@@ -49,12 +49,67 @@
 
 ### 表单描述文件
 
+上面谈到了有关组件的分类以及设计，那么对应的表单描述文件也应该依托于此，因为表单描述文件就是表单组件的代码表达。就拿我所做的表单项目来说，设计同学给我定义好了表单类型的基础规范：
+
+TODO: 补图
+
+根据表单设计规范，我需要将表单设计稿转化为表单描述配置。我将每个表单配置单元拆解为2部分：
+
+* 表头
+* 表单操作项
+
+每个表单配置单元包含一个表头，多个表单操作项。这样也有了一个初步的表单配置描述：
+
+```json
+{
+  uiHeader: {   // 表头
+    title: '身份证',  // 标题
+    text: '前往拍摄', // 操作区文案(可选)
+    eventHandler: {  // 操作区事件响应(可选)
+      click() {
+        // do something
+      }
+    }
+  },
+  uiItems: [    // 表单操作项
+    { 
+      key: 'name',                       // 操作项对应字段
+      title: '姓名',                      // 操作项标题
+      widget: 'autoform-input',          // 操作项使用的组件名
+      widgetOption: {},                  // 每个组件的配置项
+      eventHandler: {},                  // 事件处理
+      disabled: false,                   // 是否禁用
+      visiable: true,                    // 是否可见
+      errMsg: '',                        // 错误文案
+      className: '',                     // 拓展的 className
+      children: []                       // 嵌套子组件
+    },
+    { 
+      key: 'highestEdu',
+      title: '最高学历',
+      widget: 'autoform-btn-modal',
+      widgetOption: {},
+      eventHandler: {},
+      disabled: false,
+      visiable: true,
+      errMsg: '',
+      className: '',
+      children: []
+    },
+  ]
+}
+```
+
+
+
 
 ### 表单组件的通讯
 
 ### 表单组件的API
 
 ## 表单组件的拓展机制
+
+## 表单与表单之间的联动
 
 
 
