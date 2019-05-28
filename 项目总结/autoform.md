@@ -14,12 +14,11 @@
 
 从功能上来说一共有三类：
 
-* 业务组件
-* 布局容器组件
 * 渲染容器根组件
+* 布局容器组件
+* 业务组件
 
 这三种组件之间的逻辑关系可用如下的图来表示：
-
 
 
 #### 业务组件
@@ -32,7 +31,7 @@
 例如：
 
 
-常用的表单交互组件有：input / picker / actionsheet / radio / image-upload 等等
+常用的表单交互组件有：input / picker / actionsheet / radio / image-upload 等等。在做配置化方案的时候，这些组件应该都是单独开发，单独维护，最终表单配置化单元的渲染工作也就是依据表单配置项完成这些基础的业务组件的渲染工作的。
 
 
 #### 布局容器组件
@@ -50,11 +49,23 @@
 ```html
 <template>
   <div class="form-page">
-    <vue-auto-form></vue-auto-form>
-    <vue-auto-form></vue-auto-form>
-    <vue-auto-form></vue-auto-form>
+    <vue-auto-form :uiSchema="uiSchema1"></vue-auto-form>
+    <vue-auto-form :uiSchema="uiSchema2"></vue-auto-form>
+    <vue-auto-form :uiSchema="uiSchema3"></vue-auto-form>
   </div>
 </template>
+```
+
+```javascript
+export default {
+  data() {
+    return {
+      uiSchema1: {},
+      uiSchema2: {},
+      uiSchema3: {}
+    }
+  }
+}
 ```
 
 这个渲染容器根组件实际上就是一个 render 函数，render 函数根据你所传入的表单组件的配置选项来实现表单配置单元的动态渲染。
@@ -74,46 +85,62 @@ TODO: 补图
 
 ```javascript
 export default {
-  uiHeader: {   // 表头
-    title: '身份证',  // 标题
-    text: '前往拍摄', // 操作区文案(可选)
-    eventHandler: {  // 操作区事件响应(可选)
-      click() {
-        // do something
+  data() {
+    return {
+      formData: {
+        name: '',
+        highestEdu: 0
+      },
+      uiSchema: {
+        uiHeader: {                            // 表头
+          title: '身份证',                      // 标题
+          text: '前往拍摄',                     // 操作区文案(可选)
+          eventHandler: {                      // 操作区事件响应(可选)
+            click() {
+              // do something
+            }
+          }
+        },
+        uiItems: [                             // 表单操作项
+          { 
+            key: 'name',                       // 操作项对应字段
+            title: '姓名',                      // 操作项标题
+            widget: 'autoform-input',          // 操作项使用的组件名
+            widgetOption: {},                  // 每个组件的配置项
+            eventHandler: {},                  // 事件处理
+            disabled: false,                   // 是否禁用
+            visiable: true,                    // 是否可见
+            errMsg: '',                        // 错误文案
+            className: '',                     // 拓展的 className
+            children: []                       // 嵌套子组件
+          },
+          { 
+            key: 'highestEdu',
+            title: '最高学历',
+            widget: 'autoform-btn-modal',
+            widgetOption: {},
+            eventHandler: {},
+            disabled: false,
+            visiable: true,
+            errMsg: '',
+            className: '',
+            children: []
+          }
+        ]
       }
     }
-  },
-  uiItems: [    // 表单操作项
-    { 
-      key: 'name',                       // 操作项对应字段
-      title: '姓名',                      // 操作项标题
-      widget: 'autoform-input',          // 操作项使用的组件名
-      widgetOption: {},                  // 每个组件的配置项
-      eventHandler: {},                  // 事件处理
-      disabled: false,                   // 是否禁用
-      visiable: true,                    // 是否可见
-      errMsg: '',                        // 错误文案
-      className: '',                     // 拓展的 className
-      children: []                       // 嵌套子组件
-    },
-    { 
-      key: 'highestEdu',
-      title: '最高学历',
-      widget: 'autoform-btn-modal',
-      widgetOption: {},
-      eventHandler: {},
-      disabled: false,
-      visiable: true,
-      errMsg: '',
-      className: '',
-      children: []
-    },
-  ]
+  }
 }
 ```
 
-
 ### 表单组件的通讯
+
+表单组件的通讯仍然遵照 props / event 的形式进行。每个表单配置单元对外暴露了2个基础的 props：
+
+* formData
+* uiSchema
+
+其中 formData 属性包含了这个表单配置单元里面所有的表单字段，uiSchema 即对表单配置单元的描述。
 
 ### 表单组件的API
 
