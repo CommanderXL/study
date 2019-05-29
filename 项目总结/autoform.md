@@ -105,7 +105,7 @@ export default {
           { 
             key: 'name',                       // 操作项对应字段
             title: '姓名',                      // 操作项标题
-            widget: 'autoform-input',          // 操作项使用的组件名
+            widget: 'vue-autoform-input',      // 操作项使用的组件名
             widgetOption: {},                  // 每个组件的配置项
             eventHandler: {},                  // 事件处理
             disabled: false,                   // 是否禁用
@@ -117,7 +117,7 @@ export default {
           { 
             key: 'highestEdu',
             title: '最高学历',
-            widget: 'autoform-btn-modal',
+            widget: 'vue-autoform-picker',
             widgetOption: {},
             eventHandler: {},
             disabled: false,
@@ -137,14 +137,33 @@ export default {
 
 表单组件的通讯仍然遵照 props / event 的形式进行。每个表单配置单元对外暴露了2个基础的 props：
 
-* formData
+* formData(使用`.sync`修饰符进行数据的双向绑定)
 * uiSchema
 
-其中 formData 属性包含了这个表单配置单元里面所有的表单字段，uiSchema 即对表单配置单元的描述。
+其中 formData 属性包含了这个表单配置单元里面所有的表单字段，表单字段相关的数据变化都体现在 formData 当中，uiSchema 是对表单配置单元的描述。
+
+```html
+<template>
+  <vue-autoform :formData.sync="formData" :uiSchema="uiSchema"></vue-autoform>
+</template>
+```
+
+```javascript
+export default {
+  data() {
+    return {
+      formData: {},
+      uiSchema: {}
+    }
+  }
+}
+```
 
 ### 表单组件的API
 
 ## 表单组件的拓展机制
+
+在使用表单组件这块提供了注册的机制去拓展相关的插件
 
 ## 表单与表单之间的联动
 
