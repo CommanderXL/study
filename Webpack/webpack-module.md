@@ -13,6 +13,39 @@ webpack 输出到 dist 目标文件夹当中的代码可以这样分为这样3�
 在 runtime bootstrap 当中有个核心的方法：
 
 ```javascript
+/******/ 	// install a JSONP callback for chunk loading
+/******/ 	function webpackJsonpCallback(data) {
+/******/ 		var chunkIds = data[0];
+/******/ 		var moreModules = data[1];
+/******/ 		var executeModules = data[2];
+/******/
+/******/ 		// add "moreModules" to the modules object,
+/******/ 		// then flag all "chunkIds" as loaded and fire callback
+/******/ 		var moduleId, chunkId, i = 0, resolves = [];
+/******/ 		for(;i < chunkIds.length; i++) {
+/******/ 			chunkId = chunkIds[i];
+/******/ 			if(installedChunks[chunkId]) {
+/******/ 				resolves.push(installedChunks[chunkId][0]);
+/******/ 			}
+/******/ 			installedChunks[chunkId] = 0;
+/******/ 		}
+/******/ 		for(moduleId in moreModules) {
+/******/ 			if(Object.prototype.hasOwnProperty.call(moreModules, moduleId)) {
+/******/ 				modules[moduleId] = moreModules[moduleId];
+/******/ 			}
+/******/ 		}
+/******/ 		if(parentJsonpFunction) parentJsonpFunction(data);
+/******/
+/******/ 		while(resolves.length) {
+/******/ 			resolves.shift()();
+/******/ 		}
+/******/
+/******/ 		// add entry modules from loaded chunk to deferred list
+/******/ 		deferredModules.push.apply(deferredModules, executeModules || []);
+/******/
+/******/ 		// run deferred modules when all chunks ready
+/******/ 		return checkDeferredModules();
+/******/ 	};
 /******/ 	// The require function
 /******/ 	function __webpack_require__(moduleId) {
 /******/
@@ -81,4 +114,4 @@ function del(a, b) {
 }]);
 ```
 
-可以看到的是在 chunk 的最外层调用`window["webpackJsonp"]`上的`push`方法，这个方法接收了一个数组参数，其中第一项为这个 chunk 的 chunkId，第二项为这个 chunk 所包含的所有 module。我们可以看到这个 chunk 当中只包含了一个 moduleId 为 2 的 module，这个 module 为一个匿名的函数，接受了3个参数，即上文当中提到的有关每个 module 执行时所接收的。再回到刚才的那个例子，通过`import`语法引入了其他的模块，同时使用`export`语法导出了对应的方法或者对象。那么这个 module 通过 webpack 处理后变为一个匿名函数，原本模块当中使用的`import`语法会通过`__webpack_require__`方法来引入其他模块，原模块使用的`export`语法通过`__webpack_exports__`语法来导出相关的对象或者方法。
+可以看到的是在 chunk 的最外层调用`window["webpackJsonp"]`上的`push`（即`webpackJsonpCallback`）方法，这个方法接收了一个数组参数，其中第一项为这个 chunk 的 chunkId，第二项为这个 chunk 所包含的所有 module。在`webpackJsonpCallback`方法内部主要完成的工作就是收集 moduleId/module 之间的映射关系并缓存(这个时候这个 module 还未被执行，只有调用`__webpack_require__`方法的时候才会执行这个 module)，此外就是将在异步加载 module 时创建 promise 对象的 resolve 函数收集至一个 resolves 数组，然后一一推出并执行，即将那些异步加载的 promise 的状态进行 resolve，那么也就会执行这个 promise 通过 then 方法传入的回调函数。此外我们可以看到这个 chunk 当中只包含了一个 moduleId 为 2 的 module，这个 module 为一个匿名的函数，接受了3个参数，即上文当中提到的有关每个 module 执行时所接收的。再回到刚才的那个例子，通过`import`语法引入了其他的模块，同时使用`export`语法导出了对应的方法或者对象。那么这个 module 通过 webpack 处理后变为一个匿名函数，原本模块当中使用的`import`语法会通过`__webpack_require__`方法来引入其他模块，原模块使用的`export`语法通过`__webpack_exports__`语法来导出相关的对象或者方法。
