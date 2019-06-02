@@ -8,7 +8,7 @@ webpack 输出到 dist 目标文件夹当中的代码可以这样分为这样3�
 * 普通的 chunk
 * 通过 import 语法需要异步加载的 chunk
 
-其中 webpack runtime bootstrap 可以单独输出成一个 chunk，也可以使之包含于一个普通的 chunk 当中，这取决于你是否配置了相关的 chunk 优化策略，具体的内容参见[文档](https://www.google.com)
+其中 webpack runtime bootstrap 可以单独输出成一个 chunk，也可以使之包含于一个普通的 chunk 当中，这取决于你是否配置了相关的 chunk 优化策略，具体的内容参见[webpack相关文档](https://webpack.docschina.org/configuration/optimization/#optimization-runtimechunk)
 
 在 runtime bootstrap 当中有个核心的方法：
 
