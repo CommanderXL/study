@@ -2,15 +2,40 @@
 
 在我们使用 webpack 作为我们的构建工具来进行日常的业务开发过程中，我们可以借助 babel 这样的代码编译转化工具来使用 js 新版本所实现的特性，其中 ES Module 模块标准是 ES6 当中实现的，在一些低版本的浏览器当中肯定是没法直接使用 ES Module 的。所以我们需要借助 webpack 来完成相关的模块加载、执行等相关的工作，使得我们在源码当中写的遵照 ES Module 规范的代码能在低版本的浏览器当中运行。这篇文章主要就是来介绍下 webpack 自身为了达到这样一个目的从而实现的自己的一套模块系统。
 
+我们首先来看个简单的例子：
+
+```javascript
+// a.js
+import { add } from './b'
+
+add(1, 2)
+import(/* webpackChunkName: "c" */ './c.js').then(del => del(3, 4)) // 异步加载 c 模块
+```
+
+```javascript
+// b.js
+export function add(n1, n2) {
+  return n1 + n2
+}
+```
+
+```javascript
+// c.js
+export default function del(n1, n2) {
+  return n1 - n2
+}
+```
+
+
 webpack 输出到 dist 目标文件夹当中的代码可以这样分为这样3种：
 
 * webpack runtime bootstrap
 * 普通的 chunk
 * 通过 import 语法需要异步加载的 chunk
 
-其中 webpack runtime bootstrap 可以单独输出成一个 chunk，也可以使之包含于一个普通的 chunk 当中，这取决于你是否配置了相关的 chunk 优化策略，具体的内容参见[webpack相关文档](https://webpack.docschina.org/configuration/optimization/#optimization-runtimechunk)
+其中 webpack runtime bootstrap 可以单独输出成一个 chunk，也可以使之包含于一个普通的 chunk 当中，这取决于你是否配置了相关的 chunk 优化策略，具体的内容参见[webpack相关文档](https://webpack.docschina.org/configuration/optimization/#optimization-runtimechunk)，在这里例子当中我们配置的是将 runtime bootstrap 单独打包输出一个 chunk。
 
-在 runtime bootstrap 当中有个核心的方法：
+其中在 runtime bootstrap 当中有个核心的方法：
 
 ```javascript
 /******/ 	// install a JSONP callback for chunk loading
@@ -89,7 +114,7 @@ webpack 输出到 dist 目标文件夹当中的代码可以这样分为这样3�
 
 另外就是在 window 对象上定义了一个`webpackJsonp`数组对象。同时改写了这个数组的`push`方法为`webpackJsonpCallback`(这个方法的具体实现后面会讲)。
 
-接下来我们就来看下不包含 runtime bootstrap 代码的 module 打包后是什么样的：
+接下来我们就来看下不包含 runtime bootstrap 代码的 module 打包后是什么样的，我们看下需要异步加载的`c.js`最终打包出来的 chunk ：
 
 ```javascript
 (window["webpackJsonp"] = window["webpackJsonp"] || []).push([[2],{
@@ -100,6 +125,7 @@ webpack 输出到 dist 目标文件夹当中的代码可以这样分为这样3�
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "del", function() { return del; });
+// import 'css-loader!./css-demo.css'
 
 Promise.resolve(/* import() */).then(__webpack_require__.bind(null, 1)).then(function (add) {
   return add(1, 2);
