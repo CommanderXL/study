@@ -106,4 +106,4 @@ class Compiler {
 
 通过代码我们发现在创建子编译 compiler 的过程中是过滤掉了`make`/`compiler`/`emit`/`afterEmit`等 hooks 的触发函数的，即子编译流程相对于父编译流程来说的话不具备完整的构建流程。例如在父编译的流程开始阶段会触发 hooks.make 钩子，这样完成入口文件的添加及开始相关的编译流程，而子编译要想编译文件的话就需要需要你手动的在创建子编译的时候添加入口插件。父编译阶段使用 compiler 实例上的 run 方法开始进行，而子编译阶段有一个独立的 runAsChild 方法用以开始编译，其中在 runAsChild 方法的 callback 中可以看到在子编译阶段如果需要输出文件的话，是需要挂载到父编译的 compilation.assets 上的，子编译阶段是没有单独的 emitAssets 的阶段的。
 
-那么 childCompiler 子编译具体有哪些用途呢？在 webpack 官方的抽离 css chunk 的插件当中[mini-css-extract-plugin](https://github.com/webpack-contrib/mini-css-extract-plugin)当中
+那么 childCompiler 子编译具体有哪些用途呢？在 webpack 官方的抽离 css chunk 的插件当中[mini-css-extract-plugin](https://github.com/webpack-contrib/mini-css-extract-plugin)就是使用到了 childCompiler 子编译去完成 css 的抽离工作，它主要体现了这个插件内部会提供了一个单独的 pitch loader，使用这个 pitch loader 进行模块流程处理的拦截，创建新的 childCompiler。
