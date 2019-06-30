@@ -12,13 +12,15 @@
 
 ![webpack-debug-3](../images/webpack/webpack-debug-3.jpeg)
 
-VScode 会帮你在项目的根目录下初始化一个 .vscode/launch.json 文件。接下来就进行 debugger 相关的配置。
+VScode 会帮你在项目的根目录下初始化一个 .vscode/launch.json 文件，接下来就进行 debugger 相关的配置。
 
 2. 写配置
 
-name: 这个 debugger 任务名
-program: 程序的绝对路径，当 debugger 启动时所执行的文件。
-args: 传递给程序的命令行参数。
+一些字段名：
+
+- name: 这个 debugger 任务名
+- program: 程序的绝对路径，当 debugger 启动时所执行的文件。
+- args: 传递给程序的命令行参数。
 
 例如在我的一个 vue 项目当中，webpack 被 vue-cli-service 封装到里面了，项目相关的一些构建的命令都需要通过 vue-cli-service 提供的 node bash (具体可参见通过 vue-cli 生成的项目中 package.json 配置的 npm script)进行启动。因此我需要进行的 lanuch.json 的配置就是：
 
@@ -44,11 +46,12 @@ args: 传递给程序的命令行参数。
 
 这些配置好了之后即可按 F5 开始进行 debugger 了。
 
+4. 调试
+
+webpack 的插件设计决定了不同模块之间的解耦和离散化。因此你在调试代码的过程中进行打断点、单步调试、单步跳过的时候经常就跳到了另外一个模块当中了，不过 VScode 提供的 debugger 功能非常的强大，有关运行时、上下文、变量等内容都可以非常清晰的看到。例如我比较喜欢在 VScode 的全局配置中将 Debug:Inline Values 打开(在 VScode 设置当中进行配置)，这样会更加方便查阅相关信息。此外 VScode 还提供了 conditional breakPointer/inline breakPointer/log point 等等断点方便你进行调试，具体请查阅相关文档。
+
+---
+
 具体有关 VScode debugger 的一些使用方法和技巧，可查阅相关文档：
 
 * [Debugger](https://code.visualstudio.com/docs/editor/debugging)
-
-
-Some Tips:
-
-webpack 的插件设计决定了不同模块之间的解耦和离散化。因此你在调试代码的过程中进行打断点、单步调试、单步跳过的时候经常就跳到了另外一个模块当中了，不过 VScode 提供的 debugger 功能非常的强大，有关运行时、上下文、变量等内容都可以非常清晰的看到。例如我比较喜欢在 VScode 的全局配置中将 Debug:Inline Values 打开(在 VScode 设置当中进行配置)，这样会更加方便查阅相关信息。此外 VScode 还提供了 conditional breakPointer/inline breakPointer/log point 等等断点方便你进行调试，具体请查阅相关文档。
