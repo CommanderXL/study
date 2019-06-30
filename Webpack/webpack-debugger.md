@@ -22,7 +22,7 @@ VScode 会帮你在项目的根目录下初始化一个 .vscode/launch.json 文�
 - program: 程序的绝对路径，当 debugger 启动时所执行的文件。
 - args: 传递给程序的命令行参数。
 
-例如在我的一个 vue 项目当中，webpack 被 vue-cli-service 封装到里面了，项目相关的一些构建的命令都需要通过 vue-cli-service 提供的 node bash (具体可参见通过 vue-cli 生成的项目中 package.json 配置的 npm script)进行启动。因此我需要进行的 lanuch.json 的配置就是：
+例如在我的一个 vue 项目当中，webpack 被 vue-cli-service 封装到里面了，项目相关的一些构建的命令都需要通过 vue-cli-service 提供的 node bash (具体可参见通过 vue-cli 生成的项目中 package.json 配置的 npm script)进行启动，如果我想对项目进行编译构建实际上就是执行的`vue-cli-service build`命令。因此我需要进行的 lanuch.json 的配置就是：
 
 ```javascript
 {
