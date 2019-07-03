@@ -44,6 +44,7 @@ fetchValue()
 ```javascript
 'use strict'
 
+// 将 async 进行 generator 化之后单步执行任务的方法
 function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
   try {
     var info = gen[key](arg)
@@ -52,25 +53,30 @@ function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
     reject(error)
     return
   }
+  // 如果这个异步队列执行完后，那么就会 resolve 这个值
   if (info.done) {
     resolve(value)
   } else {
+    // 否则放到下一个 mircoTask 里面去执行
     Promise.resolve(value).then(_next, _throw)
   }
 }
 
+// 返回一个匿名函数，这个匿名函数内部使用 Promise 进行一层包裹。即将 async 进行 generator 化
 function _asyncToGenerator(fn) {
   return function() {
     var self = this,
       args = arguments
     return new Promise(function(resolve, reject) {
       var gen = fn.apply(self, args)
+      // 异步任务队列的执行器，即相当于 generator 函数返回值的 next 方法，每次调用 next 方法的时候就去执行下一个异步任务操作
       function _next(value) {
         asyncGeneratorStep(gen, resolve, reject, _next, _throw, 'next', value)
       }
       function _throw(err) {
         asyncGeneratorStep(gen, resolve, reject, _next, _throw, 'throw', err)
       }
+      // 启动异步任务队列
       _next(undefined)
     })
   }
@@ -127,7 +133,111 @@ var fetchValue =
 fetchValue()
 ```
 
-我们观察下编译后的代码有几个函数需要我们关注下
+我们观察下编译后的代码有几个函数需要我们关注下：`_asyncToGenerator`，`asyncGeneratorStep`这 2 个函数的说明在上面的代码当中有注释说明。这里需要注意的是代码中出现了一个`regeneratorRuntime`这样一个对象(方法)，且提供了 mark，wrap 方法 ，但是在编译后的代码当中是没有看到有关这个对象的定义的。这个其实是 facebook 提供的一个编译转化 generator 函数的库，具体可查看其[github](https://github.com/facebook/regenerator/tree/master/packages/regenerator-runtime)。这里就不深入解释这个库里面的代码细节了，这里借用羽讶大大整理出的一个简化版的`regeneratorRuntime`，我们通过这个简化版去理解下这个 workflow：
+
+```javascript
+;(function() {
+  var ContinueSentinel = {}
+
+  // 创建一个只有 next 方法的对象实例
+  var mark = function(genFun) {
+    var generator = Object.create({
+      next: function(arg) {
+        return this._invoke('next', arg)
+      }
+    })
+    genFun.prototype = generator
+    return genFun
+  }
+
+  function wrap(innerFn, outerFn, self) {
+    // 继承拥有 next 方法的对象实例
+    var generator = Object.create(outerFn.prototype)
+
+    var context = {
+      done: false,
+      method: 'next',
+      next: 0,
+      prev: 0,
+      sent: undefined,
+      abrupt: function(type, arg) {
+        var record = {}
+        record.type = type
+        record.arg = arg
+
+        return this.complete(record)
+      },
+      complete: function(record, afterLoc) {
+        if (record.type === 'return') {
+          this.rval = this.arg = record.arg
+          this.method = 'return'
+          this.next = 'end'
+        }
+
+        return ContinueSentinel
+      },
+      stop: function() {
+        this.done = true
+        return this.rval
+      }
+    }
+
+    // 给这个对象实例添加 _invoke 方法
+    generator._invoke = makeInvokeMethod(innerFn, context)
+
+    return generator
+  }
+
+  // 创建 invoke 方法，通过闭包来缓存这个 workflow 的状态
+  function makeInvokeMethod(innerFn, context) {
+    var self = this
+    var state = 'start'
+
+    return function invoke(method, arg) {
+      if (state === 'completed') {
+        return { value: undefined, done: true }
+      }
+
+      // 记录当前 workflow 进行的方法及参数 arg
+      context.method = method
+      context.arg = arg
+
+      while (true) {
+        state = 'executing'
+
+        if (context.method === 'next') {
+          context.sent = context._sent = context.arg // 需要传递的参数
+        }
+
+        var record = {
+          type: 'normal',
+          arg: innerFn.call(self, context)
+        }
+
+        if (record.type === 'normal') {
+          state = context.done ? 'completed' : 'yield'
+
+          if (record.arg === ContinueSentinel) {
+            continue
+          }
+
+          return {
+            value: record.arg,
+            done: context.done
+          }
+        }
+      }
+    }
+  }
+
+  global.regeneratorRuntime = {}
+
+  regeneratorRuntime.wrap = wrap
+  regeneratorRuntime.mark = mark
+})()
+```
+
+我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部，
 
 
 https://github.com/mqyqingfeng/Blog/issues/103
