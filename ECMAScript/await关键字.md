@@ -188,7 +188,7 @@ fetchValue()
     return generator
   }
 
-  // 创建 invoke 方法，通过闭包来缓存这个 workflow 的状态
+  // 创建 invoke 方法，通过闭包来缓存这个 workflow 的状态标志位，当然这个状态标志位也可以放到外面作为一个局部变量，但是通过闭包的形式去实现，可以实现私用变量，这个变量也就不会受到外界代码的影响而被篡改，更加安全。
   function makeInvokeMethod(innerFn, context) {
     var self = this
     var state = 'start'
@@ -237,7 +237,7 @@ fetchValue()
 })()
 ```
 
-我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部，
+我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部。
 
 
 https://github.com/mqyqingfeng/Blog/issues/103
