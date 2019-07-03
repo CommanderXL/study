@@ -57,7 +57,7 @@ function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
   if (info.done) {
     resolve(value)
   } else {
-    // 否则放到下一个 mircoTask 里面去执行
+    // 如果异步队列还未执行完，那么就需要后面的任务放到下一个 mircoTask 里面去执行，等上一个异步任务执行完后才会执行后面的任务
     Promise.resolve(value).then(_next, _throw)
   }
 }
@@ -222,7 +222,7 @@ fetchValue()
           }
 
           return {
-            value: record.arg,
+            value: record.arg, // 如果返回的是一个 promise，那么就需要把后面的异步任务添加到这个 promise 的 then 方法回调里面
             done: context.done
           }
         }
