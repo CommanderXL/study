@@ -239,5 +239,8 @@ fetchValue()
 
 我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部。
 
+TODO: 
+
+一些思考：
 
 https://github.com/mqyqingfeng/Blog/issues/103
