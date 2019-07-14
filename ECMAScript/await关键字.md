@@ -46,6 +46,7 @@ fetchValue()
 
 // 将 async 进行 generator 化之后单步执行任务的方法
 function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
+  // 取 generator 这次执行后的 value
   try {
     var info = gen[key](arg)
     var value = info.value
@@ -68,6 +69,7 @@ function _asyncToGenerator(fn) {
     var self = this,
       args = arguments
     return new Promise(function(resolve, reject) {
+      // 获取 generator 实例
       var gen = fn.apply(self, args)
       // 异步任务队列的执行器，即相当于 generator 函数返回值的 next 方法，每次调用 next 方法的时候就去执行下一个异步任务操作
       function _next(value) {
@@ -139,13 +141,14 @@ fetchValue()
 ;(function() {
   var ContinueSentinel = {}
 
-  // 创建一个只有 next 方法的对象实例
   var mark = function(genFun) {
+    // 创建一个只有 next 方法的对象实例
     var generator = Object.create({
       next: function(arg) {
         return this._invoke('next', arg)
       }
     })
+    // 通过原型继承的方式去获取 next 方法
     genFun.prototype = generator
     return genFun
   }
@@ -185,6 +188,7 @@ fetchValue()
     // 给这个对象实例添加 _invoke 方法
     generator._invoke = makeInvokeMethod(innerFn, context)
 
+    // 返回一个 generator 实例，innerFn 作为 generator 的迭代器，传入 makeInvokeMethod 方法
     return generator
   }
 
