@@ -241,10 +241,11 @@ fetchValue()
 })()
 ```
 
-我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部。
+我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部首先创建一个具有 next 方法的的实例，并将 _callee 方法的 prototype 指向这个实例。这样通过 _callee 原型创建出来的实例也有具有了 next 方法。`regeneratorRuntime.wrap`方法接收2个参数(innerFn, outerFn)，对应到具体代码实现就是 _callee$ 和 _callee。通过代码我们可以看到，首先通过 outerFn(即 _callee)创建一个 generator 实例，并在这个 generator 实例上添加一个 _invoke 方法，这个方法是通过 makeInvokeMethod 方法接收 innerFn(即 _callee$)创建的。在整个 async 函数执行的过程中，每个 await 后面接的方法实际上都是执行的 innerFn，只是通过 makeInvokeMethod 这个方法对 innerFn 进行相关 runtime 的包装。
 
 TODO: 
 
 一些思考：
 
-https://github.com/mqyqingfeng/Blog/issues/103
+
+相关链接：https://github.com/mqyqingfeng/Blog/issues/103
