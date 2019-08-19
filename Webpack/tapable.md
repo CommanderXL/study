@@ -73,7 +73,7 @@ class Hook {
 			deprecateContext();
 		}
 		options = Object.assign({ type, fn }, options);
-		options = this._runRegisterInterceptors(options);
+		options = this._runRegisterInterceptors(options); // 执行绑定的拦截器
 		this._insert(options); // 处理这个 hook 绑定事件的位置
 	}
 
