@@ -1,25 +1,31 @@
 "use strict";
 
-var _regenerator = require("babel-runtime/regenerator");
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
 
-var _regenerator2 = _interopRequireDefault(_regenerator);
+var _regenerator = _interopRequireDefault(require("@babel/runtime/regenerator"));
 
-var _promise = require("babel-runtime/core-js/promise");
+require("core-js/modules/es6.promise");
 
-var _promise2 = _interopRequireDefault(_promise);
+require("core-js/modules/es6.object.to-string");
 
-var _asyncToGenerator2 = require("babel-runtime/helpers/asyncToGenerator");
+require("regenerator-runtime/runtime");
 
-var _asyncToGenerator3 = _interopRequireDefault(_asyncToGenerator2);
+var _asyncToGenerator2 = _interopRequireDefault(require("@babel/runtime/helpers/asyncToGenerator"));
 
-var a = function () {
-  var _ref = (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee() {
-    return _regenerator2.default.wrap(function _callee$(_context) {
+function a() {
+  return _a.apply(this, arguments);
+}
+
+function _a() {
+  _a = (0, _asyncToGenerator2["default"])(
+  /*#__PURE__*/
+  _regenerator["default"].mark(function _callee() {
+    return _regenerator["default"].wrap(function _callee$(_context) {
       while (1) {
         switch (_context.prev = _context.next) {
           case 0:
             _context.next = 2;
-            return new _promise2.default(function (resolve) {
+            return new Promise(function (resolve) {
               setTimeout(resolve, 3000);
             });
 
@@ -30,10 +36,5 @@ var a = function () {
       }
     }, _callee, this);
   }));
-
-  return function a() {
-    return _ref.apply(this, arguments);
-  };
-}();
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+  return _a.apply(this, arguments);
+}

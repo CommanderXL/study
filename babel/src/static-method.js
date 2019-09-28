@@ -1,4 +1,4 @@
-require('babel-polyfill')
+require('@babel/polyfill')
 
 // const vals = Object.values({ key: 'val' })
 

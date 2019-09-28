@@ -1,14 +1,17 @@
 {
   "presets": [
-    ["env", {
+    ["@babel/preset-env", {
       "targets": {
-        "node": "current"
+        "browsers": [
+          "> 0.01%",
+          "last 2 versions",
+          "not ie <= 8"
+        ]
       },
-      "useBuiltIns": "usage",
-      "debug": true
+      "useBuiltIns": "usage"
     }]
   ],
   "plugins": [
-    "transform-runtime"
+    "@babel/plugin-transform-runtime"
   ]
 }
