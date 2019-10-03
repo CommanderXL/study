@@ -14,6 +14,10 @@
 
 (🤔：为什么不把 json 配置给干掉，直接到 js 里面新增一个字段进行相关的配置呢？)
 
+在 vue 里面 import 一个 vue 文件，那么这个文件会被当做一个 dependency 去加入到 webpack 的编译流程当中。因此一个 mpx 文件当中如果需要引入其他页面/组件，那么也只需要在`usingComponents`定义好`组件名:路径`即可，mpx 提供的 webpack 插件来完成确定依赖关系，同时将被引入的页面/组件加入到编译构建的环节当中。接下来就来看下具体的实现：
+
+
+
 ### Render Function
 
 ### Wxs Module
