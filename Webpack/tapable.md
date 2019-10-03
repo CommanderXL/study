@@ -36,6 +36,19 @@ syncHook.call('a1', 'a2', () => {
 `hook.tap`方法接收2个参数，第一个参数为这个 hook 类型所绑定的事件名（字符串或者是对象的形式），需要注意的是事件名必须要定义否则会报错，在 tapable 内部使用事件名作为绑定的 hook 的唯一标识。第二个参数为对应的 callback，这个 callback 所接收的参数和声明这个 hook 所传入的参数一一对应。
 
 ```javascript
+const CALL_DELEGATE = function(...args) {
+	this.call = this._createCall("sync"); // 重置 call 方法，那么下次再调用 hook.call 方法的时候就是被重置后的方法了
+	return this.call(...args);
+};
+const CALL_ASYNC_DELEGATE = function(...args) {
+	this.callAsync = this._createCall("async"); // 重置 callAsync 方法
+	return this.callAsync(...args);
+};
+const PROMISE_DELEGATE = function(...args) {
+	this.promise = this._createCall("promise"); // 重置 promise 方法
+	return this.promise(...args);
+};
+
 class Hook {
   constructor(args = [], name = undefined) {
 		this._args = args;
@@ -56,7 +69,19 @@ class Hook {
 		this.tapPromise = this.tapPromise;
   }
   
-  ...
+	// compile 方法必须被复写，否则会报错
+	compile(options) {
+		throw new Error("Abstract: should be overridden");
+	}
+	
+	_createCall(type) {
+		return this.compile({
+			taps: this.taps,
+			interceptors: this.interceptors,
+			args: this._args,
+			type: type
+		});
+	}
 
   _tap(type, options, fn) {
 		if (typeof options === "string") { // 如果 tap 接收到的第一个参数为字符串，那么直接转为 object 形式
@@ -89,8 +114,15 @@ class Hook {
 	tapPromise(options, fn) {
 		this._tap("promise", options, fn);
   }
-  
-  ...
+	
+	...
+
+  // 重置内部的调用的3个方法
+	_resetCompilation() {
+		this.call = this._call;
+		this.callAsync = this._callAsync;
+		this.promise = this._promise;
+	}
 
   // 提供 stage / before 等接口来控制不同钩子的位置
 	_insert(item) {
@@ -131,4 +163,21 @@ class Hook {
 }
 ```
 
-最终经过`_insert`方法的处理，hook 所绑定的事件及其 callback 得以确认最终的顺序。
+最终经过`_insert`方法的处理，hook 所绑定的事件及其 callback 得以确认最终的顺序。需要注意的一个地方是在`_insert`方法内部，一开始就调用了一个`_resetCompilation`的方法，可以看到在 Hook 基类中对外暴露的 hook 执行api方法有 call/callAsync/promise，同时内部还分别维护了执行 hook 方法有 \_call/\_callAsync/\_promise。每次给一个 hook 添加新的 callback 的时候，都会调用`_resetCompilation`方法重置对外暴露的 hook 执行api方法。那么在调用 hook 执行api的时候，即会对所有的 callback 进行重新编译生成可执行的代码字符串（下文会讲）。
+
+在 Hook 基类当中，所做的工作简单总结下就是：
+
+
+不过需要注意的就是 Hook 基类自身并不提供 compile 的方法，这个需要不同的 hook 类型去单独的实现，否则在调用 compile 方法生成可执行的代码字符串时会报错。而编译生成可执行代码字符串的过程中就涉及到了另外一个基类 HookCodeFactory，而这个基类所做的工作就是 meta programming，构建一套新的函数运行时环境。
+
+```javascript
+class HookCodeFactory {
+	constructor(config) {
+		this.config = config;
+		this.options = undefined;
+		this._args = undefined;
+	}
+
+	
+}
+```

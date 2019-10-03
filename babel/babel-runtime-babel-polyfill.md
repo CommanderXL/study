@@ -158,7 +158,7 @@ var b = new Map();
 
 这个配置项配合`target`字段，可以实现`polyfill`的按需引入，即`babel`根据你`target`配置的需要编译平台及相关的版本号，来引入需要的`polyfill`，如果这个版本已经支持了部分API，那么相关的`polyfill`便不需要再次引入。
 
-PS：不过这里需要注意的是`useBuiltIns`不同配置的区别，比如你使用的是`usage`，这样它会根据源代码中出现的语言特性自动检测需要的 polyfill。这确保了最终包里 polyfill 数量的最小化。，那么即使在你的代码入口文件当中没有引用`@babel/polyfill`的话，那么在编译后的代码会自动引入相关需要的 polyfill 的代码的。而使用`entry`配置的话，那么还需要你在源码当中引入`@babel/polyfill`，使用这种方式去引入 polyfill 的话，最终会将所有的 polyfill 的代码全部引入，那么必定也会有一定冗余的代码。
+PS：不过这里需要注意的是`useBuiltIns`不同配置的区别，比如你使用的是`usage`，这样它会根据源代码中出现的语言特性自动检测需要的 polyfill。这确保了最终包里 polyfill 数量的最小化。，那么即使在你的代码入口文件当中没有引用`@babel/polyfill`的话，那么在编译后的代码会自动引入相关需要的 polyfill 的代码的。而使用`entry`配置的话，那么还需要你在源码当中引入`@babel/polyfill`，使用这种方式去引入 polyfill 的话，最终会根据你所配置的 browserlist 目标所需要的所有的 polyfill 的代码全部引入，那么必定也会有一定冗余的代码。
 
 
 相关链接：

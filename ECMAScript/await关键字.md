@@ -241,11 +241,19 @@ fetchValue()
 })()
 ```
 
-我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部首先创建一个具有 next 方法的的实例，并将 _callee 方法的 prototype 指向这个实例。这样通过 _callee 原型创建出来的实例也有具有了 next 方法。`regeneratorRuntime.wrap`方法接收2个参数(innerFn, outerFn)，对应到具体代码实现就是 _callee$ 和 _callee。通过代码我们可以看到，首先通过 outerFn(即 _callee)创建一个 generator 实例，并在这个 generator 实例上添加一个 _invoke 方法，这个方法是通过 makeInvokeMethod 方法接收 innerFn(即 _callee$)创建的。在整个 async 函数执行的过程中，每个 await 后面接的方法实际上都是执行的 innerFn，只是通过 makeInvokeMethod 这个方法对 innerFn 进行相关 runtime 的包装。
+我们首先来看下`_asyncToGenerator`方法内部先执行`regeneratorRuntime.mark`方法，这个方法接收一个 _callee 方法，在`regeneratorRuntime.mark`方法内部首先创建一个具有 next 方法的的实例，并将 _callee 方法的 prototype 指向这个实例。这样通过 _callee 原型创建出来的实例也有具有了 next 方法。`regeneratorRuntime.wrap`方法接收2个参数(innerFn, outerFn)，对应到具体代码实现就是 _callee$ 和 _callee。通过代码我们可以看到，首先通过 outerFn(即 _callee)创建一个 generator 实例，并在这个 generator 实例上添加一个 _invoke 方法，这个方法是通过 makeInvokeMethod 方法接收 innerFn(即 _callee$)创建的。在整个 async 函数执行的过程中，每个 await 后面接的方法实际上都是执行的 innerFn，只是通过 makeInvokeMethod 这个方法对 innerFn 进行 runtime 的包装。makeInvokeMethod 方法返回一个函数，这个函数每次执行后都返回一个对象({ value, done })，包含了这次 innerFn 执行后返回的 value 结果，以及整个 async 函数的异步操作是否执行完的状态标志位 done。我们返回到上面的 asyncGeneratorStep 函数看下，如果异步操作没有完成，那么就将下一个异步的操作放到这个异步操作的 then 方法当中，这样也就完成了一系列的异步操作的顺序执行。也就是模拟了 await 方法的同步顺序执行的操作。
 
-TODO: 
+### 一些思考：
 
-一些思考：
+在使用 js 的过程中，异步流程控制是我们经常遇到的一种场景。我们也经历了从 callback -> promise -> generator -> async/await 这一异步流程控制的迭代和进化的过程。语言和标准层面的迭代让我们能更加方便容易的去应对这些异步操作。但是从编码学习的角度来说，还是很有必要去学习下这些 polyfill 的封装，例如本文分析的有关 babel 对于 async/await 的编译以模拟异步 -> 同步操作。
+
+通过了解编译后的源码，
+
+1. 高阶函数
+
+2. 闭包
+
+3. 递归
 
 
 相关链接：https://github.com/mqyqingfeng/Blog/issues/103
