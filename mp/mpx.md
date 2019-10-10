@@ -85,7 +85,9 @@ if (isApp) {
 ...
 ```
 
+这里需要解释说明下有关 webpack 提供的 SingleEntryPlugin 插件。这个插件是 webpack 提供的一个内置插件，当这个插件被挂载到 webpack 的编译流程的过程中是，会绑定`compiler.hooks.make.tapAsync`hook，当这个 hook 触发后会调用这个插件上的 SingleEntryPlugin.createDependency 静态方法去创建一个入口依赖，然后调用`compilation.addEntry`将这个依赖加入到编译的流程当中，这个是单入口文件的编译流程的最开始的一个步骤(具体可以参见 [Webpack SingleEntryPlugin 源码](https://github.com/webpack/webpack/blob/master/lib/SingleEntryPlugin.js))。
 
+Mpx 正是利用了 webpack 提供的这样一种能力，在遵照小程序的自定义组件的规范的前提下，解析 mpx json 配置文件的过程中，手动的调用 SingleEntryPlugin 相关的方法去完成动态入口的添加工作。这样也就串联起了所有的 mpx 文件的编译工作。
 
 
 ### Render Function
