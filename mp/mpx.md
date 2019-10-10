@@ -23,7 +23,69 @@ TODO: webpack-plugin 和 loader 的附属关系的实现
 require("!!../../node_modules/@mpxjs/webpack-plugin/lib/extractor?type=json&index=0!../../node_modules/@mpxjs/webpack-plugin/lib/json-compiler/index?root=!../../node_modules/@mpxjs/webpack-plugin/lib/selector?type=json&index=0!./list.mpx")
 ```
 
-这样就可以看到 list.mpx 这个文件首先 selector(抽离`list.mpx`当中有关 json 的配置，并传入到 json-compiler 当中) --->>> json-compiler(对 json 配置进行处理，添加动态入口等) --->>> extractor(利用 child compiler 单独生成 json 配置文件)
+这样可以清楚的看到 list.mpx 这个文件首先 selector(抽离`list.mpx`当中有关 json 的配置，并传入到 json-compiler 当中) --->>> json-compiler(对 json 配置进行处理，添加动态入口等) --->>> extractor(利用 child compiler 单独生成 json 配置文件)
+
+其中动态添加入口的处理流程是在 json-compiler 当中去完成的。例如在你的 `page/home.mpx` 文件当中的 json 配置中使用了 局部组件 `components/list.mpx`:
+
+```javascript
+<script type="application/json">
+  {
+    "usingComponents": {
+      "list": "../components/list"
+    }
+  }
+</script>
+```
+
+在 json-compiler 当中：
+
+```javascript
+...
+
+const addEntrySafely = (resource, name, callback) => {
+  // 如果loader已经回调，就不再添加entry
+  if (callbacked) return callback()
+  // 使用 webpack 提供的 SingleEntryPlugin 插件创建一个单文件的入口依赖(即这个 component)
+  const dep = SingleEntryPlugin.createDependency(resource, name)
+  entryDeps.add(dep)
+  // compilation.addEntry 方法开始将这个需要被编译的 component 作为依赖添加到 webpack 的构建流程当中
+  // 这里可以看到的是整个动态添加入口文件的过程是深度优先的
+  this._compilation.addEntry(this._compiler.context, dep, name, (err, module) => {
+    entryDeps.delete(dep)
+    checkEntryDeps()
+    callback(err, module)
+  })
+}
+
+const processComponent = (component, context, rewritePath, componentPath, callback) => {
+  ...
+  // 调用 loaderContext 上提供的 resolve 方法去解析这个 component path 完整的路径，以及这个 component 所属的 package 相关的信息(例如 package.json 等)
+  this.resolve(context, component, (err, rawResult, info) => {
+    ...
+    componentPath = componentPath || path.join(subPackageRoot, 'components', componentName + hash(result), componentName)
+    ...
+    // component path 解析完之后，调用 addEntrySafely 开始在 webpack 构建流程中动态添加入口
+    addEntrySafely(rawResult, componentPath, callback)
+  })
+}
+
+if (isApp) {
+  ...
+} else {
+  if (json.usingComponents) {
+    // async.forEachOf 流程控制依次调用 processComponent 方法
+    async.forEachOf(json.usingComponents, (component, name, callback) => {
+      processComponent(component, this.context, (path) => {
+        json.usingComponents[name] = path
+      }, undefined, callback)
+    }, callback)
+  }
+  ...
+}
+...
+```
+
+
 
 
 ### Render Function
