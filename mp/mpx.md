@@ -93,6 +93,25 @@ Mpx 正是利用了 webpack 提供的这样一种能力，在遵照小程序的�
 
 ### Render Function
 
+Render Function 这块的内容我觉得是 Mpx 设计上的一大亮点内容。Mpx 引入 Render Function 主要解决的问题是性能优化方向相关的，因为小程序的架构设计，逻辑层和渲染层是2个独立的。
+
+TODO: 描述下关于小程序架构相关的内容。
+
+这里我直接引用 Mpx 有关 Render Function 对于性能优化相关的描述：
+
+> 作为一个接管了小程序setData的数据响应开发框架，我们高度重视Mpx的渲染性能，通过小程序官方文档中提到的性能优化建议可以得知，setData对于小程序性能来说是重中之重，setData优化的方向主要有两个：
+
+> * 尽可能减少setData调用的频次
+> * 尽可能减少单次setData传输的数据
+> 为了实现以上两个优化方向，我们做了以下几项工作：
+
+> 将组件的静态模板编译为可执行的render函数，通过render函数收集模板数据依赖，只有当render函数中的依赖数据发生变化时才会触发小程序组件的setData，同时通过一个异步队列确保一个tick中最多只会进行一次setData，这个机制和Vue中的render机制非常类似，大大降低了setData的调用频次；
+
+> 将模板编译render函数的过程中，我们还记录输出了模板中使用的数据路径，在每次需要setData时会根据这些数据路径与上一次的数据进行diff，仅将发生变化的数据通过数据路径的方式进行setData，这样确保了每次setData传输的数据量最低，同时避免了不必要的setData操作，进一步降低了setData的频次。
+
+接下来我们看下 Mpx 是如何实现 Render Function 的。
+
+
 ### Wxs Module
 
 ## 运行时环节
