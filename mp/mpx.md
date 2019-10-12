@@ -109,10 +109,20 @@ TODO: 描述下关于小程序架构相关的内容。
 
 > 将模板编译render函数的过程中，我们还记录输出了模板中使用的数据路径，在每次需要setData时会根据这些数据路径与上一次的数据进行diff，仅将发生变化的数据通过数据路径的方式进行setData，这样确保了每次setData传输的数据量最低，同时避免了不必要的setData操作，进一步降低了setData的频次。
 
-接下来我们看下 Mpx 是如何实现 Render Function 的。
+接下来我们看下 Mpx 是如何实现 Render Function 的。这里我们从一个简单的 demo 来说起：
+
+```javascript
+<template>
+  <view></view>
+</template>
+```
+
+`.mpx` 文件经过 loader 编译转换的过程中。对于 template 模块的处理和 vue 类似，首先将 template 转化为 AST，然后在 generate code 的过程当中去针对模板
 
 
 ### Wxs Module
+
+### template/script/style/json 模块单文件的生成
 
 ## 运行时环节
 
@@ -121,4 +131,6 @@ TODO: 描述下关于小程序架构相关的内容。
 ### 基于数据路径的diff
 
 ### 数据更新
+
+### 事件系统
 
