@@ -97,7 +97,7 @@ Render Function 这块的内容我觉得是 Mpx 设计上的一大亮点内容�
 
 TODO: 描述下关于小程序架构相关的内容。
 
-这里我直接引用 Mpx 有关 Render Function 对于性能优化相关的描述：
+这里直接引用 Mpx 有关 Render Function 对于性能优化相关开发工作的描述：
 
 > 作为一个接管了小程序setData的数据响应开发框架，我们高度重视Mpx的渲染性能，通过小程序官方文档中提到的性能优化建议可以得知，setData对于小程序性能来说是重中之重，setData优化的方向主要有两个：
 
@@ -113,11 +113,67 @@ TODO: 描述下关于小程序架构相关的内容。
 
 ```javascript
 <template>
-  <view></view>
+  <text>Computed reversed message: "{{ reversedMessage }}"</text>
+  <view>the c string {{ demoObj.a.b.c }}</view>
+  <view wx:class="{{ { active: isActive } }}"></view>
 </template>
+
+<script>
+import { createComponent } from "@mpxjs/core";
+
+createComponent({
+  data: {
+    isActive: true,
+    message: 'messages',
+    demoObj: {
+      a: {
+        b: {
+          c: 'c'
+        }
+      }
+    }
+  },
+  computed() {
+    reversedMessage() {
+      return this.message.split('').reverse().join('')
+    }
+  }
+})
+
+</script>
 ```
 
-`.mpx` 文件经过 loader 编译转换的过程中。对于 template 模块的处理和 vue 类似，首先将 template 转化为 AST，然后在 generate code 的过程当中去针对模板
+`.mpx` 文件经过 loader 编译转换的过程中。对于 template 模块的处理和 vue 类似，首先将 template 转化为 AST，然后再将 AST 转化为 code 的过程中做相关转化的工作，最终得到我们需要的 template 模板代码。
+
+在`packages/webpack-plugin/lib/template-compiler.js`模板处理 loader 当中:
+
+```javascript
+let renderResult = bindThis(`global.currentInject = {
+    moduleId: ${JSON.stringify(options.moduleId)},
+    render: function () {
+      var __seen = [];
+      var renderData = {};
+      ${compiler.genNode(ast)}return renderData;
+    }
+};\n`, {
+    needCollect: true,
+    ignoreMap: meta.wxsModuleMap
+  })
+```
+
+调用`compiler.genNode(ast)`方法完成 Render Function 核心代码的生成工作。例如在上面给出来的 demo 实例当中，通过`compiler.genNode(ast)`方法最终生成的代码为：
+
+```javascript
+((mpxShow)||(mpxShow)===undefined?'':'display:none;');
+if(( isActive )){
+}
+"Computed reversed message: \""+( reversedMessage )+"\"";
+"the c string "+( demoObj.a.b.c );
+(__injectHelper.transformClass("list", ( {active: isActive} )));
+```
+
+
+
 
 
 ### Wxs Module
