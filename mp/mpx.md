@@ -161,7 +161,7 @@ let renderResult = bindThis(`global.currentInject = {
   })
 ```
 
-调用`compiler.genNode(ast)`方法完成 Render Function 核心代码的生成工作。例如在上面给出来的 demo 实例当中，通过`compiler.genNode(ast)`方法最终生成的代码为：
+在 render 方法内部，创建 renderData 局部变量，调用`compiler.genNode(ast)`方法完成 Render Function 核心代码的生成工作，最终将这个 renderData 返回。例如在上面给出来的 demo 实例当中，通过`compiler.genNode(ast)`方法最终生成的代码为：
 
 ```javascript
 ((mpxShow)||(mpxShow)===undefined?'':'display:none;');
@@ -171,6 +171,48 @@ if(( isActive )){
 "the c string "+( demoObj.a.b.c );
 (__injectHelper.transformClass("list", ( {active: isActive} )));
 ```
+
+TODO: compiler.genNode 方法的具体的流程实现思路
+
+mpx 文件当中的 template 模块被初步处理成上面的代码后，可以看到这是一段可执行的 js 代码。那么这段 js 代码到底是用作何处呢？可以看到`compiler.genNode`方法是被包裹至`bindThis`方法当中的。即这段 js 代码还会被`bindThis`方法做进一步的处理。打开 bind-this.js 文件可以看到内部的实现其实就是一个 babel 的 transform plugin。在处理上面这段 js 代码的 AST 的过程中，通过这个插件对 js 代码做进一步的处理。最终这段 js 代码处理后的结果是：
+
+TODO: Babel 插件的具体功效
+
+```javascript
+/* mpx inject */ global.currentInject = {
+  moduleId: "2271575d",
+  render: function () {
+    var __seen = [];
+    var renderData = {};
+    (renderData["mpxShow"] = [this.mpxShow, "mpxShow"], this.mpxShow) || (renderData["mpxShow"] = [this.mpxShow, "mpxShow"], this.mpxShow) === undefined ? '' : 'display:none;';
+    "Computed reversed message: \"" + (renderData["reversedMessage"] = [this.reversedMessage, "reversedMessage"], this.reversedMessage) + "\"";
+    "the c string " + (renderData["demoObj.a.b.c"] = [this.demoObj.a.b.c, "demoObj"], this.__get(this.__get(this.__get(this.demoObj, "a"), "b"), "c"));
+    this.__get(__injectHelper, "transformClass")("list", { active: (renderData["isActive"] = [this.isActive, "isActive"], this.isActive) });
+    return renderData;
+  }
+};
+```
+
+bindThis 方法对于 js 代码的转化规则就是：
+
+1. 一个变量的访问形式，改造成 this.xxx 的形式；
+2. 对象属性的访问形式，改造成 this.__get(object, property) 的形式(this.__get方法为运行时 mpx runtime 提供的方法)
+
+这里的 this 为 mpx 构造的一个代理对象，在你业务代码当中调用 createComponent/createPage 方法传入的配置项，例如 data，都会通过这个代理对象转化为响应式的数据。
+
+需要注意的是不管哪种数据形式的改造，最终需要达到的效果就是确保在 Render Function 执行的过程当中，这些被模板使用到的数据能被正常的访问到，在访问的阶段中，这些被访问到的数据即被加入到 mpx 构建的整个响应式的系统当中。
+
+只要在 template 当中使用到的 data 数据(包括衍生的 computed 数据)，最终都会被 renderData 所记录，而记录的数据形式是例如：
+
+```javascript
+renderData['xxx'] = [this.xxx, 'xxx'] // 数组的形式，第一项为这个数据实际的值，第二项为这个数据的 firstKey(主要用以数据 diff 的工作)
+```
+
+以上就是 mpx 生成 Render Function 的整个过程。总结下 Render Function 所做的工作：
+
+1. 执行 render 函数，将渲染模板使用到的数据加入到响应式的系统当中；
+2. 返回 renderData 用以接下来的数据 diff 以及调用小程序的 setData 方法来完成视图的更新
+
 
 
 
