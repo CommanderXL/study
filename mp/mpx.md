@@ -213,14 +213,67 @@ renderData['xxx'] = [this.xxx, 'xxx'] // 数组的形式，第一项为这个数
 1. 执行 render 函数，将渲染模板使用到的数据加入到响应式的系统当中；
 2. 返回 renderData 用以接下来的数据 diff 以及调用小程序的 setData 方法来完成视图的更新
 
-
-
-
-
-
 ### Wxs Module
 
 ### template/script/style/json 模块单文件的生成
+
+不同于 Vue 借助 webpack 是将 Vue 单文件最终打包成单独的 js chunk 文件。而小程序的规范是每个页面/组件需要对应的 wxml/js/wxss/json 4个文件。因为 mpx 使用单文件的方式去组织代码，所以在编译环节所需要做的工作之一就是将 mpx 单文件当中不同 block 的内容拆解到对应文件类型当中。在动态入口编译的小节里面我们了解到 mpx 会分析每个 mpx 文件的引用依赖，从而去给这个文件创建一个 entry 依赖(SingleEntryPlugin)并加入到 webpack 的编译流程当中。我们还是继续看下 mpx loader 对于 mpx 单文件初步编译转化后的内容：
+
+```javascript
+/* script */
+export * from "!!babel-loader!../../node_modules/@mpxjs/webpack-plugin/lib/selector?type=script&index=0!./list.mpx"
+
+/* styles */
+require("!!../../node_modules/@mpxjs/webpack-plugin/lib/extractor?type=styles&index=0!../../node_modules/@mpxjs/webpack-plugin/lib/wxss/loader?root=&importLoaders=1&extract=true!../../node_modules/@mpxjs/webpack-plugin/lib/style-compiler/index?{\"id\":\"2271575d\",\"scoped\":false,\"sourceMap\":false,\"transRpx\":{\"mode\":\"only\",\"comment\":\"use rpx\",\"include\":\"/Users/XRene/demo/mpx-demo-source/src\"}}!stylus-loader!../../node_modules/@mpxjs/webpack-plugin/lib/selector?type=styles&index=0!./list.mpx")
+
+/* json */
+require("!!../../node_modules/@mpxjs/webpack-plugin/lib/extractor?type=json&index=0!../../node_modules/@mpxjs/webpack-plugin/lib/json-compiler/index?root=!../../node_modules/@mpxjs/webpack-plugin/lib/selector?type=json&index=0!./list.mpx")
+
+/* template */
+require("!!../../node_modules/@mpxjs/webpack-plugin/lib/extractor?type=template&index=0!../../node_modules/@mpxjs/webpack-plugin/lib/wxml/wxml-loader?root=!../../node_modules/@mpxjs/webpack-plugin/lib/template-compiler/index?{\"usingComponents\":[],\"hasScoped\":false,\"isNative\":false,\"moduleId\":\"2271575d\"}!../../node_modules/@mpxjs/webpack-plugin/lib/selector?type=template&index=0!./list.mpx")
+```
+
+接下来可以看下 styles/json/template 这3个 block 的处理流程是什么样。
+
+首先来看下 json block 的处理流程：`list.mpx -> json-compiler -> extractor`。第一个阶段 list.mpx 文件经由 json-compiler 的处理流程在前面的章节已经讲过，主要就是分析依赖增加动态入口的编译过程。当所有的依赖分析完后，调用 json-compiler loader 的异步回调函数：
+
+```javascript
+// lib/json-compiler/index.js
+
+module.exports = function (content) {
+
+  ...
+  const nativeCallback = this.async()
+  ...
+
+  let callbacked = false
+  const callback = (err, processOutput) => {
+    checkEntryDeps(() => {
+      callbacked = true
+      if (err) return nativeCallback(err)
+      let output = `var json = ${JSON.stringify(json, null, 2)};\n`
+      if (processOutput) output = processOutput(output)
+      output += `module.exports = JSON.stringify(json, null, 2);\n`
+      nativeCallback(null, output)
+    })
+  }
+}
+```
+
+这里我们可以看到经由 json-compiler 处理后，通过`nativeCallback`方法传入下一个 loader 的文本内容形如：
+
+```javascript
+var json = {
+  "usingComponents": {
+    "list": "/components/list397512ea/list"
+  }
+}
+
+module.exports = JSON.stringify(json, null, 2)
+```
+
+即这段文本内容会传递到下一个 loader 内部进行处理，即 extractor。
+
 
 ## 运行时环节
 
