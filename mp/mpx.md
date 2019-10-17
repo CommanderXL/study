@@ -272,7 +272,87 @@ var json = {
 module.exports = JSON.stringify(json, null, 2)
 ```
 
-即这段文本内容会传递到下一个 loader 内部进行处理，即 extractor。
+即这段文本内容会传递到下一个 loader 内部进行处理，即 extractor。接下来我们来看下 extractor 里面主要是实现了哪些功能：
+
+```javascript
+// lib/extractor.js
+
+module.exports = function (content) {
+  ...
+  const contentLoader = normalize.lib('content-loader')
+  let request = `!!${contentLoader}?${JSON.stringify(options)}!${this.resource}` // 构建一个新的 resource，且这个 resource 只需要经过 content-loader
+  let resultSource = defaultResultSource
+  const childFilename = 'extractor-filename'
+  const outputOptions = {
+    filename: childFilename
+  }
+  // 创建一个 child compiler
+  const childCompiler = mainCompilation.createChildCompiler(request, outputOptions, [
+    new NodeTemplatePlugin(outputOptions),
+    new LibraryTemplatePlugin(null, 'commonjs2'), // 最终输出的 chunk 内容遵循 commonjs 规范的可执行的模块代码 module.exports = (function(modules) {})([modules])
+    new NodeTargetPlugin(),
+    new SingleEntryPlugin(this.context, request, resourcePath),
+    new LimitChunkCountPlugin({ maxChunks: 1 })
+  ])
+
+  ...
+  childCompiler.hooks.thisCompilation.tap('MpxWebpackPlugin ', (compilation) => {
+    // 创建 loaderContext 时触发的 hook，在这个 hook 触发的时候，将原本从 json-compiler 传递过来的 content 内容挂载至 loaderContext.__mpx__ 属性上面以供接下来的 content -loader 来进行使用
+    compilation.hooks.normalModuleLoader.tap('MpxWebpackPlugin', (loaderContext, module) => {
+      // 传递编译结果，子编译器进入content-loader后直接输出
+      loaderContext.__mpx__ = {
+        content,
+        fileDependencies: this.getDependencies(),
+        contextDependencies: this.getContextDependencies()
+      }
+    })
+  })
+
+  let source
+
+  childCompiler.hooks.afterCompile.tapAsync('MpxWebpackPlugin', (compilation, callback) => {
+    // 这里 afterCompile 产出的 assets 的代码当中是包含 webpack runtime bootstrap 的代码，不过需要注意的是这个 source 模块的产出形式
+    // 因为使用了 new LibraryTemplatePlugin(null, 'commonjs2') 等插件。所以产出的 source 是可以在 node 环境下执行的 module
+    // 因为在 loaderContext 上部署了 exec 方法，即可以直接执行 commonjs 规范的 module 代码，这样就最终完成了 mpx 单文件当中不同模块的抽离工作
+    source = compilation.assets[childFilename] && compilation.assets[childFilename].source()
+
+    // Remove all chunk assets
+    compilation.chunks.forEach((chunk) => {
+      chunk.files.forEach((file) => {
+        delete compilation.assets[file]
+      })
+    })
+
+    callback()
+  })
+
+  childCompiler.runAsChild((err, entries, compilation) => {
+    ...
+    try {
+      // exec 是 loaderContext 上提供的一个方法，在其内部会构建原生的 node.js module，并执行这个 module 的代码
+      // 执行这个 module 代码后获取的内容就是通过 module.exports 导出的内容
+      let text = this.exec(source, request)
+      if (Array.isArray(text)) {
+        text = text.map((item) => {
+          return item[1]
+        }).join('\n')
+      }
+
+      let extracted = extract(text, options.type, resourcePath, +options.index, selfResourcePath)
+      if (extracted) {
+        resultSource = `module.exports = __webpack_public_path__ + ${JSON.stringify(extracted)};`
+      }
+    } catch (err) {
+      return nativeCallback(err)
+    }
+    if (resultSource) {
+      nativeCallback(null, resultSource)
+    } else {
+      nativeCallback()
+    }
+  })
+}
+```
 
 
 ## 运行时环节
