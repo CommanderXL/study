@@ -354,6 +354,15 @@ module.exports = function (content) {
 }
 ```
 
+稍微总结下上面的处理流程：
+
+1. 构建一个以当前模块路径及 content-loader 的 resource 路径
+2. 以这个 resource 路径作为入口模块，创建一个 childCompiler
+3. childCompiler 启动后，创建 loaderContext 的过程中，将 content 文本内容挂载至 loaderContext.__mpx__ 上，这样在 content-loader 在处理入口模块的时候仅仅就是取出这个 content 文本内容并返回。实际上这个入口模块经过 loader 的过程不会做任何的处理工作，仅仅是将父 compilation 传入的 content 返回出去。
+4. loader 处理模块的环节结束后，进入到 module.build 阶段，这个阶段对 content 内容没有太多的处理
+5. createAssets 阶段，输出 chunk。
+6. 将输出的 chunk 构建为一个原生的 node.js 模块并执行，获取从这个 chunk 导出的内容。
+
 
 ## 运行时环节
 
