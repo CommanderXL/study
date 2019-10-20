@@ -215,7 +215,7 @@ renderData['xxx'] = [this.xxx, 'xxx'] // 数组的形式，第一项为这个数
 
 ### Wxs Module
 
-Wxs 是小程序自己推出的一套脚本语言。[官方文档](https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/01wxs-module.html)给出的示例，wxs 模块必须要声明式的被 wxs 引用。和 js 在 jsCore 当中去运行不同的是 wxs 是在渲染线程当中去运行的。因此 wxs 的执行便少了一次从 jsCore 执行的线程和渲染线程的通讯，从这个角度来说是对代码执行效率和性能上的比较大的一个优化手段。
+Wxs 是小程序自己推出的一套脚本语言。[官方文档](https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/01wxs-module.html)给出的示例，wxs 模块必须要声明式的被 wxml 引用。和 js 在 jsCore 当中去运行不同的是 wxs 是在渲染线程当中去运行的。因此 wxs 的执行便少了一次从 jsCore 执行的线程和渲染线程的通讯，从这个角度来说是对代码执行效率和性能上的比较大的一个优化手段。
 
 有关官方提到的有关 wxs 的运行效率的问题还有待论证：
 
