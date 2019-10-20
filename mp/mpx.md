@@ -361,8 +361,17 @@ module.exports = function (content) {
 3. childCompiler 启动后，创建 loaderContext 的过程中，将 content 文本内容挂载至 loaderContext.__mpx__ 上，这样在 content-loader 在处理入口模块的时候仅仅就是取出这个 content 文本内容并返回。实际上这个入口模块经过 loader 的过程不会做任何的处理工作，仅仅是将父 compilation 传入的 content 返回出去。
 4. loader 处理模块的环节结束后，进入到 module.build 阶段，这个阶段对 content 内容没有太多的处理
 5. createAssets 阶段，输出 chunk。
-6. 将输出的 chunk 构建为一个原生的 node.js 模块并执行，获取从这个 chunk 导出的内容。
+6. 将输出的 chunk 构建为一个原生的 node.js 模块并执行，获取从这个 chunk 导出的内容。也就是模块通过`module.exports`导出的内容。
 
+所以上面的示例 demo 最终会输出一个 json 文件，里面包含的内容即为：
+
+```javascript
+{
+  "usingComponents": {
+    "list": "/components/list397512ea/list"
+  }
+}
+```
 
 ## 运行时环节
 
