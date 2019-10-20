@@ -215,6 +215,120 @@ renderData['xxx'] = [this.xxx, 'xxx'] // 数组的形式，第一项为这个数
 
 ### Wxs Module
 
+Wxs 是小程序自己推出的一套脚本语言。[官方文档](https://developers.weixin.qq.com/miniprogram/dev/reference/wxs/01wxs-module.html)给出的示例，wxs 模块必须要声明式的被 wxs 引用。和 js 在 jsCore 当中去运行不同的是 wxs 是在渲染线程当中去运行的。因此 wxs 的执行便少了一次从 jsCore 执行的线程和渲染线程的通讯，从这个角度来说是对代码执行效率和性能上的比较大的一个优化手段。
+
+有关官方提到的有关 wxs 的运行效率的问题还有待论证：
+
+> “在 android 设备中，小程序里的 wxs 与 js 运行效率无差异，而在 ios 设备中，小程序里的 wxs 会比 js 快 2~20倍。”
+
+因为 mpx 是对小程序做渐进增强，因此 wxs 的使用方式和原生的小程序保持一致。在你的`.mpx`文件当中的 template block 内通过路径直接去引入 wxs 模块即可使用：
+
+```javascript
+<template>
+  <wxs src="../wxs/components/list.wxs" module="list">
+  <view>{{ list.FOO }}</view>
+</template>
+
+
+// wxs/components/list.wxs
+
+const Foo = 'This is from list wxs module'
+module.exports = {
+  Foo
+}
+```
+
+在 template 模块经过 template-compiler 处理的过程中。模板编译器 compiler 在解析模板的 AST 过程中会针对 wxs 标签缓存一份 wxs 模块的映射表：
+
+```javascript
+{
+  meta: {
+    wxsModuleMap: {
+      list: '../wxs/components/list.wxs'
+    }
+  }
+}
+```
+
+当 compiler 对 template 模板解析完后，template-compiler 接下来就开始处理 wxs 模块相关的内容：
+
+```javascript
+// template-compiler/index.js
+
+module.exports = function (raw) {
+  ...
+
+  const addDependency = dep => {
+    const resourceIdent = dep.getResourceIdentifier()
+    if (resourceIdent) {
+      const factory = compilation.dependencyFactories.get(dep.constructor)
+      if (factory === undefined) {
+        throw new Error(`No module factory available for dependency type: ${dep.constructor.name}`)
+      }
+      let innerMap = dependencies.get(factory)
+      if (innerMap === undefined) {
+        dependencies.set(factory, (innerMap = new Map()))
+      }
+      let list = innerMap.get(resourceIdent)
+      if (list === undefined) innerMap.set(resourceIdent, (list = []))
+      list.push(dep)
+    }
+  }
+
+  // 如果有 wxsModuleMap 即为 wxs module 依赖的话，那么下面会调用 compilation.addModuleDependencies 方法
+  // 将 wxsModule 作为 issuer 的依赖再次进行编译，最终也会被打包进输出的模块代码当中
+  // 需要注意的就是 wxs module 不仅要被注入到 bundle 里的 render 函数当中，同时也会通过 wxs-loader 处理，单独输出一份可运行的 wxs js 文件供 wxml 引入使用
+  for (let module in meta.wxsModuleMap) {
+    isSync = false
+    let src = meta.wxsModuleMap[module]
+    const expression = `require(${JSON.stringify(src)})`
+    const deps = []
+    // parser 为 js 的编译器
+    parser.parse(expression, {
+      current: { // 需要注意的是这里需要部署 addDependency 接口，因为通过 parse.parse 对代码进行编译的时候，会调用这个接口来获取 require(${JSON.stringify(src)}) 编译产生的依赖模块
+        addDependency: dep => {
+          dep.userRequest = module
+          deps.push(dep)
+        }
+      },
+      module: issuer
+    })
+    issuer.addVariable(module, expression, deps) // 给 issuer module 添加 variable 依赖
+    iterationOfArrayCallback(deps, addDependency)
+  }
+
+  // 如果没有 wxs module 的处理，那么 template-compiler 即为同步任务，否则为异步任务
+  if (isSync) {
+    return result
+  } else {
+    const callback = this.async()
+
+    const sortedDependencies = []
+    for (const pair1 of dependencies) {
+      for (const pair2 of pair1[1]) {
+        sortedDependencies.push({
+          factory: pair1[0],
+          dependencies: pair2[1]
+        })
+      }
+    }
+
+    // 调用 compilation.addModuleDependencies 方法，将 wxs module 作为 issuer module 的依赖加入到编译流程中
+    compilation.addModuleDependencies(
+      issuer,
+      sortedDependencies,
+      compilation.bail,
+      null,
+      true,
+      () => {
+        callback(null, result)
+      }
+    )
+  }
+}
+```
+
+
 ### template/script/style/json 模块单文件的生成
 
 不同于 Vue 借助 webpack 是将 Vue 单文件最终打包成单独的 js chunk 文件。而小程序的规范是每个页面/组件需要对应的 wxml/js/wxss/json 4个文件。因为 mpx 使用单文件的方式去组织代码，所以在编译环节所需要做的工作之一就是将 mpx 单文件当中不同 block 的内容拆解到对应文件类型当中。在动态入口编译的小节里面我们了解到 mpx 会分析每个 mpx 文件的引用依赖，从而去给这个文件创建一个 entry 依赖(SingleEntryPlugin)并加入到 webpack 的编译流程当中。我们还是继续看下 mpx loader 对于 mpx 单文件初步编译转化后的内容：
