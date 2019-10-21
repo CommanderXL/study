@@ -489,11 +489,87 @@ module.exports = function (content) {
 
 ## 运行时环节
 
+以上几个章节主要是分析了几个 Mpx 在编译构建环节所做的工作。接下来我们来看下 Mpx 在运行时环节做了哪些工作。
+
 ### 响应式系统
 
-### 基于数据路径的diff
+小程序也是通过数据去驱动视图的渲染，需要手动的调用`setData`去完成这样一个动作。同时小程序的视图层也提供了用户交互的响应事件系统，在 js 代码中可以去注册相关的事件回调并在回调中去更改相关数据的值。Mpx 使用 Mobx 作为响应式数据工具并引入到小程序当中，使得小程序也有一套完成的响应式的系统，让小程序的开发有了更好的体验。
+
+还是从组件的角度开始分析 mpx 的整个响应式的系统。每次通过`createComponent`方法去创建一个新的组件，这个方法将原生的小程序创造组件的方法`Component`做了一层代理，例如在 attched 的生命周期钩子函数内部会注入一个 mixin：
+
+```javascript
+// attached 生命周期钩子 mixin
+
+attached() {
+  // 提供代理对象需要的api
+  transformApiForProxy(this, currentInject)
+  // 缓存options
+  this.$rawOptions = rawOptions // 原始的，没有剔除 customKeys 的 options 配置
+  // 创建proxy对象
+  const mpxProxy = new MPXProxy(rawOptions, this) // 将当前实例代理到 MPXProxy 这个代理对象上面去
+  this.$mpxProxy = mpxProxy // 在小程序实例上绑定 $mpxProxy 的实例
+  // 组件监听视图数据更新, attached之后才能拿到properties
+  this.$mpxProxy.created()
+}
+```
+
+在这个方法内部首先调用`transformApiForProxy`方法对组件实例上下文`this`做一层代理工作，在 context 上下文上去重置小程序的 setData 方法，同时拓展 context 相关的属性内容：
+
+```javascript
+function transformApiForProxy (context, currentInject) {
+  const rawSetData = context.setData.bind(context) // setData 绑定对应的 context 上下文
+  Object.defineProperties(context, {
+    setData: { // 重置 context 的 setData 方法
+      get () {
+        return this.$mpxProxy.setData.bind(this.$mpxProxy)
+      },
+      configurable: true
+    },
+    __getInitialData: {
+      get () {
+        return () => context.data
+      },
+      configurable: false
+    },
+    __render: { // 小程序原生的 setData 方法
+      get () {
+        return rawSetData
+      },
+      configurable: false
+    }
+  })
+  // context 绑定注入的render函数
+  if (currentInject) {
+    if (currentInject.render) { // 编译过程中生成的 render 函数
+      Object.defineProperties(context, {
+        __injectedRender: {
+          get () {
+            return currentInject.render.bind(context)
+          },
+          configurable: false
+        }
+      })
+    }
+    if (currentInject.getRefsData) {
+      Object.defineProperties(context, {
+        __getRefsData: {
+          get () {
+            return currentInject.getRefsData
+          },
+          configurable: false
+        }
+      })
+    }
+  }
+}
+```
+
+接下来实例化一个 mpxProxy 实例并挂载至 context 上下文的 $mpxProxy 属性上，并调用 mpxProxy 的 created 方法完成这个代理对象的初始化的工作。
+
 
 ### 数据更新
+
+### 基于数据路径的diff
 
 ### 事件系统
 
