@@ -564,7 +564,13 @@ function transformApiForProxy (context, currentInject) {
 }
 ```
 
-接下来实例化一个 mpxProxy 实例并挂载至 context 上下文的 $mpxProxy 属性上，并调用 mpxProxy 的 created 方法完成这个代理对象的初始化的工作。
+接下来实例化一个 mpxProxy 实例并挂载至 context 上下文的 $mpxProxy 属性上，并调用 mpxProxy 的 created 方法完成这个代理对象的初始化的工作。在 created 方法内部主要是完成了以下的几个工作：
+
+1. initApi，在组件实例 this 上挂载`$watch`,`$forceUpdate`,`$updated`,`$nextTick`等方法，这样在你的业务代码当中即可直接访问实例上部署好的这些方法；
+2. initData
+3. initComputed
+4. initWatch
+5. initRender
 
 
 ### 数据更新
