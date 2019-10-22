@@ -568,9 +568,10 @@ function transformApiForProxy (context, currentInject) {
 
 1. initApi，在组件实例 this 上挂载`$watch`,`$forceUpdate`,`$updated`,`$nextTick`等方法，这样在你的业务代码当中即可直接访问实例上部署好的这些方法；
 2. initData
-3. initComputed
-4. initWatch
-5. initRender
+3. initComputed，将 computed 计算属性字段全部代理至组件实例 this 上；
+4. 通过 Mobx observable 方法将 data 数据转化为响应式的数据；
+5. initWatch，初始化 watcher；
+6. initRender
 
 
 ### 数据更新
