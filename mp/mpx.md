@@ -570,8 +570,139 @@ function transformApiForProxy (context, currentInject) {
 2. initData
 3. initComputed，将 computed 计算属性字段全部代理至组件实例 this 上；
 4. 通过 Mobx observable 方法将 data 数据转化为响应式的数据；
-5. initWatch，初始化 watcher；
-6. initRender
+5. initWatch，初始化所有的 watcher 实例；
+6. initRender，初始化一个 renderWatcher 实例；
+
+这里我们具体的来看下 initRender 方法内部是如何进行工作的：
+
+```javascript
+export default class MPXProxy {
+  ...
+  initRender() {
+    let renderWatcher
+    let renderExcutedFailed = false
+    if (this.target.__injectedRender) { // webpack 注入的有关这个 page/component 的 renderFunction
+      renderWatcher = watch(this.target, () => {
+        if (renderExcutedFailed) {
+          this.render()
+        } else {
+          try {
+            return this.target.__injectedRender() // 执行 renderFunction，获取渲染所需的响应式数据
+          } catch(e) {
+            ...
+          }
+        }
+      }, {
+        handler: (ret) => {
+          if (!renderExcutedFailed) {
+            this.renderWithData(ret) // 渲染页面
+          }
+        },
+        immediate: true,
+        forceCallback: true
+      })
+    }
+  }
+  ...
+}
+```
+
+在 initRender 方法内部非常清楚的看到，首先判断这个 page/component 是否具有 renderFunction，如果有的话那么就直接实例化一个 renderWatcher：
+
+```javascript
+export default class Watcher {
+  constructor (context, expr, callback, options) {
+    this.destroyed = false
+    this.get = () => {
+      return type(expr) === 'String' ? getByPath(context, expr) : expr()
+    }
+    const callbackType = type(callback)
+    if (callbackType === 'Object') {
+      options = callback
+      callback = null
+    } else if (callbackType === 'String') {
+      callback = context[callback]
+    }
+    this.callback = typeof callback === 'function' ? action(callback.bind(context)) : null
+    this.options = options || {}
+    this.id = ++uid
+    // 创建一个新的 reaction
+    this.reaction = new Reaction(`mpx-watcher-${this.id}`, () => {
+      this.update()
+    })
+    // 在调用 getValue 函数的时候，实际上是调用 reaction.track 方法，这个方法内部会自动执行 effect 函数，即执行 this.update() 方法，这样便会出发一次模板当中的 render 函数来完成依赖的收集
+    const value = this.getValue()
+    if (this.options.immediateAsync) { // 放置到一个队列里面去执行
+      queueWatcher(this)
+    } else { // 立即执行 callback
+      this.value = value
+      if (this.options.immediate) {
+        this.callback && this.callback(this.value)
+      }
+    }
+  }
+
+  getValue () {
+    let value
+    this.reaction.track(() => {
+      value = this.get() // 获取注入的 render 函数执行后返回的 renderData 的值，在执行 render 函数的过程中，就会访问响应式数据的值
+      if (this.options.deep) {
+        const valueType = type(value)
+        // 某些情况下，最外层是非isObservable 对象，比如同时观察多个属性时
+        if (!isObservable(value) && (valueType === 'Array' || valueType === 'Object')) {
+          if (valueType === 'Array') {
+            value = value.map(item => toJS(item, false))
+          } else {
+            const newValue = {}
+            Object.keys(value).forEach(key => {
+              newValue[key] = toJS(value[key], false)
+            })
+            value = newValue
+          }
+        } else {
+          value = toJS(value, false)
+        }
+      } else if (isObservableArray(value)) {
+        value.peek()
+      } else if (isObservableObject(value)) {
+        keys(value)
+      }
+    })
+    return value
+  }
+
+  update () {
+    if (this.options.sync) {
+      this.run()
+    } else {
+      queueWatcher(this)
+    }
+  }
+
+  run () {
+    const immediateAsync = !this.hasOwnProperty('value')
+    const oldValue = this.value
+    this.value = this.getValue() // 重新获取新的 renderData 的值
+    if (immediateAsync || this.value !== oldValue || isObject(this.value) || this.options.forceCallback) {
+      if (this.callback) {
+        immediateAsync ? this.callback(this.value) : this.callback(this.value, oldValue)
+      }
+    }
+  }
+
+  destroy () {
+    this.destroyed = true
+    this.reaction.getDisposer()()
+  }
+}
+```
+
+Watcher 观察者核心实现的工作流程就是：
+
+1. 构建一个 Reaction 实例；
+2. 调用 getValue 方法，即 reaction.track，完成响应式数据的依赖收集；
+3. 根据 immediateAsync 配置来决定回调是放到下一帧还是立即执行；
+4. 当响应式数据发生变化的时候，执行 reaction 实例当中的回调函数，即`this.update()`方法来完成页面的重新渲染。
 
 
 ### 数据更新
