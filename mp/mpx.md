@@ -700,12 +700,11 @@ export default class Watcher {
 Watcher 观察者核心实现的工作流程就是：
 
 1. 构建一个 Reaction 实例；
-2. 调用 getValue 方法，即 reaction.track，完成响应式数据的依赖收集；
+2. 调用 getValue 方法，即 reaction.track，在这个方法内部执行过程中会调用 renderFunction，这样在 renderFunction 方法的执行过程中便会访问到渲染所需要的响应式的数据并完成依赖收集；
 3. 根据 immediateAsync 配置来决定回调是放到下一帧还是立即执行；
 4. 当响应式数据发生变化的时候，执行 reaction 实例当中的回调函数，即`this.update()`方法来完成页面的重新渲染。
 
-
-### 数据更新
+mpx 在构建这个响应式的系统当中，主要有2个大的环节，其一为在构建编译的过程中，将 template 模块转化为 renderFunction，提供了渲染模板时所需响应式数据的访问机制，并将 renderFunction 注入到运行时代码当中，其二就是在运行环节，mpx 通过构建一个小程序实例的代理对象，将小程序实例上的数据访问全部代理至 MPXProxy 实例上，而 MPXProxy 实例即 mpx 基于 Mobx 去构建的一套响应式数据对象，首先将 data 数据转化为响应式数据，其次提供了 computed 计算属性，watch 方法等一系列增强的拓展属性/方法，虽然在你的业务代码当中 page/component 实例 this 都是小程序提供的，但是最终经过代理机制，实际上访问的是 MPXProxy 所提供的增强功能，所以 mpx 也是通过这样一个代理对象去接管了小程序的实例。需要特别指出的是，mpx 将小程序官方提供的 setData 方法同样收敛至内部，这也是响应式系统提供的基础能力，即开发者只需要关注业务开发，而有关小程序渲染运行在 mpx 内部去帮你完成。
 
 ### 基于数据路径的diff
 
