@@ -713,13 +713,20 @@ mpx 在构建这个响应式的系统当中，主要有2个大的环节，其一
 由于小程序的双线程的架构设计，逻辑层和视图层之间需要桥接 native bridge。如果要完成视图层的更新，那么逻辑层需要调用 setData 方法，数据经由 native bridge，再到渲染层，这个工程流程为：
 
 > 小程序逻辑层调用宿主环境的 setData 方法；
+
 > 逻辑层执行 JSON.stringify 将待传输数据转换成字符串并拼接到特定的JS脚本，并通过evaluateJavascript 执行脚本将数据传输到渲染层；
+
 > 渲染层接收到后， WebView JS 线程会对脚本进行编译，得到待更新数据后进入渲染队列等待 WebView 线程空闲时进行页面渲染；
-> WebView 线程开始执行渲染时，待更新数据会合并到视图层保留的原始 data 数据，并将新数据套用在WXML片段中得到新的虚拟节点树。经过新虚拟节点树与当前节点树的 diff 对比，将差异部分更新到UI视图。同时，将新的节点树替换旧节点树，用于下一次重渲染。[文章来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
+
+> WebView 线程开始执行渲染时，待更新数据会合并到视图层保留的原始 data 数据，并将新数据套用在WXML片段中得到新的虚拟节点树。经过新虚拟节点树与当前节点树的 diff 对比，将差异部分更新到UI视图。同时，将新的节点树替换旧节点树，用于下一次重渲染。
+
+[文章来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
 
 而 setData 作为逻辑层和视图层之间通讯的核心接口，那么对于这个接口的使用遵照一些准则将有助于性能方面的提升。
 
 ### 尽可能的减少 setData 传输的数据
+
+
 
 ### 尽可能的减少 setData 的调用频次
 
