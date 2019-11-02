@@ -720,12 +720,13 @@ mpx 在构建这个响应式的系统当中，主要有2个大的环节，其一
 
 > WebView 线程开始执行渲染时，待更新数据会合并到视图层保留的原始 data 数据，并将新数据套用在WXML片段中得到新的虚拟节点树。经过新虚拟节点树与当前节点树的 diff 对比，将差异部分更新到UI视图。同时，将新的节点树替换旧节点树，用于下一次重渲染。
 
-[文章来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
+[来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
 
 而 setData 作为逻辑层和视图层之间通讯的核心接口，那么对于这个接口的使用遵照一些准则将有助于性能方面的提升。
 
 ### 尽可能的减少 setData 传输的数据
 
+Mpx 在这个方面所做的工作之一就是基于数据路径的 diff，每次响应式数据发生了变化，调用 setData 方法的时候确保传递的数据都为 diff 过后的最小数据集，这样来减少 setData 传输的数据。
 
 
 ### 尽可能的减少 setData 的调用频次
