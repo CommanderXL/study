@@ -720,13 +720,50 @@ mpx 在构建这个响应式的系统当中，主要有2个大的环节，其一
 
 > WebView 线程开始执行渲染时，待更新数据会合并到视图层保留的原始 data 数据，并将新数据套用在WXML片段中得到新的虚拟节点树。经过新虚拟节点树与当前节点树的 diff 对比，将差异部分更新到UI视图。同时，将新的节点树替换旧节点树，用于下一次重渲染。
 
-[来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
+[文章来源](https://mp.weixin.qq.com/s?__biz=MjM5MTA1MjAxMQ==&mid=2651232791&idx=1&sn=4b83b66d376b1331a992d242cb2a0f17&chksm=bd4943938a3eca853a687765397517cc0ab9cfe4c711705e8fd821bbea8a1ab3c115c8c2fc65&scene=21#wechat_redirect)
 
 而 setData 作为逻辑层和视图层之间通讯的核心接口，那么对于这个接口的使用遵照一些准则将有助于性能方面的提升。
 
 ### 尽可能的减少 setData 传输的数据
 
-Mpx 在这个方面所做的工作之一就是基于数据路径的 diff，每次响应式数据发生了变化，调用 setData 方法的时候确保传递的数据都为 diff 过后的最小数据集，这样来减少 setData 传输的数据。
+Mpx 在这个方面所做的工作之一就是基于数据路径的 diff。这也是官方所推荐的 setData 的方式。每次响应式数据发生了变化，调用 setData 方法的时候确保传递的数据都为 diff 过后的最小数据集，这样来减少 setData 传输的数据。
+
+接下来我们就来看下这个优化手段的具体实现思路，首先还是从一个简单的 demo 来看：
+
+```javascript
+<script>
+import { createComponent } from '@mpxjs/core'
+
+createComponent({
+  data: {
+    obj: {
+      a: {
+        c: 1,
+        d: 2
+      }
+    }
+  }
+  onShow() {
+    setTimeout(() => {
+      this.obj.a = {
+        c: 1,
+        d: 'd'
+      }
+    }, 200)
+  }
+})
+</script>
+```
+
+在示例 demo 当中，声明了一个 obj 对象(这个对象里面的内容在模块当中被使用到了)。然后经过 200ms 后，手动修改 obj.a 的值，因为对于 c 字段来说它的值没有发生改变，而 d 字段发生了改变。因此在 setData 方法当中也应该只更新 obj.a.d 的值，即：
+
+```javascript
+this.setData('obj.a.d', 'd')
+```
+
+因为 mpx 是整体接管了小程序当中有关调用 setData 方法并驱动视图更新的机制。所以当你在改变某些数据的时候，mpx 会帮你完成数据的 diff 工作，以保证每次调用 setData 方法时，传入的是最小的更新数据集。
+
+
 
 
 ### 尽可能的减少 setData 的调用频次
