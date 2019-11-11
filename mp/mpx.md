@@ -763,6 +763,12 @@ this.setData('obj.a.d', 'd')
 
 因为 mpx 是整体接管了小程序当中有关调用 setData 方法并驱动视图更新的机制。所以当你在改变某些数据的时候，mpx 会帮你完成数据的 diff 工作，以保证每次调用 setData 方法时，传入的是最小的更新数据集。
 
+这里也简单的分析下 mpx 是如何去实现这样的功能的。在上文的编译构建阶段有分析到 mpx 生成的 Render Function，这个 Render Function 每次执行的时候会返回一个 renderData，而这个 renderData 即用以接下来进行 setData 驱动视图渲染的原始数据。renderData 的数据组织形式是模板当中使用到的数据路径作为 key 键值，对应的值使用一个数组组织，数组第一项为数据的访问路径(可获取到对应渲染数据)，第二项为数据路径的第一个键值，例如在 demo 示例当中的 renderData 数据如下：
+
+```javascript
+renderData['obj.a.c'] = [this.obj.a.c, 'obj']
+renderData['obj.a.d'] = [this.obj.a.d, 'obj']
+```
 
 
 
