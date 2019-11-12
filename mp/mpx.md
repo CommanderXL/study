@@ -770,7 +770,95 @@ renderData['obj.a.c'] = [this.obj.a.c, 'obj']
 renderData['obj.a.d'] = [this.obj.a.d, 'obj']
 ```
 
+当页面第一次渲染，或者是响应式输出发生变化的时候，Render Function 都会被执行一次用以获取最新的 renderData 来进行接下来的页面渲染过程。
 
+```javascript
+// src/core/proxy.js
+
+class MPXProxy {
+  ...
+  renderWithData(rawRenderData) { // rawRenderData 即为 Render Function 执行后获取的初始化 renderData
+    const renderData = preprocessRenderData(rawRenderData) // renderData 数据的预处理
+    if (!this.miniRenderData) { // 最小数据渲染集，页面/组件初次渲染的时候使用 miniRenderData 进行渲染，初次渲染的时候是没有数据需要进行 diff 的
+      this.miniRenderData = {}
+      for (let key in renderData) { // 遍历数据访问路径
+        if (renderData.hasOwnProperty(key)) {
+          let item = renderData[key] 
+          let data = item[0]
+          let firstKey = item[1] // 某个字段 path 的第一个 key 值
+          if (this.localKeys.indexOf(firstKey) > -1) {
+            this.miniRenderData[key] = diffAndCloneA(data).clone
+          }
+        }
+      }
+      this.doRender(this.miniRenderData)
+    } else { // 非初次渲染使用 processRenderData 进行数据的处理，主要是需要进行数据的 diff 取值工作，并更新 miniRenderData 的值
+      this.doRender(this.processRenderData(renderData))
+    }
+  }
+
+  processRenderData(renderData) {
+    let result = {}
+    for (let key in renderData) {
+      if (renderData.hasOwnProperty(key)) {
+        let item = renderData[key]
+        let data = item[0]
+        let firstKey = item[1]
+        let { clone, diff } = diffAndCloneA(data, this.miniRenderData[key]) // 开始数据 diff
+        // firstKey 必须是为响应式数据的 key，且这个发生变化的 key 为 forceUpdateKey 或者是在 diff 阶段发现确实出现了 diff 的情况
+        if (this.localKeys.indexOf(firstKey) > -1 && (this.checkInForceUpdateKeys(key) || diff)) {
+          this.miniRenderData[key] = result[key] = clone
+        }
+      }
+    }
+    return result
+  }
+  ...
+}
+
+// src/helper/utils.js
+
+// 如果 renderData 里面即包含对某个 key 的访问，同时还有对这个 key 的子节点访问的话，那么需要剔除这个子节点
+/**
+ * process renderData, remove sub node if visit parent node already
+ * @param {Object} renderData
+ * @return {Object} processedRenderData
+ */
+export function preprocessRenderData (renderData) { 
+  // method for get key path array
+  const processKeyPathMap = (keyPathMap) => {
+    let keyPath = Object.keys(keyPathMap)
+    return keyPath.filter((keyA) => {
+      return keyPath.every((keyB) => {
+        if (keyA.startsWith(keyB) && keyA !== keyB) {
+          let nextChar = keyA[keyB.length]
+          if (nextChar === '.' || nextChar === '[') {
+            return false
+          }
+        }
+        return true
+      })
+    })
+  }
+
+  const processedRenderData = {}
+  const renderDataFinalKey = processKeyPathMap(renderData) // 获取最终需要被渲染的数据的 key
+  Object.keys(renderData).forEach(item => {
+    if (renderDataFinalKey.indexOf(item) > -1) {
+      processedRenderData[item] = renderData[item]
+    }
+  })
+  return processedRenderData
+}
+```
+
+这里大致的描述下相关流程：
+
+
+
+相关参阅文档：
+
+* [Page](https://developers.weixin.qq.com/miniprogram/dev/reference/api/Page.html#Page.prototype.setData(Object%20data,%20Function%20callback))
 
 ### 尽可能的减少 setData 的调用频次
 
