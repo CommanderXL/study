@@ -854,7 +854,10 @@ export function preprocessRenderData (renderData) {
 
 这里大致的描述下相关流程：
 
-
+1. 响应式的数据发生了变化，触发 Render Function 重新执行，获取最新的 renderData；
+2. renderData 的预处理，主要是用以剔除通过路径访问时同时有父、子路径情况下的子路径的 key；
+3. 判断是否存在 miniRenderData 最小数据渲染集，如果没有那么 Mpx 完成 miniRenderData 最小渲染数据集的收集，如果有那么使用处理后的 renderData 和 miniRenderData 进行数据的 diff 工作，并更新最新的 miniRenderData 的值；
+4. 调用 doRender 方法，进入到 setData 阶段
 
 相关参阅文档：
 
