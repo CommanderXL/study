@@ -852,11 +852,13 @@ export function preprocessRenderData (renderData) {
 }
 ```
 
+其中在 processRenderData 方法内部调用了 diffAndCloneA 方法去完成数据的 diff 工作。在这个方法内部判断新、旧值是否发生变化，返回的 diff 字段即表示是否发生了变化，clone 为 diffAndCloneA 接受到的第一个数据的深拷贝值。
+
 这里大致的描述下相关流程：
 
 1. 响应式的数据发生了变化，触发 Render Function 重新执行，获取最新的 renderData；
 2. renderData 的预处理，主要是用以剔除通过路径访问时同时有父、子路径情况下的子路径的 key；
-3. 判断是否存在 miniRenderData 最小数据渲染集，如果没有那么 Mpx 完成 miniRenderData 最小渲染数据集的收集，如果有那么使用处理后的 renderData 和 miniRenderData 进行数据的 diff 工作，并更新最新的 miniRenderData 的值；
+3. 判断是否存在 miniRenderData 最小数据渲染集，如果没有那么 Mpx 完成 miniRenderData 最小渲染数据集的收集，如果有那么使用处理后的 renderData 和 miniRenderData 进行数据的 diff 工作(diffAndCloneA)，并更新最新的 miniRenderData 的值；
 4. 调用 doRender 方法，进入到 setData 阶段
 
 相关参阅文档：
