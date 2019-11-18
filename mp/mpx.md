@@ -867,4 +867,49 @@ export function preprocessRenderData (renderData) {
 
 ### 尽可能的减少 setData 的调用频次
 
-每次调用 setData 方法都会完成一次从逻辑层 -> native bridge -> 视图层的通讯，并完成页面的更新。因此频繁的调用 setData 方法势必也会造成视图的多次渲染，用户的交互受阻。所以对于 setData 方法另外一个优化角度就是尽可能的减少 setData 的调用频次，将多个同步的 setData 操作合并到一次调用当中。
+每次调用 setData 方法都会完成一次从逻辑层 -> native bridge -> 视图层的通讯，并完成页面的更新。因此频繁的调用 setData 方法势必也会造成视图的多次渲染，用户的交互受阻。所以对于 setData 方法另外一个优化角度就是尽可能的减少 setData 的调用频次，将多个同步的 setData 操作合并到一次调用当中。接下来就来看下 mpx 在这方面是如何做优化的。
+
+还是先来看一个简单的 demo:
+
+```javascript
+<script>
+import { createComponent } from '@mpxjs/core'
+
+createComponent({
+  data: {
+    msg: 'hello',
+    obj: {
+      a: {
+        c: 1,
+        d: 2
+      }
+    }
+  }
+  watch: {
+    obj: {
+      handler() {
+        this.msg = 'world'
+      },
+      deep: true
+    }
+  },
+  onShow() {
+    setTimeout(() => {
+      this.obj.a = {
+        c: 1,
+        d: 'd'
+      }
+    }, 200)
+  }
+})
+</script>
+```
+
+在示例 demo 当中，msg 和 obj 都作为模板依赖的数据，这个组件开始展示后的 200ms，更新 obj.a 的值，同时 obj 被 watch，当 obj 发生改变后，更新 msg 的值。这里的逻辑处理顺序是：
+
+```javascript
+obj.a 变化 -> 触发 obj watch -> msg 变化 -> setData 方法调用一次，统一更新 obj.a 及 msg -> 视图重新渲染
+```
+
+
+
