@@ -911,5 +911,5 @@ createComponent({
 obj.a 变化 -> 触发 obj watch -> msg 变化 -> setData 方法调用一次，统一更新 obj.a 及 msg -> 视图重新渲染
 ```
 
-
+接下来就来具体看下这个流程：由于 obj 作为模板渲染的依赖数据，自然会被这个组件的 renderWatch 作为依赖而被收集。
 
