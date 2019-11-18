@@ -867,4 +867,4 @@ export function preprocessRenderData (renderData) {
 
 ### 尽可能的减少 setData 的调用频次
 
-
+每次调用 setData 方法都会完成一次从逻辑层 -> native bridge -> 视图层的通讯，并完成页面的更新。因此频繁的调用 setData 方法势必也会造成视图的多次渲染，用户的交互受阻。所以对于 setData 方法另外一个优化角度就是尽可能的减少 setData 的调用频次，将多个同步的 setData 操作合并到一次调用当中。
