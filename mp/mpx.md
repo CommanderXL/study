@@ -908,8 +908,77 @@ createComponent({
 在示例 demo 当中，msg 和 obj 都作为模板依赖的数据，这个组件开始展示后的 200ms，更新 obj.a 的值，同时 obj 被 watch，当 obj 发生改变后，更新 msg 的值。这里的逻辑处理顺序是：
 
 ```javascript
-obj.a 变化 -> 触发 obj watch -> msg 变化 -> setData 方法调用一次，统一更新 obj.a 及 msg -> 视图重新渲染
+obj.a 变化 -> 将 renderWatch 加入到执行队列 -> 触发 obj watch -> 将 obj watch 加入到执行队列 -> 将执行队列放到下一帧执行 -> 按照 watch id 从小到大依次执行 watch.run -> setData 方法调用一次(即 renderWatch 回调)，统一更新 obj.a 及 msg -> 视图重新渲染
 ```
 
-接下来就来具体看下这个流程：由于 obj 作为模板渲染的依赖数据，自然会被这个组件的 renderWatch 作为依赖而被收集。
+接下来就来具体看下这个流程：由于 obj 作为模板渲染的依赖数据，自然会被这个组件的 renderWatch 作为依赖而被收集。当 obj 的值发生变化后，首先触发 reaction 的回调，即 `this.update()` 方法，如果是个同步的 watch，那么立即调用 `this.run()` 方法，否则就将这个 watcher 加入到执行队列：
+
+```javascript
+// src/core/watcher.js
+export default Watcher {
+  constructor (context, expr, callback, options) {
+    ...
+    this.id = ++uid
+    this.reaction = new Reaction(`mpx-watcher-${this.id}`, () => {
+      this.update()
+    })
+    ...
+  }
+
+  update () {
+    if (this.options.sync) {
+      this.run()
+    } else {
+      queueWatcher(this)
+    }
+  }
+}
+
+
+// src/core/queueWatcher.js
+import { asyncLock } from '../helper/utils'
+const queue = []
+const idsMap = {}
+let flushing = false
+let curIndex = 0
+const lockTask = asyncLock()
+export default function queueWatcher (watcher) {
+  if (!watcher.id && typeof watcher === 'function') {
+    watcher = {
+      id: Infinity,
+      run: watcher
+    }
+  }
+  if (!idsMap[watcher.id] || watcher.id === Infinity) {
+    idsMap[watcher.id] = true
+    if (!flushing) {
+      queue.push(watcher)
+    } else {
+      let i = queue.length - 1
+      while (i > curIndex && watcher.id < queue[i].id) {
+        i--
+      }
+      queue.splice(i + 1, 0, watcher)
+    }
+    lockTask(flushQueue, resetQueue)
+  }
+}
+
+function flushQueue () {
+  flushing = true
+  queue.sort((a, b) => a.id - b.id)
+  for (curIndex = 0; curIndex < queue.length; curIndex++) {
+    const watcher = queue[curIndex]
+    idsMap[watcher.id] = null
+    watcher.destroyed || watcher.run()
+  }
+  resetQueue()
+}
+
+function resetQueue () {
+  flushing = false
+  curIndex = queue.length = 0
+}
+
+```
 
