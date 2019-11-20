@@ -911,7 +911,7 @@ createComponent({
 obj.a 变化 -> 将 renderWatch 加入到执行队列 -> 触发 obj watch -> 将 obj watch 加入到执行队列 -> 将执行队列放到下一帧执行 -> 按照 watch id 从小到大依次执行 watch.run -> setData 方法调用一次(即 renderWatch 回调)，统一更新 obj.a 及 msg -> 视图重新渲染
 ```
 
-接下来就来具体看下这个流程：由于 obj 作为模板渲染的依赖数据，自然会被这个组件的 renderWatch 作为依赖而被收集。当 obj 的值发生变化后，首先触发 reaction 的回调，即 `this.update()` 方法，如果是个同步的 watch，那么立即调用 `this.run()` 方法，否则就将这个 watcher 加入到执行队列：
+接下来就来具体看下这个流程：由于 obj 作为模板渲染的依赖数据，自然会被这个组件的 renderWatch 作为依赖而被收集。当 obj 的值发生变化后，首先触发 reaction 的回调，即 `this.update()` 方法，如果是个同步的 watch，那么立即调用 `this.run()` 方法，即 watcher 监听的回调方法，否则就通过 `queueWatcher(this)` 方法将这个 watcher 加入到执行队列：
 
 ```javascript
 // src/core/watcher.js
@@ -933,8 +933,11 @@ export default Watcher {
     }
   }
 }
+```
 
+而在 queueWatcher 方法中，lockTask 维护了一个异步锁，即将 flushQueue 当成微任务统一放到下一帧去执行。所以在 flushQueue 开始执行之前，还会有同步的代码将 watcher 加入到执行队列当中，当 flushQueue 开始执行的时候，依照 watcher.id 升序依次执行，这样去确保 renderWatcher 在执行前，其他所有的 watcher 回调都执行完了，即执行 renderWatcher 的回调的时候获取到的 renderData 都是最新的，然后再去进行 setData 的操作，完成页面的更新。
 
+```javascript
 // src/core/queueWatcher.js
 import { asyncLock } from '../helper/utils'
 const queue = []
@@ -979,6 +982,7 @@ function resetQueue () {
   flushing = false
   curIndex = queue.length = 0
 }
-
 ```
+
+
 
