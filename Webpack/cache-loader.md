@@ -10,3 +10,5 @@ A同学在内网当中私有 npm 上发布了一个 0.1.0 版本的 package，�
 
 
 ### 发现问题
+
+看了那个 issue 后，基本清楚了是由于 webpack 的在编译代码过程中走到 cache-loader 然后命中了缓存，这个缓存是之前编译的老代码，既然命中了缓存，那么就不会再去编译新的代码，于是最终编译出来的代码并不是我们所期望的。所以这个时候 `cd node_modules && rm -rf .cache && npm run deploy`，就是进入到 node_modules 目录，将 cache-loader 缓存的代码全部清除掉，并重新执行部署的命令，这些编译出来的代码肯定是最新的。
