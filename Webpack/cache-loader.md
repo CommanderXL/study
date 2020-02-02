@@ -13,9 +13,37 @@ A同学在内网当中私有 npm 上发布了一个 0.1.0 版本的 package，�
 
 看了那个 issue 后，基本知道了是由于 webpack 在编译代码过程中走到 cache-loader 然后命中了缓存，这个缓存是之前编译的老代码，既然命中了缓存，那么就不会再去编译新的代码，于是最终编译出来的代码并不是我们所期望的。所以这个时候 `cd node_modules && rm -rf .cache && npm run deploy`，就是进入到 node_modules 目录，将 cache-loader 缓存的代码全部清除掉，并重新执行部署的命令，这些编译出来的代码肯定是最新的。
 
-既然知道了问题的所在，那么就开始着手去分析这个问题的来龙去脉。首先简单的读了下 cache-loader 的源码，这里我也简单的介绍下 cache-loader 的 workflow 是怎么进行的：
+既然知道了问题的所在，那么就开始着手去分析这个问题的来龙去脉。这里我也简单的介绍下 cache-loader 的 workflow 是怎么进行的：
 
 // 1. transpileDep 配置
 // 2. js -> babel-loader -> cache-loader  
 
-1. 在 cache-loader 上部署了 pitch 方法([有关 loader pitch function 的用法可戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))，在 pitch 方法内部会根据 cacheKey 去找寻 `.cache` 文件夹下的缓存的 json 文件。如果这个文件的所有依赖以及这个文件都没发生变化，那么就会直接读取缓存当中的内容，并返回，且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 方法。
+1. 在 cache-loader 上部署了 pitch 方法([有关 loader pitch function 的用法可戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))，在 pitch 方法内部会根据生成的 cacheKey(例如xxx) 去寻找 `node_modules/.cache` 文件夹下的缓存的 json 文件(xxx.json)。如果这个文件的所有依赖以及这个文件都没发生变化(cache-loader 是如何判断文件是否发生变化了后文会讲)，那么就会直接读取缓存当中的内容，并返回且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 处理文本文件的流程。
+
+其中 cacheKey 的生成支持外部传入 cacheIdentifier 和 cacheDirectory 具体参见[官方文档](https://github.com/webpack-contrib/cache-loader)，若外部未传入自定义的参数，那么将会使用内部定义的默认值。
+
+```javascript
+// cache-loader 内部定义的默认的 cacheIdentifier 及 cacheDirectory
+const defaults = {
+  cacheContext: '',
+  cacheDirectory: findCacheDir({ name: 'cache-loader' }) || os.tmpdir(),
+  cacheIdentifier: `cache-loader:${pkg.version} ${env}`,
+  cacheKey,
+  compare,
+  precision: 0,
+  read,
+  readOnly: false,
+  write,
+}
+
+function cacheKey(options, request) {
+  const { cacheIdentifier, cacheDirectory } = options;
+  const hash = digest(`${cacheIdentifier}\n${request}`);
+
+  return path.join(cacheDirectory, `${hash}.json`);
+}
+```
+
+2. @vue/cli-service
+
+@vue/cli-service 内部在进行 webpack 配置的过程中
