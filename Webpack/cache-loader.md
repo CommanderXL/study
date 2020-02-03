@@ -18,9 +18,7 @@ A同学在内网当中私有 npm 上发布了一个 0.1.0 版本的 package，�
 // 1. transpileDep 配置
 // 2. js -> babel-loader -> cache-loader  
 
-1. 在 cache-loader 上部署了 pitch 方法([有关 loader pitch function 的用法可戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))，在 pitch 方法内部会根据生成的 cacheKey(例如xxx) 去寻找 `node_modules/.cache` 文件夹下的缓存的 json 文件(xxx.json)。如果这个文件的所有依赖以及这个文件都没发生变化(cache-loader 是如何判断文件是否发生变化了后文会讲)，那么就会直接读取缓存当中的内容，并返回且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 处理文本文件的流程。
-
-其中 cacheKey 的生成支持外部传入 cacheIdentifier 和 cacheDirectory 具体参见[官方文档](https://github.com/webpack-contrib/cache-loader)。
+1. 在 cache-loader 上部署了 pitch 方法([有关 loader pitch function 的用法可戳我](https://webpack.docschina.org/api/loaders/#%E8%B6%8A%E8%BF%87-loader-pitching-loader-))，在 pitch 方法内部会根据生成的 cacheKey(例如abc) 去寻找 `node_modules/.cache` 文件夹下的缓存的 json 文件(abc.json)。其中 cacheKey 的生成支持外部传入 cacheIdentifier 和 cacheDirectory 具体参见[官方文档](https://github.com/webpack-contrib/cache-loader)。
 
 ```javascript
 // cache-loader 内部定义的默认的 cacheIdentifier 及 cacheDirectory
@@ -33,7 +31,7 @@ const defaults = {
   precision: 0,
   read,
   readOnly: false,
-  write,
+  write
 }
 
 function cacheKey(options, request) {
@@ -44,14 +42,82 @@ function cacheKey(options, request) {
 }
 ```
 
-2. 通过 @vue/cli 初始化的项目内部会通过脚手架去完成 webpack 相关的配置，其中针对 vue SFC 文件当中的`script block`及`template block`在代码编译构建的流程当中都进行了缓存相关的配置工作，即：
+如果缓存文件(abc.json)当中记录的所有依赖以及这个文件都没发生变化(cache-loader 是如何判断文件是否发生变化了后文会讲)，那么就会直接读取缓存当中的内容，并返回且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 处理文本文件的流程。
 
-* 对于`script block`来经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
-* 对于`template block`来说经过`vue-loader`转化成 renderFunction 后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取 json 文件当中缓存的 renderFunction。
+cache-loader 在决定是否使用缓存内容时是通过缓存内容当中记录的**所有的依赖文件的 mtime 与对应文件最新的 mtime 做对比**来看是否发生了变化，如果没有发生变化，即命中缓存，读取缓存内容并跳过后面的 loader 的处理，否则走正常的 loader 处理流程。
+
+```javascript
+function pitch(remainingRequest, prevRequest, dataInput) {
+  ...
+  // 根据 cacheKey 的标识获取对应的缓存文件内容
+  readFn(data.cacheKey, (readErr, cacheData) => {
+    async.each(
+      cacheData.dependencies.concat(cacheData.contextDependencies), // 遍历所有依赖文件路径
+      (dep, eachCallback) => {
+        // Applying reverse path transformation, in case they are relatives, when
+        // reading from cache
+        const contextDep = {
+          ...dep,
+          path: pathWithCacheContext(options.cacheContext, dep.path),
+        };
+
+        // fs.stat 获取对应文件状态
+        FS.stat(contextDep.path, (statErr, stats) => {
+          if (statErr) {
+            eachCallback(statErr);
+            return;
+          }
+
+          // When we are under a readOnly config on cache-loader
+          // we don't want to emit any other error than a
+          // file stat error
+          if (readOnly) {
+            eachCallback();
+            return;
+          }
+
+          const compStats = stats;
+          const compDep = contextDep;
+          if (precision > 1) {
+            ['atime', 'mtime', 'ctime', 'birthtime'].forEach((key) => {
+              const msKey = `${key}Ms`;
+              const ms = roundMs(stats[msKey], precision);
+
+              compStats[msKey] = ms;
+              compStats[key] = new Date(ms);
+            });
+
+            compDep.mtime = roundMs(dep.mtime, precision);
+          }
+          
+          // 对比当前文件最新的 mtime 和缓存当中记录的 mtime 是否一致
+          // If the compare function returns false
+          // we not read from cache
+          if (compareFn(compStats, compDep) !== true) {
+            eachCallback(true);
+            return;
+          }
+          eachCallback();
+        });
+      },
+      (err) => {
+        if (err) {
+          data.startTime = Date.now();
+          callback();
+          return;
+        }
+        ...
+        callback(null, ...cacheData.result);
+      }
+    );
+  })
+}
+```
+
+2. 通过 @vue/cli 初始化的项目内部会通过脚手架去完成 webpack 相关的配置，其中针对 vue SFC 文件当中的`script block`及`template block`在代码编译构建的流程当中都进行了缓存相关的配置工作。
 
 ```javascript
 // @vue/cli-plugin-babel
-
 module.export = (api, options) => {
   ...
   api.chainWebpack(webpackConfig => {
@@ -108,3 +174,8 @@ module.exports = (api, options) => {
   })
 }
 ```
+
+即：
+
+* 对于`script block`来经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
+* 对于`template block`来说经过`vue-loader`转化成 renderFunction 后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取 json 文件当中缓存的 renderFunction。
