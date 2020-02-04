@@ -193,3 +193,58 @@ module.exports = (api, options) => {
 **事实上在`npm 5.8+`版本，npm 将发布的 package 当中包含的文件的 mtime 都统一置为了`1985-10-26T08:15:00.000Z`**。
 
 A 同学（npm版本为6.4.1）发布了`0.1.0`的版本后，C 同学安装了`0.1.0`版本，本地构建后生成缓存文件记录的文件 mtime 为`1985-10-26T08:15:00.000Z`。B 同学（npm版本为6.2.1）发布了`0.2.0`，C 同学安装`0.2.0`版本，本地开始构建，但是经由 cache-loader 的过程当中，cache-loader 通过对比缓存文件记录的依赖的 mtime 和新安装的 package 的文件的 mtime，但是发现都是`1985-10-26T08:15:00.000Z`，这样也就命中了缓存，即直接获取上一次缓存文件当中所包含的内容，而不会对新安装的 package 的文件进行编译。
+
+针对这个问题，@vue/cli 在 3.7.0 版本((具体代码变更的内容请戳我)[https://github.com/sodatea/vue-cli/commit/1fd729c87a873b779331335983e7c93223488c0f])当中也做了相关的修复性的工作，主要是将：`package-lock.json`、`yarn.lock`、`pnpm-lock.yaml`，这些做版本控制文件也加入到了 hash 生成的策略当中：
+
+```javascript
+// @vue/cli-service/lib/PluginAPI.js
+
+class PluginAPI {
+  ...
+  genCacheConfig(id, partialIdentifier, configFiles = []) {
+    ...
+    if (!Array.isArray(configFiles)) {
+      configFiles = [configFiles]
+    }
+    configFiles = configFiles.concat([
+      'package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml'
+    ])
+
+    const readConfig = file => {
+      const absolutePath = this.resolve(file)
+      if (!fs.existsSync(absolutePath)) {
+        return
+      }
+
+      if (absolutePath.endsWith('.js')) {
+        // should evaluate config scripts to reflect environment variable changes
+        try {
+          return JSON.stringify(require(absolutePath))
+        } catch (e) {
+          return fs.readFileSync(absolutePath, 'utf-8')
+        }
+      } else {
+        // console.log('the absolute path is:', fs.readFileSync(absolutePath, 'utf-8'))
+        return fs.readFileSync(absolutePath, 'utf-8')
+      }
+    }
+
+    // 获取版本控制文件的文本内容
+    for (const file of configFiles) {
+      const content = readConfig(file)
+      if (content) {
+        variables.configFiles = content.replace(/\r\n?/g, '\n')
+        break
+      }
+    }
+
+    // 将带有版本控制文件的内容加入到 hash 算法当中，生成新的 cacheIdentifier，并传入 cache-loader(缓存文件的 cacheKey 依据这个 cacheIdentifier 来生成，👆上文有说明)
+    const cacheIdentifier = hash(variables)
+    return { cacheDirectory, cacheIdentifier }
+  }
+}
+```
+
+这样来做的核心思想就是当你升级了某个 package 后，相应的版本控制文件也会对应的更新(例如 package-lock.json)，那么再一次进行编译流程时，所生成的缓存文件的 cacheKey 就会是最新的，因为也就不会命中缓存，还是走正常的全流程的编译，最终打包出来的代码也就是最新的。
