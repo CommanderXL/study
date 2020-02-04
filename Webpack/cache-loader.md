@@ -4,10 +4,15 @@
 
 首先来复现下整个case的流程：
 
-A同学在内网当中私有 npm 上发布了一个 0.1.0 版本的 package，后来B同学更新了这个 package 的内容，并发布了 0.2.0 版本，并通知其他同学去更新最新的 package 版本。当我更新了版本后，我需要将最新的代码部署到测试环境，然后我顺手执行了`npm run deploy`，执行了这个 npm script 后，正常情况下 webpack 会将最新的代码在**本地进行编译**并发布到测试环境当中。但是我却发现不管我执行了几遍这个命令后，测试环境的代码都不是最新的。
+1. A同学在 npm 上发布了 0.1.0 版本的 package；
+2. B同学开发了一个新的 feature，并发布 0.2.0 版本；
+3. C同学将本地的 0.1.0 版本升级到 0.2.0 版本，并执行`npm run deploy`，代码经过 webpack **本地编译**后发布到测试环境。但是测试环境的代码并不是最新的 package 的内容。但是在 node_modules 当中的 package 确实是最新的版本。
 
-这个时候我问了下旁边的同学是有也遇到了更新了 package，但是代码重新编译后却不是最新的这种情况。有好几位同学都反馈遇到了这个问题，其中有位同学发给了我一个 [issue 的链接](https://github.com/vuejs/vue-cli/issues/3635)。issue 当中反馈的问题基本和我们遇到的 case 是一样的。
+这个问题其实在社区里面有很多同学已经遇到了：
 
+* [issue-4438](https://github.com/vuejs/vue-cli/issues/4438)
+* [issue-3635](https://github.com/vuejs/vue-cli/issues/3635)
+* [issue-2450](https://github.com/vuejs/vue-cli/issues/2450)
 
 ### 发现问题
 
@@ -42,7 +47,7 @@ function cacheKey(options, request) {
 }
 ```
 
-如果缓存文件(abc.json)当中记录的所有依赖以及这个文件都没发生变化(cache-loader 是如何判断文件是否发生变化了后文会讲)，那么就会直接读取缓存当中的内容，并返回且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 处理文本文件的流程。
+如果缓存文件(abc.json)当中记录的所有依赖以及这个文件都没发生变化，那么就会直接读取缓存当中的内容，并返回且跳过后面的 loader 的正常执行。一旦有依赖或者这个文件发生变化，那么就正常的走接下来的 loader 上部署的 pitch 方法，以及正常的 loader 处理文本文件的流程。
 
 cache-loader 在决定是否使用缓存内容时是通过缓存内容当中记录的**所有的依赖文件的 mtime 与对应文件最新的 mtime 做对比**来看是否发生了变化，如果没有发生变化，即命中缓存，读取缓存内容并跳过后面的 loader 的处理，否则走正常的 loader 处理流程。
 
@@ -114,7 +119,7 @@ function pitch(remainingRequest, prevRequest, dataInput) {
 }
 ```
 
-2. 通过 @vue/cli 初始化的项目内部会通过脚手架去完成 webpack 相关的配置，其中针对 vue SFC 文件当中的`script block`及`template block`在代码编译构建的流程当中都进行了缓存相关的配置工作。
+2. 通过 @vue/cli 初始化的项目内部会通过脚手架去完成 webpack 相关的配置，其中针对 vue SFC 文件当中的`script block`及`template block`在代码编译构建的流程当中都利用了 cache-loader 进行了缓存相关的配置工作。
 
 ```javascript
 // @vue/cli-plugin-babel
@@ -145,7 +150,6 @@ module.export = (api, options) => {
 }
 
 // @vue/cli-serive/lib/config
-
 module.exports = (api, options) => {
   ...
   api.chainWebpack(webpackConfig => {
@@ -179,3 +183,5 @@ module.exports = (api, options) => {
 
 * 对于`script block`来经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
 * 对于`template block`来说经过`vue-loader`转化成 renderFunction 后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取 json 文件当中缓存的 renderFunction。
+
+上面对于 cache-loader 和 @vue/cli 内部工作原理的简单介绍。那么在文章一开始的时候提到的那个 case 具体是因为什么原因导致的呢？
