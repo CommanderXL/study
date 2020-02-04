@@ -194,7 +194,7 @@ module.exports = (api, options) => {
 
 A 同学（npm版本为6.4.1）发布了`0.1.0`的版本后，C 同学安装了`0.1.0`版本，本地构建后生成缓存文件记录的文件 mtime 为`1985-10-26T08:15:00.000Z`。B 同学（npm版本为6.2.1）发布了`0.2.0`，C 同学安装`0.2.0`版本，本地开始构建，但是经由 cache-loader 的过程当中，cache-loader 通过对比缓存文件记录的依赖的 mtime 和新安装的 package 的文件的 mtime，但是发现都是`1985-10-26T08:15:00.000Z`，这样也就命中了缓存，即直接获取上一次缓存文件当中所包含的内容，而不会对新安装的 package 的文件进行编译。
 
-针对这个问题，@vue/cli 在 3.7.0 版本([具体代码变更的内容请戳我](https://github.com/sodatea/vue-cli/commit/1fd729c87a873b779331335983e7c93223488c0f))当中也做了相关的修复性的工作，主要是将：`package-lock.json`、`yarn.lock`、`pnpm-lock.yaml`，这些做版本控制文件也加入到了 hash 生成的策略当中：
+针对这个问题，@vue/cli 在`3.7.0`版本([具体代码变更的内容请戳我](https://github.com/sodatea/vue-cli/commit/1fd729c87a873b779331335983e7c93223488c0f))当中也做了相关的修复性的工作，主要是将：`package-lock.json`、`yarn.lock`、`pnpm-lock.yaml`，这些做版本控制文件也加入到了 hash 生成的策略当中：
 
 ```javascript
 // @vue/cli-service/lib/PluginAPI.js
@@ -248,4 +248,45 @@ class PluginAPI {
 }
 ```
 
-这样来做的核心思想就是当你升级了某个 package 后，相应的版本控制文件也会对应的更新(例如 package-lock.json)，那么再一次进行编译流程时，所生成的缓存文件的 cacheKey 就会是最新的，因为也就不会命中缓存，还是走正常的全流程的编译，最终打包出来的代码也就是最新的。
+这样来做的核心思想就是：**当你升级了某个 package 后，相应的版本控制文件也会对应的更新(例如 package-lock.json)，那么再一次进行编译流程时，所生成的缓存文件的 cacheKey 就会是最新的，因为也就不会命中缓存，还是走正常的全流程的编译，最终打包出来的代码也就是最新的。**
+
+不过这次升级后，还是有同学在社区反馈命中缓存，代码没有更新的问题。后来我调试了下`@vue/cli-service/lib/PluginAPI.js`的代码，发现代码在读取多个配置文件的过程中，一旦获取到某个配置文件的内容后就不再读取后面的配置文件的内容了，这样也就导致就算`package-lock.json`发生了更新，但是因为在编译流程当中并未读取最新的内容，那么也就不会生成新的 cacheKey，仍然会出现命中缓存的问题：
+
+```javascript
+// 例如针对需要走 babel-loader 流程的配置文件为：
+['babel.config.js', '.browserslistrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
+
+// @vue/cli-service/lib/PluginAPI.js
+class PluginAPI {
+  ...
+  genCacheConfig(id, partialIdentifier, configFiles = []) {
+    ...
+    if (!Array.isArray(configFiles)) {
+      configFiles = [configFiles]
+    }
+    configFiles = configFiles.concat([
+      'package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml'
+    ])
+
+    const readConfig = file => {
+      ...
+    }
+
+    // 一旦获取到某个配置文件的内容后，就直接跳出了 for ... of 的循环
+    // 那么也就不会继续获取其他配置文件的内容，即读取了 babel.config.js 的内容
+    // 就获取不到更新后的 packge-lock.json 文件内容
+    for (const file of configFiles) {
+      const content = readConfig(file)
+      if (content) {
+        variables.configFiles = content.replace(/\r\n?/g, '\n')
+        break
+      }
+    }
+
+    const cacheIdentifier = hash(variables)
+    return { cacheDirectory, cacheIdentifier }
+  }
+}
+```
