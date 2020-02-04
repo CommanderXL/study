@@ -1,20 +1,20 @@
-## Cache-loader
+## @vue/cli 项目编译重复命中缓存问题解析
 
 ### 背景
 
-首先来复现下整个case的流程：
+最近遇到一个更新了 package，但是编译打包没有更新代码的情况，先来复现下这个 case 的流程：
 
 1. A 同学在 npm 上发布了`0.1.0`版本的 package；
 2. B 同学开发了一个新的 feature，并发布`0.2.0`版本；
 3. C 同学将本地的`0.1.0`版本升级到`0.2.0`版本，并执行`npm run deploy`，代码经过 webpack **本地编译**后发布到测试环境。但是测试环境的代码并不是最新的 package 的内容。但是在 node_modules 当中的 package 确实是最新的版本。
-
-总结下问题就是：
 
 这个问题其实在社区里面有很多同学已经遇到了：
 
 * [issue-4438](https://github.com/vuejs/vue-cli/issues/4438)
 * [issue-3635](https://github.com/vuejs/vue-cli/issues/3635)
 * [issue-2450](https://github.com/vuejs/vue-cli/issues/2450)
+
+TL;DR(流程分析较复杂，可一拉到底)
 
 ### 发现 & 分析问题
 
@@ -183,8 +183,6 @@ module.exports = (api, options) => {
 * 对于`script block`来说经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
 * 对于`template block`来说经过`vue-loader`转化成 renderFunction 后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取 json 文件当中缓存的 renderFunction。
 
-// TODO: npm 包发布的原理
-
 上面对于 cache-loader 和 @vue/cli 内部工作原理的简单介绍。那么在文章一开始的时候提到的那个 case 具体是因为什么原因导致的呢？
 
 **事实上在`npm 5.8+`版本，npm 将发布的 package 当中包含的文件的 mtime 都统一置为了`1985-10-26T08:15:00.000Z`**。
@@ -247,11 +245,13 @@ class PluginAPI {
 
 这样来做的核心思想就是：**当你升级了某个 package 后，相应的版本控制文件也会对应的更新(例如 package-lock.json)，那么再一次进行编译流程时，所生成的缓存文件的 cacheKey 就会是最新的，因为也就不会命中缓存，还是走正常的全流程的编译，最终打包出来的代码也就是最新的。**
 
-不过这次升级后，还是有同学在社区反馈命中缓存，代码没有更新的问题。后来我调试了下`@vue/cli-service/lib/PluginAPI.js`的代码，发现代码在读取多个配置文件的过程中，一旦获取到某个配置文件的内容后就不再读取后面的配置文件的内容了，这样也就导致就算`package-lock.json`发生了更新，但是因为在编译流程当中并未读取最新的内容，那么也就不会生成新的 cacheKey，仍然会出现命中缓存的问题：
+不过这次升级后，还是有同学在社区反馈命中缓存，代码没有更新的问题，而且出现的 case 是 package 当中需要走 babel-loader 的 js 会遇到命中缓存不更新的情况，但是 package 当中被项目代码引用的 vue 的 template 文件不会出现这种情况。后来我调试了下`@vue/cli-service/lib/PluginAPI.js`的代码，发现代码在读取多个配置文件的过程中，一旦获取到某个配置文件的内容后就不再读取后面的配置文件的内容了，这样也就导致就算`package-lock.json`发生了更新，但是因为在编译流程当中并未读取`package-lock.json`这个文件的最新的内容话，那么也就不会生成新的 cacheKey，仍然会出现命中缓存的问题：
 
 ```javascript
-// 例如针对需要走 babel-loader 流程的配置文件为：
+// 针对需要走 babel-loader 流程的配置文件为：
 ['babel.config.js', '.browserslistrc', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
+// 针对需要缓存的 vue template 的配置文件为：
+['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
 
 // @vue/cli-service/lib/PluginAPI.js
 class PluginAPI {
@@ -272,8 +272,9 @@ class PluginAPI {
     }
 
     // 一旦获取到某个配置文件的内容后，就直接跳出了 for ... of 的循环
-    // 那么也就不会继续获取其他配置文件的内容，即读取了 babel.config.js 的内容
-    // 就获取不到更新后的 packge-lock.json 文件内容
+    // 那么也就不会继续获取其他配置文件的内容，
+    // 所以对于处理 js 文件的流程来说，因为读取了 babel.config.js 的内容，那么也就不会再去获取更新后的 packge-lock.json 文件内容
+    // 但是对于处理 vue template 的流程来说，配置文件当中第一项就位 package-lock.json，这种情况下会获取最新的 package-lock.json 文件，所以对于 vue template 的不会出现升级了 package 内容，但是会因为命中缓存，导致编译代码不更新的情况。
     for (const file of configFiles) {
       const content = readConfig(file)
       if (content) {
@@ -288,7 +289,7 @@ class PluginAPI {
 }
 ```
 
-不过就在前几天，@vue/cli 的作者也重新看了下这个有关缓存失效的原因，并针对这个问题进行了修复([具体代码内容变更请戳我](https://github.com/vuejs/vue-cli/pull/5113/files))，这次的代码变更就是通过 map 循环(而非 for ... of 循环读取到内容后直接 break)，这样去确保所有的配置文件都被获取得到：
+不过就在前几天，@vue/cli 的作者也重新看了下这个有关 vue template 正常，但是对于 js 命中缓存的原因，并针对这个问题进行了修复([具体代码内容变更请戳我](https://github.com/vuejs/vue-cli/pull/5113/files))，这次的代码变更就是通过 map 循环(而非 for ... of 循环读取到内容后直接 break)，这样去确保所有的配置文件都被获取得到：
 
 ```javascript
 variables.configFiles = configFiles.map(file => {
