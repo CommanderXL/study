@@ -8,6 +8,8 @@
 2. B同学开发了一个新的 feature，并发布`0.2.0`版本；
 3. C同学将本地的`0.1.0`版本升级到`0.2.0`版本，并执行`npm run deploy`，代码经过 webpack **本地编译**后发布到测试环境。但是测试环境的代码并不是最新的 package 的内容。但是在 node_modules 当中的 package 确实是最新的版本。
 
+总结下问题就是：
+
 这个问题其实在社区里面有很多同学已经遇到了：
 
 * [issue-4438](https://github.com/vuejs/vue-cli/issues/4438)
@@ -16,7 +18,7 @@
 
 ### 发现问题
 
-看了那个 issue 后，基本知道了是由于 webpack 在编译代码过程中走到 cache-loader 然后命中了缓存，这个缓存是之前编译的老代码，既然命中了缓存，那么就不会再去编译新的代码，于是最终编译出来的代码并不是我们所期望的。所以这个时候 `cd node_modules && rm -rf .cache && npm run deploy`，就是进入到 node_modules 目录，将 cache-loader 缓存的代码全部清除掉，并重新执行部署的命令，这些编译出来的代码肯定是最新的。
+翻了那些 issue 后，基本知道了是由于 webpack 在编译代码过程中走到 cache-loader 然后命中了缓存，这个缓存是之前编译的老代码，既然命中了缓存，那么就不会再去编译新的代码，于是最终编译出来的代码并不是我们所期望的。所以这个时候 `cd node_modules && rm -rf .cache && npm run deploy`，就是进入到 node_modules 目录，将 cache-loader 缓存的代码全部清除掉，并重新执行部署的命令，这些编译出来的代码肯定是最新的。
 
 既然知道了问题的所在，那么就开始着手去分析这个问题的来龙去脉。这里我也简单的介绍下 cache-loader 的 workflow 是怎么进行的：
 
@@ -181,7 +183,8 @@ module.exports = (api, options) => {
 
 即：
 
-* 对于`script block`来经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
+* 对于`script block`来说经过`babel-loader`的处理后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取经过`babel-loader`处理后的 js 代码；
 * 对于`template block`来说经过`vue-loader`转化成 renderFunction 后经由`cache-loader`，若之前没有进行缓存过，那么新建本地的缓存 json 文件，若命中了缓存，那么直接读取 json 文件当中缓存的 renderFunction。
 
-上面对于 cache-loader 和 @vue/cli 内部工作原理的简单介绍。那么在文章一开始的时候提到的那个 case 具体是因为什么原因导致的呢？
+// TODO: npm 包发布的原理
+上面对于 cache-loader 和 @vue/cli 内部工作原理的简单介绍。那么在文章一开始的时候提到的那个 case 具体是因为什么原因导致的呢？事实上在`npm 5.8+`版本，npm 将发布的 package 当中包含的文件的 mtime 都统一置为了`1985-10-26T08:15:00.000Z`。 A 同学（npm版本为6.4.1）发布了`0.1.0`的版本后，C 同学安装了`0.1.0`版本，本地构建后生成缓存文件记录的文件 mtime 为`1985-10-26T08:15:00.000Z`，B 同学（npm版本为6.2.1）发布了`0.2.0`，C 同学安装`0.2.0`版本，本地开始构建，但是经由 cache-loader 的过程当中，cache-loader 通过对比缓存文件记录的依赖的 mtime 和新安装的 package 的文件的 mtime，但是发现都是`1985-10-26T08:15:00.000Z`，这样也就命中了缓存，即直接获取上一次缓存文件当中所包含的内容，而不会对新安装的 package 的文件进行编译。
