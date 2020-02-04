@@ -300,4 +300,4 @@ variables.configFiles = configFiles.map(file => {
 }
 ```
 
-目前在`@vue/cli-service@4.1.2`版本中进行了修复。
+目前在`@vue/cli-service@4.1.2`版本中已经进行了修复。
