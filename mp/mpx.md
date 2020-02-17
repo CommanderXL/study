@@ -14,8 +14,6 @@
 
 在 vue 里面 import 一个 vue 文件，那么这个文件会被当做一个 dependency 去加入到 webpack 的编译流程当中。但是 mpx 是保持小程序原有的功能，去进行功能的增强。因此一个 mpx 文件当中如果需要引入其他页面/组件，那么就是遵照小程序的组件规范需要在`usingComponents`定义好`组件名:路径`即可，**mpx 提供的 webpack 插件来完成确定依赖关系，同时将被引入的页面/组件加入到编译构建的环节当中**。
 
-TODO: webpack-plugin 和 loader 的附属关系的实现
-
 接下来就来看下具体的实现，mpx webpack-plugin 暴露出来的插件上也提供了静态方法去使用 loader。这个 loader 的作用和 vue-loader 的作用类似，首先就是拿到 mpx 原始的文件后转化一个 js 文本的文件。例如一个 list.mpx 文件里面有关 json 的配置会被编译为：
 
 ```javascript
@@ -168,11 +166,7 @@ if(( isActive )){
 (__injectHelper.transformClass("list", ( {active: isActive} )));
 ```
 
-TODO: compiler.genNode 方法的具体的流程实现思路
-
 mpx 文件当中的 template 模块被初步处理成上面的代码后，可以看到这是一段可执行的 js 代码。那么这段 js 代码到底是用作何处呢？可以看到`compiler.genNode`方法是被包裹至`bindThis`方法当中的。即这段 js 代码还会被`bindThis`方法做进一步的处理。打开 bind-this.js 文件可以看到内部的实现其实就是一个 babel 的 transform plugin。在处理上面这段 js 代码的 AST 的过程中，通过这个插件对 js 代码做进一步的处理。最终这段 js 代码处理后的结果是：
-
-TODO: Babel 插件的具体功效
 
 ```javascript
 /* mpx inject */ global.currentInject = {
@@ -702,7 +696,6 @@ Watcher 观察者核心实现的工作流程就是：
 
 mpx 在构建这个响应式的系统当中，主要有2个大的环节，其一为在构建编译的过程中，将 template 模块转化为 renderFunction，提供了渲染模板时所需响应式数据的访问机制，并将 renderFunction 注入到运行时代码当中，其二就是在运行环节，mpx 通过构建一个小程序实例的代理对象，将小程序实例上的数据访问全部代理至 MPXProxy 实例上，而 MPXProxy 实例即 mpx 基于 Mobx 去构建的一套响应式数据对象，首先将 data 数据转化为响应式数据，其次提供了 computed 计算属性，watch 方法等一系列增强的拓展属性/方法，虽然在你的业务代码当中 page/component 实例 this 都是小程序提供的，但是最终经过代理机制，实际上访问的是 MPXProxy 所提供的增强功能，所以 mpx 也是通过这样一个代理对象去接管了小程序的实例。需要特别指出的是，mpx 将小程序官方提供的 setData 方法同样收敛至内部，这也是响应式系统提供的基础能力，即开发者只需要关注业务开发，而有关小程序渲染运行在 mpx 内部去帮你完成。
 
-### 事件系统
 
 ## 性能优化
 
@@ -979,6 +972,3 @@ function resetQueue () {
   curIndex = queue.length = 0
 }
 ```
-
-
-
