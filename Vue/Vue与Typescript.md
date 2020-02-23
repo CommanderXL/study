@@ -15,7 +15,7 @@ Vue3.0 即将来临之际，也简单的了解了下 Vue2.x 在使用 Typescript
 
 首先需要知道的一点就是在 TS 从一定程度上来说就是 Js 的语法糖，借助 IDE 能实现类型推导，自动提示的功能，同时借助编译器完成向 Js 代码的编译转化工作，最终在宿主环境当中去运行。TS 在语言设计当中提供了类，使用类进行继承、实例化。这个是在 Js 当中没有的(虽然 es6 提供了 Class 其实也是通过 prototype 来实现继承和实例化)，从这个点来说，TS 语言设计层面采用的是更加传统的 OO 的编程范式(Class)，而非基于原型的编程范式。当然 TS 当中的类(Class)最终编译到 Js 后还是通过原型继承的方式来工作的。
 
-Vue 组织业务代码中有一点比较爽的就是，在 SFC 的 `<script>` block 中组织代码的方式如下：
+Vue 组织业务代码中常规的写法就是在 SFC 的 `<script>` block 中组织代码的方式如下：
 
 ```javascript
 export default {
@@ -29,9 +29,27 @@ export default {
 }
 ```
 
-你通过在 props、data、mixins、computed、methods 当中定义的属性、方法或者混入直接通过 this 就可以访问到了（当然很多人觉得这种通过 options-based 然后在内部将这些内容挂载到 this 上的设计方式感觉很魔幻）。不过也正是因为这样的设计，导致一开始有人想用 TS 来组织代码 Vue 代码的时候，IDE 很难去完成类型推导，自动补全等功能。关于 Vue 和 TS 的结合在 Vue 的 [issue](https://github.com/vuejs/vue/issues/478) 有过非常详细的讨论以及社区对于 Vue 和 TS 的结合所做的一些改进和衍变。
+你通过在 props、data、mixins、computed、methods 当中定义的属性、方法或者混入的内容是直接通过 this 就可以访问到了（当然很多人觉得这种通过 options-based 然后通过运行时将这些内容挂载到 this 上的设计方式感觉很魔幻）。不过也正是因为这样的设计，导致一开始有人想用 TS 来组织代码 Vue 代码的时候，IDE 很难去完成类型推导，自动补全等功能。关于 Vue 和 TS 的结合在 Vue 的 [issue](https://github.com/vuejs/vue/issues/478) 有过非常详细的讨论以及社区对于 Vue 和 TS 的结合所做的一些改进和衍变。
 
-那么如果 Vue 想要和 TS 更好的结合。那么在组织 Vue 的代码过程中就需要向 Class-based 进行靠近(这是因为 TS 就是设计成这样的)。所以在代码组织上：
+那么现阶段的 Vue 2.x 如果想要和 TS 更好的结合，利用 IDE 去完成自动补全，类型推导这些能力的话，在组织 Vue 的代码过程中就需要向 Class-based 进行靠近。让 IDE 更加容易的理解你在代码中所定义的 props、data、computed、methods 等相关的内容，并以更加顺畅的方式将这些内容挂载至 this 上面。这样在写 `<script>` block 的代码时才能享受到 TS 和 IDE 集合所带来的便利。首先我们都清楚在 OO 的编程范式当中的 Class 一般包含：属性，方法，构造函数。那么会非常自然的想到，将 options 配置当中定义的 data 组件内部数据和 methods 方法分别对应到 Class 的属性和方法，所以写法就会变成：
+
+```javascript
+export default myVueComponent extends Vue {
+  n1: number = 1
+  str1: string = 'str1'
+
+  printn1() {
+    console.log(this.n1)
+  }
+
+  printstr1() {
+    console.log(this.str1)
+  }
+}
+```
+
+在这个 Class 当中一目了然，通过 this 可以访问到属性`n1`、`str1`和方法`printn1`、`printstr1`。除了 data、methods，那么其他的一些 options 配置内容如何才能更顺畅的绑定到 this 上呢？
+
 
 1. Prototypally inheriting Vue
 2. Pass configuration to instance not via constructor.
