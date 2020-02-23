@@ -34,7 +34,7 @@ export default {
 那么现阶段的 Vue 2.x 如果想要和 TS 更好的结合，利用 IDE 去完成自动补全，类型推导这些能力的话，在组织 Vue 的代码过程中就需要向 Class-based 进行靠近。让 IDE 更加容易的理解你在代码中所定义的 props、data、computed、methods 等相关的内容，并以更加顺畅的方式将这些内容挂载至 this 上面。这样在写 `<script>` block 的代码时才能享受到 TS 和 IDE 集合所带来的便利。首先我们都清楚在 OO 的编程范式当中的 Class 一般包含：属性，方法，构造函数。那么会非常自然的想到，将 options 配置当中定义的 data 组件内部数据和 methods 方法分别对应到 Class 的属性和方法，所以写法就会变成：
 
 ```javascript
-export default myVueComponent extends Vue {
+export default class myVueComponent extends Vue {
   n1: number = 1
   str1: string = 'str1'
 
@@ -48,7 +48,19 @@ export default myVueComponent extends Vue {
 }
 ```
 
-在这个 Class 当中一目了然，通过 this 可以访问到属性`n1`、`str1`和方法`printn1`、`printstr1`。除了 data、methods，那么其他的一些 options 配置内容如何才能更顺畅的绑定到 this 上呢？
+在这个 Class 当中一目了然，通过 this 可以访问到属性`n1`、`str1`和方法`printn1`、`printstr1`。除了 data、methods，那么其他的一些 options 配置内容，例如 props、mixins、生命钩子函数等等如何才能更顺畅的绑定到 this 上呢？这个时候大家想到了使用 Decorator 装饰器这样一个语法来修改类以及其成员(在 TS 当中 Decorator 装饰器被作为实验性的特性被支持，具体有关的用可参见[文档](http://www.typescriptlang.org/docs/handbook/decorators.html))。
+
+
+```javascript
+<script lang="ts">
+import { Vue, Component, Prop } from 'vue-property-decorator'
+
+@Component
+export default class myVueComponent extends Vue {
+  @Prop({ default: 'this is propA' }) propA!: string
+}
+</script>
+```
 
 
 1. Prototypally inheriting Vue
