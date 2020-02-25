@@ -45,6 +45,10 @@ export default class myVueComponent extends Vue {
   printstr1() {
     console.log(this.str1)
   }
+
+  get computedMsg() {
+    return 'this is computedMsg:' + this.str1
+  }
 }
 ```
 
@@ -52,15 +56,47 @@ export default class myVueComponent extends Vue {
 
 
 ```javascript
-<script lang="ts">
-import { Vue, Component, Prop } from 'vue-property-decorator'
+// App.vue
+<template>
+  <component-a></component-a>
+</template>
 
-@Component
-export default class myVueComponent extends Vue {
+<script lang="ts">
+import ComponentA from './component-a'
+import { Vue, Component, Prop, Mixins } from 'vue-property-decorator'
+import MixinC from './mixinC.ts'
+import MixinD from './mixinD.ts'
+
+@Component({
+  components: {
+    ComponentA
+  }
+})
+export default class myVueComponent extends Mixins(MixinC, MixinD) {
   @Prop({ default: 'this is propA' }) propA!: string
 }
 </script>
+
+// mixinC
+import { Vue, Component } from 'vue-property-decorator'
+
+@Component
+export default class MixinC extends Vue {
+  mData1: string = 'this is mData1'
+}
+
+// mixinD
+import { Vue, Component } from 'vue-property-decorator'
+
+@Component
+export default class MixinD extends Vue {
+  mMethods1() {
+    return 'this is mMethods1'
+  }
+}
 ```
+
+目前官方有提供 [vue-class-component](https://github.com/vuejs/vue-class-component) 的底层库，以及其他开发者基于这个底层库封装的提供了 Prop、Emit、Provice、Inject 等其他装饰器的库 [vue-property-decorator](https://github.com/kaorun343/vue-property-decorator)。**这2个库内部所做的核心工作就是将原本 Vue 需要通过 options 挂载到组件 this 对象上的配置对象，通过装饰器提供的能力做一层桥接，然后通过 TS 提供的 Class 类配合 IDE 来完成类型推导和自动补全等相关的功能。**
 
 
 1. Prototypally inheriting Vue
