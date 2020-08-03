@@ -30,7 +30,7 @@ type Person = {
   age: number
 }
 
-type TypeA = keyof Person // TypeA 的类型即为字符串字面量联合类型 'name' | 'string'
+type TypeA = keyof Person // TypeA 的类型即为字符串字面量联合类型 'name' | 'age'
 ```
 
 再比如一个例子：
