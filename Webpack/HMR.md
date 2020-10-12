@@ -41,7 +41,7 @@ parser.hooks.call
 ```
 
 
-2. 在 mainTemplate 上添加不同 hook 的处理回调来完成对于 webpack 在生成 bootstrap runtime 的代码阶段去注入和 hmr 相关的代码，有几个比较关键的 hook 单独拿出来说下：
+2. 在 mainTemplate 上添加不同 hook 的处理回调来完成对于 webpack 在生成 bootstrap runtime 的代码阶段去注入和 hmr 相关的运行时代码，有几个比较关键的 hook 单独拿出来说下：
 
 ```javascript
 const mainTemplate = compilation.mainTemplate
@@ -98,8 +98,76 @@ mainTemplate.hooks.moduleObj.tap(
 
 在这个 hooks.moduleObj 当中所做的工作是对`__webpack_require__`这个函数体内部的 installedModules 缓存模块变量进行拓展。几个非常关键的点就是：
 
-1. 新增了 module 上的 `hot: hotCreateModule(${varModuleId})` 配置。这个 hot api 即对应这个 module 有关热更新的 api。所有有关热更新相关的接口都通过`module.hot.*`去访问。
+1. 新增了 module 上的 `hot: hotCreateModule(${varModuleId})` 配置。这个 module.hot api 即对应这个 module 有关热更新的 api，可以看到这个部署 hot api 的工作是由 hotCreateModule 这个方法来完成的（这个方法是由 hmr runtime 代码提供的，下面的章节会讲）。最终和这个 module 所有有关热更新相关的接口都通过`module.hot.*`去访问。
 2. 新增 parents 属性配置：初始化有关这个 module 在 hmr 下，它的 parents（这个 module 被其他 module 依赖）；
 3. 新增 children 属性配置：初始化有关这个 module 在 hmr 下，它的 children（这个 module 所依赖的 module）
 
 ### HotModuleReplacement.runtime
+
+Webpack 内部提供了 HotModuleReplacement.runtime 即**热更新运行时**部分的代码。这部分的代码并不是通过通过添加 webpack.entry 入口文件的方式来注入这部分的代码，而是通过 mainTemplate 在渲染 boostrap runtime 代码的阶段完成代码的注入工作的（对应上面的 mainTemplate.hooks.boostrap 所做的工作）。
+
+在这部分热更新运行时的代码当中所做的工作主要包含了以下几个点：
+
+```javascript
+function hotCreateModule(moduleId) {
+  var hot = {
+    // private stuff
+    _acceptedDependencies: {},
+    _declinedDependencies: {},
+    _selfAccepted: false, 
+    _selfDeclined: false,
+    _disposeHandlers: [],
+    _main: hotCurrentChildModule !== moduleId,
+
+    // Module API
+    active: true,
+    accept: function(dep, callback) {
+      if (dep === undefined) hot._selfAccepted = true; // 表示这个 module 可以进行 hmr
+      else if (typeof dep === "function") hot._selfAccepted = dep;
+      else if (typeof dep === "object")
+        for (var i = 0; i < dep.length; i++)
+          hot._acceptedDependencies[dep[i]] = callback || function() {}; 
+      else hot._acceptedDependencies[dep] = callback || function() {};
+    },
+    decline: function(dep) {
+      if (dep === undefined) hot._selfDeclined = true;
+      else if (typeof dep === "object")
+        for (var i = 0; i < dep.length; i++)
+          hot._declinedDependencies[dep[i]] = true;
+      else hot._declinedDependencies[dep] = true;
+    },
+    dispose: function(callback) {
+      hot._disposeHandlers.push(callback);
+    },
+    addDisposeHandler: function(callback) {
+      hot._disposeHandlers.push(callback);
+    },
+    removeDisposeHandler: function(callback) {
+      var idx = hot._disposeHandlers.indexOf(callback);
+      if (idx >= 0) hot._disposeHandlers.splice(idx, 1);
+    },
+
+    // Management API
+    check: hotCheck,
+    apply: hotApply,
+    status: function(l) {
+      if (!l) return hotStatus;
+      hotStatusHandlers.push(l);
+    },
+    addStatusHandler: function(l) {
+      hotStatusHandlers.push(l);
+    },
+    removeStatusHandler: function(l) {
+      var idx = hotStatusHandlers.indexOf(l);
+      if (idx >= 0) hotStatusHandlers.splice(idx, 1);
+    },
+
+    //inherit from previous dispose call
+    data: hotCurrentModuleData[moduleId]
+  };
+  hotCurrentChildModule = undefined;
+  return hot;
+}
+```
+
+在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。
