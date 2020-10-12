@@ -86,7 +86,7 @@ mainTemplate.hooks.moduleObj.tap(
   (source, chunk, hash, varModuleId) => {
     return Template.asString([
       `${source},`,
-      `hot: hotCreateModule(${varModuleId}),`,
+      `hot: hotCreateModule(${varModuleId}),`, // 这部分的内容即这个 hook 对相关内容的拓展
       "parents: (hotCurrentParentsTemp = hotCurrentParents, hotCurrentParents = [], hotCurrentParentsTemp),",
       "children: []"
     ]);
@@ -94,5 +94,10 @@ mainTemplate.hooks.moduleObj.tap(
 )
 ```
 
+在这个 hooks.moduleObj 当中所做的工作是对`__webpack_require__`这个函数体内部的 installedModules 缓存模块变量进行拓展。几个非常关键的点就是：
+
+1. 新增了 module 上的 `hot: hotCreateModule(${varModuleId})` 配置。这个 hot api 即对应这个 module 有关热更新的 api。所有有关热更新相关的接口都通过`module.hot.*`去访问。
+2. 新增 parents 属性配置：初始化有关这个 module 在 hmr 下，它的 parents（这个 module 被其他 module 依赖）；
+3. 新增 children 属性配置：初始化有关这个 module 在 hmr 下，它的 children（这个 module 所依赖的 module）
 
 ### HotModuleReplacement.runtime
