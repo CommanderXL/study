@@ -79,6 +79,8 @@ mainTemplate.hooks.bootstrap.tap(
 )
 ```
 
+在这个 hooks.bootstrap 当中所做的工作是在 mainTemplate 渲染 bootstrap runtime 的代码的过程中，对于`hotInitCode`代码进行字符串的匹配和替换工作。`hotInitCode`这部分的代码其实就是下面章节所要讲的`HotModuleReplacement.runtime`向 bootstrap runtime 代码里面注入的 hmr 运行时代码。
+
 
 ```javascript
 mainTemplate.hooks.moduleObj.tap(
