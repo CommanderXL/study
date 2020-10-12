@@ -124,14 +124,14 @@ function hotCreateModule(moduleId) {
     accept: function(dep, callback) {
       if (dep === undefined) hot._selfAccepted = true; // 表示这个 module 可以进行 hmr
       else if (typeof dep === "function") hot._selfAccepted = dep;
-      else if (typeof dep === "object")
+      else if (typeof dep === "object") // 和其他 module 建立起热更新之间的关系
         for (var i = 0; i < dep.length; i++)
           hot._acceptedDependencies[dep[i]] = callback || function() {}; 
       else hot._acceptedDependencies[dep] = callback || function() {};
     },
     decline: function(dep) {
-      if (dep === undefined) hot._selfDeclined = true;
-      else if (typeof dep === "object")
+      if (dep === undefined) hot._selfDeclined = true; // 当前 module 不需要进行热更新
+      else if (typeof dep === "object") // 当其依赖的 module 发生更新后，并不会触发这个 module 的热更新
         for (var i = 0; i < dep.length; i++)
           hot._declinedDependencies[dep[i]] = true;
       else hot._declinedDependencies[dep] = true;
@@ -170,4 +170,47 @@ function hotCreateModule(moduleId) {
 }
 ```
 
-在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。
+在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。这些 api 也是暴露给用户部署热更新代码的接口。其中`hot.accept`和`hot.decline`方法主要是用户来定义发生热更新的模块及其依赖是否需要热更新的相关策略。而`hot.check`和`hot.apply`两个方法其实是 webpack 内部使用的2个方法，其中`hot.check`方法：首先调用`hotDownloadManifest`方法，通过发送一个 Get 请求去获取本次发生变更的相关内容。// TODO: 相关内容的具体格式和字段？
+
+```javascript
+function hotCheck(apply) {
+  if (hotStatus !== "idle") {
+    throw new Error("check() is only allowed in idle status");
+  }
+  hotApplyOnUpdate = apply;
+  hotSetStatus("check");
+  return hotDownloadManifest(hotRequestTimeout).then(function(update) {
+    if (!update) {
+      hotSetStatus("idle");
+      return null;
+    }
+    hotRequestedFilesMap = {};
+    hotWaitingFilesMap = {};
+    hotAvailableFilesMap = update.c; 
+    hotUpdateNewHash = update.h;
+
+    hotSetStatus("prepare");
+    var promise = new Promise(function(resolve, reject) {
+      hotDeferred = {
+        resolve: resolve,
+        reject: reject
+      };
+    });
+    hotUpdate = {};
+    /*foreachInstalledChunks*/
+    // eslint-disable-next-line no-lone-blocks
+    {
+      /*globals chunkId */
+      hotEnsureUpdateChunk(chunkId);
+    }
+    if (
+      hotStatus === "prepare" &&
+      hotChunksLoading === 0 &&
+      hotWaitingFiles === 0
+    ) {
+      hotUpdateDownloaded();
+    }
+    return promise;
+  });
+}
+```
