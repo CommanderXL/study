@@ -170,7 +170,20 @@ function hotCreateModule(moduleId) {
 }
 ```
 
-在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。这些 api 也是暴露给用户部署热更新代码的接口。其中`hot.accept`和`hot.decline`方法主要是用户来定义发生热更新的模块及其依赖是否需要热更新的相关策略。而`hot.check`和`hot.apply`两个方法其实是 webpack 内部使用的2个方法，其中`hot.check`方法：首先调用`hotDownloadManifest`方法，通过发送一个 Get 请求去获取本次发生变更的相关内容。// TODO: 相关内容的具体格式和字段？
+在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。这些 api 也是暴露给用户部署热更新代码的接口。
+
+其中`hot.accept`和`hot.decline`方法主要是用户来定义发生热更新的模块及其依赖是否需要热更新的相关策略。例如`hot.accept`方法用来决定当前模块所依赖的哪些模块发生更新的话，自身也需要完成一些更新相关的动作。而`hot.decline`方法用来决定当前模块依赖的模块发生更新后，来决定自身是否进行更新。
+
+而`hot.check`和`hot.apply`两个方法其实是 webpack 内部使用的2个方法，其中`hot.check`方法：首先调用`hotDownloadManifest`方法，通过发送一个 Get 请求去 server 获取本次发生变更的相关内容。// TODO: 相关内容的具体格式和字段？
+
+```javascript
+{
+  c: { // 发生更新的 chunk 集合
+    app: true
+  },
+  h: 'xxxxx' // 服务端本次生成的编译hash值，用来作为下次浏览器获取发生变更的 hash 值（相当于服务端下发的一个 token，浏览器拿着这个 token 去后端获取对应的内容）
+}
+```
 
 ```javascript
 function hotCheck(apply) {
