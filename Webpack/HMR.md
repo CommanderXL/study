@@ -55,6 +55,8 @@ mainTemplate.hooks.moduleRequire.tap(
 
 这个 hook 主要完成的工作是在生成 webpack bootstrap runtime 代码当中对加载 module 的 `require function`进行替换，变为`hotCreateRequire(${varModuleId})`的形式，这样做的目的其实就是对于 module 的加载做了一层代理，在加载 module 的过程当中建立起相关的依赖关系(需要注意的是这里的依赖关系并非是 webpack 在编译打包构建过程中的那个依赖关系，而是在 hmr 模式下代码执行阶段，一个 module 加载其他 module 时在 hotCreateRequire 内部会建立起相关的加载依赖关系，方便之后的修改代码之后进行的热更新操作)，具体这块的分析可以参见下面的章节。
 
+// TODO: hotCreateReqiure 方法需要重点分析，这是模块之间的依赖进行热更新非常重要的地方
+
 ```javascript
 mainTemplate.hooks.bootstrap.tap(
   "HotModuleReplacementPlugin",
@@ -266,3 +268,322 @@ function hotAddUpdateChunk(chunkId, moreModules) {
 ```
 
 对应所做的工作就是将需要更新的模块缓存至`hotUpdate`上，同时判断需要更新的 chunk 是否已经下载完了，如果全部下载完成那么执行`hotUpdateDownloaded`方法，其内部实际就是调用`hotApply`进行接下来进行细粒度的模块更新和替换的工作。
+
+首先先讲下`hotApply`内部的执行流程：
+
+1. 遍历`hotUpdate`需要更新的模块，找出和需要更新的模块有依赖关系的模块；
+
+```javascript
+function hotApply(options) {
+  function getAffectedStuff(updateModuleId) {
+    var outdatedModules = [updateModuleId]
+    var outdatedDependencies = {}
+
+    var queue = outdatedModules.slice().map(function (id) {
+      return {
+        chain: [id],
+        id: id
+      }
+    })
+    while (queue.length > 0) {
+      var queueItem = queue.pop()
+      var moduleId = queueItem.id
+      var chain = queueItem.chain
+      module = installedModules[moduleId] // installedModules 为在 bootstrap runtime 里面定义的已经被加载过的 module 集合，这里其实就是为了取到这个 module 自己定义部署的有关热更新的相关策略
+      if (!module || module.hot._selfAccepted) continue // 如果这个 module 不存在或者只接受自更新，那么直接略过接下来的代码处理
+      if (module.hot._selfDeclined) {
+        return {
+          type: 'self-declined',
+          chain: chain,
+          moduleId: moduleId
+        }
+      }
+      if (module.hot._main) {
+        return {
+          type: 'unaccepted',
+          chain: chain,
+          moduleId: moduleId
+        }
+      }
+      for (var i = 0; i < module.parents.length; i++) { // 遍历所有依赖这个模块的 module
+        var parentId = module.parents[i]
+        var parent = installedModules[parentId]
+        if (!parent) continue
+        if (parent.hot._declinedDependencies[moduleId]) { // 如果这个 parentModule 的 module.hot._declinedDependencies 里面设置了不受更新影响的 moduleId
+          return {
+            type: 'declined',
+            chain: chain.concat([parentId]),
+            moduleId: moduleId,
+            parentId: parentId
+          }
+        }
+        if (outdatedModules.indexOf(parentId) !== -1) continue
+        if (parent.hot._acceptedDependencies[moduleId]) { // 如果这个 parentModule 的 module.hot._acceptedDependencies 里面设置了其受更新影响的 moduleId
+          if (!outdatedDependencies[parentId])
+            outdatedDependencies[parentId] = []
+          addAllToSet(outdatedDependencies[parentId], [moduleId])
+          continue
+        }
+        // 如果这个 parentModule 没有部署任何相关热更新的**模块间依赖的更新策略**（不算_selfAccepted 和 _selfDeclined 状态），那么需要将这个 parentModule 加入到 outdatedModules 队列里面
+        delete outdatedDependencies[parentId]
+        outdatedModules.push(parentId)
+        queue.push({
+          chain: chain.concat([parentId]),
+          id: parentId
+        })
+      }
+    }
+
+    return {
+      type: 'accepted',
+      moduleId: updateModuleId,
+      outdatedModules: outdatedModules, // 本次更新当中所有过期的 modules
+      outdatedDependencies: outdatedDependencies // 所有过期的依赖 modules
+    }
+  }
+
+  for (var id in hotUpdate) {
+    if (Object.prototype.hasOwnProperty.call(hotUpdate, id)) {
+      moduleId = toModuleId(id)
+      /** @type {TODO} */
+      var result
+      if (hotUpdate[id]) {
+        result = getAffectedStuff(moduleId)
+      } else {
+        result = {
+          type: 'disposed',
+          moduleId: id
+        }
+      }
+      /** @type {Error|false} */
+      var abortError = false
+      var doApply = false
+      var doDispose = false
+      var chainInfo = ''
+      if (result.chain) {
+        chainInfo = '\nUpdate propagation: ' + result.chain.join(' -> ')
+      }
+      switch (result.type) {
+        case 'self-declined':
+          if (options.onDeclined) options.onDeclined(result)
+          if (!options.ignoreDeclined)
+            abortError = new Error(
+              'Aborted because of self decline: ' +
+                result.moduleId +
+                chainInfo
+            )
+          break
+        case 'declined':
+          if (options.onDeclined) options.onDeclined(result)
+          if (!options.ignoreDeclined)
+            abortError = new Error(
+              'Aborted because of declined dependency: ' +
+                result.moduleId +
+                ' in ' +
+                result.parentId +
+                chainInfo
+            )
+          break
+        case 'unaccepted':
+          if (options.onUnaccepted) options.onUnaccepted(result)
+          if (!options.ignoreUnaccepted)
+            abortError = new Error(
+              'Aborted because ' + moduleId + ' is not accepted' + chainInfo
+            )
+          break
+        case 'accepted':
+          if (options.onAccepted) options.onAccepted(result)
+          doApply = true
+          break
+        case 'disposed':
+          if (options.onDisposed) options.onDisposed(result)
+          doDispose = true
+          break
+        default:
+          throw new Error('Unexception type ' + result.type)
+      }
+      if (abortError) {
+        hotSetStatus('abort')
+        return Promise.reject(abortError)
+      }
+      if (doApply) {
+        appliedUpdate[moduleId] = hotUpdate[moduleId] // 需要更新的模块
+        addAllToSet(outdatedModules, result.outdatedModules) // 使用单独一个 outdatedModules 数组变量存放所有过期需要更新的 moduleId，其中 result.outdatedModules 是通过 getAffectedStuff 方法找到的当前遍历的 module 所依赖的过期的需要更新的模块
+        for (moduleId in result.outdatedDependencies) { // 使用单独的 outdatedDependencies 集合去存放相关依赖更新模块
+          if (
+            Object.prototype.hasOwnProperty.call(
+              result.outdatedDependencies,
+              moduleId
+            )
+          ) {
+            if (!outdatedDependencies[moduleId])
+              outdatedDependencies[moduleId] = []
+            addAllToSet(
+              outdatedDependencies[moduleId],
+              result.outdatedDependencies[moduleId]
+            )
+          }
+        }
+      }
+      if (doDispose) {
+        addAllToSet(outdatedModules, [result.moduleId])
+        appliedUpdate[moduleId] = warnUnexpectedRequire
+      }
+    }
+
+    // Store self accepted outdated modules to require them later by the module system
+    // 在所有 outdatedModules 里面找到部署了 module.hot._selfAccepted 属性的模块。(部署了这个属性的模块会通过 webpack 的模块系统重新加载一次这个模块的新的内容来完成热更新)
+    var outdatedSelfAcceptedModules = []
+    for (i = 0; i < outdatedModules.length; i++) {
+      moduleId = outdatedModules[i]
+      if (
+        installedModules[moduleId] &&
+        installedModules[moduleId].hot._selfAccepted
+      )
+        outdatedSelfAcceptedModules.push({
+          module: moduleId,
+          errorHandler: installedModules[moduleId].hot._selfAccepted
+        })
+    }
+
+    // dispose phase TODO: 各个热更新阶段 hooks?
+
+    var idx
+    var queue = outdatedModules.slice()
+    while (queue.length > 0) {
+      moduleId = queue.pop()
+      module = installedModules[moduleId]
+      if (!module) continue
+
+      var data = {}
+
+      // Call dispose handlers
+      var disposeHandlers = module.hot._disposeHandlers
+      for (j = 0; j < disposeHandlers.length; j++) {
+        cb = disposeHandlers[j]
+        cb(data)
+      }
+      hotCurrentModuleData[moduleId] = data
+
+      // disable module (this disables requires from this module)
+      module.hot.active = false
+
+      // 从 installedModules 集合当中剔除掉过期的 module，即其他 module 引入这个被剔除掉的 module 的时候，其实是会重新执行这个 module，这也是为什么要从 installedModules 上剔除这个需要被更新的模块的原因
+      // remove module from cache
+      delete installedModules[moduleId]
+
+      // when disposing there is no need to call dispose handler
+      delete outdatedDependencies[moduleId]
+
+      // 将这个 module 所依赖的模块(module.children)当中剔除掉 module.children.parentModule，即解除模块之间的依赖关系
+      // remove "parents" references from all children
+      for (j = 0; j < module.children.length; j++) {
+        var child = installedModules[module.children[j]]
+        if (!child) continue
+        idx = child.parents.indexOf(moduleId)
+        if (idx >= 0) {
+          child.parents.splice(idx, 1)
+        }
+      }
+    }
+
+    // 这里同样是通过遍历 outdatedDependencies 里面需要更新的模块，需要注意的是 outdateDependencies 里面的 key 为被依赖的 module，这个 key 所对应的 value 数组里面存放的是发生了更新的 module。所以这是需要解除被依赖的 module 和这些发生更新了的 module 之间的引用依赖关系。
+    // remove outdated dependency from module children
+    var dependency
+    var moduleOutdatedDependencies
+    for (moduleId in outdatedDependencies) {
+      if (
+        Object.prototype.hasOwnProperty.call(outdatedDependencies, moduleId)
+      ) {
+        module = installedModules[moduleId]
+        if (module) {
+          moduleOutdatedDependencies = outdatedDependencies[moduleId]
+          for (j = 0; j < moduleOutdatedDependencies.length; j++) {
+            dependency = moduleOutdatedDependencies[j]
+            idx = module.children.indexOf(dependency)
+            if (idx >= 0) module.children.splice(idx, 1)
+          }
+        }
+      }
+    }
+
+    // Not in "apply" phase
+    hotSetStatus('apply')
+
+    // 更新当前的热更新 hash 值（即通过 get 请求获取 server 下发的 hash 值）
+    hotCurrentHash = hotUpdateNewHash
+
+    // 遍历 appliedUpdate 发生更新的 module
+    // insert new code
+    for (moduleId in appliedUpdate) {
+      if (Object.prototype.hasOwnProperty.call(appliedUpdate, moduleId)) {
+        modules[moduleId] = appliedUpdate[moduleId] // HIGHLIGHT: 这里的 modules 变量为 bootstrap 代码里面接收到的所有的 modules 的集合，即在这里完成新老 module 的替换
+      }
+    }
+
+    // 执行那些在 module.hot.accept 上部署了依赖模块发生更新后的回调函数
+    // call accept handlers
+    var error = null
+    for (moduleId in outdatedDependencies) {
+      if (
+        Object.prototype.hasOwnProperty.call(outdatedDependencies, moduleId)
+      ) {
+        module = installedModules[moduleId]
+        if (module) {
+          moduleOutdatedDependencies = outdatedDependencies[moduleId]
+          var callbacks = []
+          for (i = 0; i < moduleOutdatedDependencies.length; i++) {
+            dependency = moduleOutdatedDependencies[i]
+            cb = module.hot._acceptedDependencies[dependency]
+            if (cb) {
+              if (callbacks.indexOf(cb) !== -1) continue
+              callbacks.push(cb)
+            }
+          }
+          for (i = 0; i < callbacks.length; i++) {
+            cb = callbacks[i]
+            try {
+              cb(moduleOutdatedDependencies)
+            } catch (err) {
+              ...
+            }
+          }
+        }
+      }
+    }
+
+    // 重新加载那些部署了 module.hot._selfAccepted 为 true 的 module，即这个 module 会被重新加载并执行一次，这样也就在 installedModules 上缓存了这个新的 module
+    // Load self accepted modules
+    for (i = 0; i < outdatedSelfAcceptedModules.length; i++) {
+      var item = outdatedSelfAcceptedModules[i]
+      moduleId = item.module
+      hotCurrentParents = [moduleId]
+      try {
+        $require$(moduleId) // $require$ 会在被最终渲染到 bootstrap runtime 当中被替换为 webpack require 加载模块的方法
+      } catch (err) {
+        if (typeof item.errorHandler === 'function') {
+          try {
+            item.errorHandler(err)
+          } catch (err2) {
+            ...
+          }
+        } else {
+          ...
+        }
+      }
+
+    hotSetStatus('idle')
+      return new Promise(function (resolve) {
+        resolve(outdatedModules)
+      })
+    }
+  }
+}
+```
+
+所以当一个模块发生变化后，依赖这个模块的 parentModule 有如下几种热更新执行的策略：
+
+1. module.hot.accept()
+2. module.hot.accept(['xxx'], callback)
+3. module.decline()
+4. module.decline(['xxx'])
