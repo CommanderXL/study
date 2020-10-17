@@ -172,7 +172,7 @@ function hotCreateModule(moduleId) {
 
 在 hotCreateModule 方法当中完成 module.hot.* 和热更新相关接口的定义。这些 api 也是暴露给用户部署热更新代码的接口。
 
-其中`hot.accept`和`hot.decline`方法主要是用户来定义发生热更新的模块及其依赖是否需要热更新的相关策略。例如`hot.accept`方法用来决定当前模块所依赖的哪些模块发生更新的话，自身也需要完成一些更新相关的动作。而`hot.decline`方法用来决定当前模块依赖的模块发生更新后，来决定自身是否进行更新。
+其中`hot.accept`和`hot.decline`方法主要是用户来定义发生热更新的模块及其依赖是否需要热更新的相关策略。例如`hot.accept`方法用来决定当前模块所依赖的哪些模块发生更新的话，自身也需要完成一些更新相关的动作。而`hot.decline`方法用来决定当前模块依赖的模块发生更新后，来决定自身是否需要进行更新。
 
 而`hot.check`和`hot.apply`两个方法其实是 webpack 内部使用的2个方法，其中`hot.check`方法：首先调用`hotDownloadManifest`方法，通过发送一个 Get 请求去 server 获取本次发生变更的相关内容。// TODO: 相关内容的具体格式和字段？
 
@@ -191,7 +191,7 @@ function hotCheck(apply) {
     throw new Error("check() is only allowed in idle status");
   }
   hotApplyOnUpdate = apply;
-  hotSetStatus("check");
+  hotSetStatus("check"); // 更新 热更新 流程的内部状态
   return hotDownloadManifest(hotRequestTimeout).then(function(update) {
     if (!update) {
       hotSetStatus("idle");
@@ -199,8 +199,8 @@ function hotCheck(apply) {
     }
     hotRequestedFilesMap = {};
     hotWaitingFilesMap = {};
-    hotAvailableFilesMap = update.c; 
-    hotUpdateNewHash = update.h;
+    hotAvailableFilesMap = update.c; // 发生更新的 chunk 集合
+    hotUpdateNewHash = update.h; // server 下发的本次生成的编译 hash 值，作为下次浏览器获取发生变更的 hash 值
 
     hotSetStatus("prepare");
     var promise = new Promise(function(resolve, reject) {
@@ -210,11 +210,11 @@ function hotCheck(apply) {
       };
     });
     hotUpdate = {};
-    /*foreachInstalledChunks*/
+    /*foreachInstalledChunks*/  // 这段注释在渲染 bootstrap runtime 部分的代码的时候会通过字符串匹配给替换掉，最终替换后的代码执行就是对已经下载的 chunk 进行循环 hotEnsureUpdateChunk(chunkId)
     // eslint-disable-next-line no-lone-blocks
     {
       /*globals chunkId */
-      hotEnsureUpdateChunk(chunkId);
+      hotEnsureUpdateChunk(chunkId); // hotEnsureUpdateChunk(lib/web/JsonpMainTemplate.runtime.js) 方法内部其实就是通过创建 script 标签，然后传入到文档当中完成发生更新的 chunk 的下载
     }
     if (
       hotStatus === "prepare" &&
@@ -227,3 +227,42 @@ function hotCheck(apply) {
   });
 }
 ```
+
+// TODO: 补一个 hot.check 执行的流程图
+总结下`hot.check`方法执行的流程其实就是：
+
+1. 通过 hotDownloadMainfest 方法发送一个 Get 方式的 ajax 请求用以获取发生更新的 chunk 集合以及本次编译生成的 hash；
+2. 遍历已经安装完成的所有 chunk，找出需要发生更新的 chunk 名，调用 hotEnsureUpdateChunk 方法通过 jsonp 的方式完成发生更新的 chunk 下载。
+
+接下来看下被下载的更新的 chunk 具体内容：
+
+```javascript
+webpackHotUpdate('app', {
+  'compiled/module1/path': (function() {
+    eval('...script...')
+  }),
+  'compiled/module2/path': (function() {
+    eval('...script...')
+  })
+})
+```
+
+可以看到的是返回的 chunk 内容是可以立即执行的函数：
+
+```javascript
+function hotAddUpdateChunk(chunkId, moreModules) {
+  if (!hotAvailableFilesMap[chunkId] || !hotRequestedFilesMap[chunkId])
+    return;
+  hotRequestedFilesMap[chunkId] = false;
+  for (var moduleId in moreModules) {
+    if (Object.prototype.hasOwnProperty.call(moreModules, moduleId)) {
+      hotUpdate[moduleId] = moreModules[moduleId];
+    }
+  }
+  if (--hotWaitingFiles === 0 && hotChunksLoading === 0) {
+    hotUpdateDownloaded();
+  }
+}
+```
+
+对应所做的工作就是将需要更新的模块缓存至`hotUpdate`上，同时判断需要更新的 chunk 是否已经下载完了，如果全部下载完成那么执行`hotUpdateDownloaded`方法，其内部实际就是调用`hotApply`进行接下来进行细粒度的模块更新和替换的工作。
