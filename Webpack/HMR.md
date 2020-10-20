@@ -324,7 +324,7 @@ function hotApply(options) {
           addAllToSet(outdatedDependencies[parentId], [moduleId])
           continue
         }
-        // 如果这个 parentModule 没有部署任何相关热更新的**模块间依赖的更新策略**（不算_selfAccepted 和 _selfDeclined 状态），那么需要将这个 parentModule 加入到 outdatedModules 队列里面
+        // 如果这个 parentModule 没有部署任何相关热更新的**模块间依赖的更新策略**（不算_selfAccepted 和 _selfDeclined 状态），那么需要将这个 parentModule 加入到 outdatedModules 队列里面，同时更新 queue 来进行下一轮的遍历找出所有需要进行更新的 module
         delete outdatedDependencies[parentId]
         outdatedModules.push(parentId)
         queue.push({
@@ -583,7 +583,28 @@ function hotApply(options) {
 
 所以当一个模块发生变化后，依赖这个模块的 parentModule 有如下几种热更新执行的策略：
 
-1. module.hot.accept()
-2. module.hot.accept(['xxx'], callback)
-3. module.decline()
-4. module.decline(['xxx'])
+```javascript
+module.hot.accept()
+```
+
+当依赖的模块发生更新后，这个模块需要通过**重新加载**去完成本模块的全量更新。
+
+```javascript
+module.hot.accept(['xxx'], callback)
+```
+
+当依赖的模块且为 `xxx` 模块发生更新后，这个模块会执行 callback 来完成相关的更新的动作。而不需要通过**重新加载**的方式去完成更新。
+
+```javascript
+module.decline()
+```
+
+这个模块不管其依赖的模块是否发生了变化。这个模块都不会发生更新。
+
+```javascript
+module.decline(['xxx'])
+```
+
+当依赖的模块为`xxx`发生更新的情况下，这个模块不会发生更新。当依赖的其他模块（除了`xxx`模块外）发生更新的话，那么最终还是会将本模块从缓存中删除。
+
+1. 依赖关系：双向链表
