@@ -34,12 +34,15 @@ parser.hooks.call
   .tap("HotModuleReplacementPlugin")
 ```
 
+这个 hook 主要是在 parser 编译代码过程中遇到`module.hot.accept`的调用的时候会触发，主要的工作就是处理当前模块部署依赖模块的依赖分析，在编译阶段处理好依赖的路径替换等内容。
+
 ```javascript
 parser.hooks.call
   .for("module.hot.decline")
   .tap("HotModuleReplacementPlugin")
 ```
 
+这个 hook 同样是在 parser 编译代码过程中遇到`module.hot.decline`的调用的时候触发，所做的工作和上面的 hook 类似。
 
 2. 在 mainTemplate 上添加不同 hook 的处理回调来完成对于 webpack 在生成 bootstrap runtime 的代码阶段去注入和 hmr 相关的运行时代码，有几个比较关键的 hook 单独拿出来说下：
 
@@ -55,7 +58,7 @@ mainTemplate.hooks.moduleRequire.tap(
 
 这个 hook 主要完成的工作是在生成 webpack bootstrap runtime 代码当中对加载 module 的 `require function`进行替换，变为`hotCreateRequire(${varModuleId})`的形式，这样做的目的其实就是对于 module 的加载做了一层代理，在加载 module 的过程当中建立起相关的依赖关系(需要注意的是这里的依赖关系并非是 webpack 在编译打包构建过程中的那个依赖关系，而是在 hmr 模式下代码执行阶段，一个 module 加载其他 module 时在 hotCreateRequire 内部会建立起相关的加载依赖关系，方便之后的修改代码之后进行的热更新操作)，具体这块的分析可以参见下面的章节。
 
-// TODO: hotCreateReqiure 方法需要重点分析，这是模块之间的依赖进行热更新非常重要的地方
+// TODO: hotCreateRequire 方法需要重点分析，这是模块之间的依赖进行热更新非常重要的地方
 
 ```javascript
 mainTemplate.hooks.bootstrap.tap(
@@ -109,6 +112,48 @@ mainTemplate.hooks.moduleObj.tap(
 Webpack 内部提供了 HotModuleReplacement.runtime 即**热更新运行时**部分的代码。这部分的代码并不是通过通过添加 webpack.entry 入口文件的方式来注入这部分的代码，而是通过 mainTemplate 在渲染 boostrap runtime 代码的阶段完成代码的注入工作的（对应上面的 mainTemplate.hooks.boostrap 所做的工作）。
 
 在这部分热更新运行时的代码当中所做的工作主要包含了以下几个点：
+
+1. 提供运行时的`hotCreateRequire`方法，用以对`__webpack_require__`模块引入方法进行代理，当一个模块依赖其他模块，并将其引入的时候，会建立起宿主模块和依赖模块之间的相互依赖关系，这个依赖关系也是作为之后某个模块发生更新后，寻找与其有依赖关系的模块的凭证。
+
+```javascript
+function hotCreateRequire(moduleId) {
+  var me = installedModules[moduleId];
+  if (!me) return $require$;
+  var fn = function(request) { // 这个是 hmr 模式下，对原来的 __webpack_require__ 引入模块的函数做的一层代理
+    // 通过 depModule.parents 和 module.children 来双向建立起 module 之间的依赖关系
+    if (me.hot.active) {
+      if (installedModules[request]) {
+        if (installedModules[request].parents.indexOf(moduleId) === -1) {
+          installedModules[request].parents.push(moduleId); // 建立 module 之间的依赖关系，在被引入的 module 的 module.parents 当中添加当前这个 moduleId 
+        }
+      } else {
+        hotCurrentParents = [moduleId];
+        hotCurrentChildModule = request;
+      }
+      if (me.children.indexOf(request) === -1) {
+        me.children.push(request); // 在当前 module 的 module.children 属性当中添加被引入的 moduleId
+      }
+    } else {
+      console.warn(
+        "[HMR] unexpected require(" +
+          request +
+          ") from disposed module " +
+          moduleId
+      );
+      hotCurrentParents = [];
+    }
+    return $require$(request); // 引入模块
+  };
+
+  ...
+
+  return fn
+}
+```
+
+
+
+2. 提供运行时的`hotCreateModule`方法，用以给每个 module 都部署热更新相关的 api：
 
 ```javascript
 function hotCreateModule(moduleId) {
@@ -596,15 +641,15 @@ module.hot.accept(['xxx'], callback)
 当依赖的模块且为 `xxx` 模块发生更新后，这个模块会执行 callback 来完成相关的更新的动作。而不需要通过**重新加载**的方式去完成更新。
 
 ```javascript
-module.decline()
+module.hot.decline()
 ```
 
 这个模块不管其依赖的模块是否发生了变化。这个模块都不会发生更新。
 
 ```javascript
-module.decline(['xxx'])
+module.hot.decline(['xxx'])
 ```
 
 当依赖的模块为`xxx`发生更新的情况下，这个模块不会发生更新。当依赖的其他模块（除了`xxx`模块外）发生更新的话，那么最终还是会将本模块从缓存中删除。
 
-1. 依赖关系：双向链表
+这些热更新的api也是需要用户自己在代码当中进行部署的。就拿平时我们使用的 vue 来说，在本地开发阶段，通过 vue-loader 的编译处理，会自动帮我们在组件代码当中当中注入和热更新相关的代码。
