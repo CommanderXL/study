@@ -151,8 +151,6 @@ function hotCreateRequire(moduleId) {
 }
 ```
 
-
-
 2. 提供运行时的`hotCreateModule`方法，用以给每个 module 都部署热更新相关的 api：
 
 ```javascript
@@ -652,4 +650,46 @@ module.hot.decline(['xxx'])
 
 当依赖的模块为`xxx`发生更新的情况下，这个模块不会发生更新。当依赖的其他模块（除了`xxx`模块外）发生更新的话，那么最终还是会将本模块从缓存中删除。
 
-这些热更新的api也是需要用户自己在代码当中进行部署的。就拿平时我们使用的 vue 来说，在本地开发阶段，通过 vue-loader 的编译处理，会自动帮我们在组件代码当中当中注入和热更新相关的代码。
+这些热更新的 api 也是需要用户自己在代码当中进行部署的。就拿平时我们使用的 vue 来说，在本地开发阶段, vue sfc 经过 vue-loader 的编译处理后，会自动帮我们在组件代码当中当中注入和热更新相关的代码。
+
+```javascript
+// vue-loader/lib/codegen/hotReload.js
+const hotReloadAPIPath = JSON.stringify(require.resolve('vue-hot-reload-api'))
+
+const genTemplateHotReloadCode = (id, request) => {
+  return `
+    module.hot.accept(${request}, function () {
+      api.rerender('${id}', {
+        render: render,
+        staticRenderFns: staticRenderFns
+      })
+    })
+  `.trim()
+}
+
+exports.genHotReloadCode = (id, functional, templateRequest) => {
+  return `
+/* hot reload */
+if (module.hot) {
+  var api = require(${hotReloadAPIPath})
+  api.install(require('vue'))
+  if (api.compatible) { // 判断使用的 vue 的版本是否支持热更新
+    module.hot.accept()
+    if (!api.isRecorded('${id}')) {
+      api.createRecord('${id}', component.options)
+    } else {
+      api.${functional ? 'rerender' : 'reload'}('${id}', component.options)
+    }
+    ${templateRequest ? genTemplateHotReloadCode(id, templateRequest) : ''}
+  }
+}
+  `.trim()
+}
+```
+
+`vue-loader`通过 genHotReloadCode 方法在处理 vue sfc 代码的时候完成热更新 api 的部署功能。这里大致讲下 vue component 进行热更新的流程：
+
+1. 当这个 vue component 被初次加载的时候，首先执行 module.hot.accept() 方法完成热更新接口的部署（上文也将到了这个接口执行的策略是会重新加载这个 vue component 来完成热更新）；
+2. 如果这个 vue component 是被初次加载的话，那么会通过 api.createRecord 方法在全局缓存这个组件的 options 配置，如果这个 vue component 不是被初次加载的话（即全局缓存了这个组件的 options 配置），那么就直接调用 api.reload(rerender) 方法来进行组件的重新渲染；
+3. 如果这个 vue component 提供了 template 模板的话，也会部署模板的热更新代码；
+4. 当这个 vue component 的依赖发生了变化，且这些依赖都部署了热更新的代码(如果没有部署热更新的代码的话，可能会直接刷新页面)，那么这个 vue component 会被重新加载一次。对应的会重新进行前面的1，2，3流程。
