@@ -689,7 +689,8 @@ if (module.hot) {
 
 `vue-loader`通过 genHotReloadCode 方法在处理 vue sfc 代码的时候完成热更新 api 的部署功能。这里大致讲下 vue component 进行热更新的流程：
 
-1. 当这个 vue component 被初次加载的时候，首先执行 module.hot.accept() 方法完成热更新接口的部署（上文也将到了这个接口执行的策略是会重新加载这个 vue component 来完成热更新）；
-2. 如果这个 vue component 是被初次加载的话，那么会通过 api.createRecord 方法在全局缓存这个组件的 options 配置，如果这个 vue component 不是被初次加载的话（即全局缓存了这个组件的 options 配置），那么就直接调用 api.reload(rerender) 方法来进行组件的重新渲染(`$forceUpdate`)；
-3. 如果这个 vue component 提供了 template 模板的话，也会部署模板的热更新代码；
-4. 当这个 vue component 的依赖发生了变化，且这些依赖都部署了热更新的代码(如果没有部署热更新的代码的话，可能会直接刷新页面)，那么这个 vue component 会被重新加载一次。对应的会重新进行前面的1，2，3流程。
+1. 当这个 vue component 被初次加载的时候，首先执行 module.hot.accept() 方法完成热更新接口的部署（上文也提到了这个接口执行的策略是会重新加载这个 vue component 来完成热更新）；
+2. 如果这个 vue component 是被初次加载的话，那么会通过 api.createRecord 方法在全局缓存这个组件的 options 配置，如果这个 vue component 不是被初次加载的话（即全局已经缓存了这个组件的 options 配置），那么就直接调用 api.reload(或rerender) 方法来进行组件的重新渲染(`$forceUpdate`)；
+3. 如果这个 vue component 提供了 template 模板的话，也会部署**模板的热更新代码**（即这个 component 的模板发生了变化，那么会触发 api.rerender 方法）；
+4. 当这个 vue component 的依赖发生了变化，且这些依赖都部署了热更新的代码(如果没有部署热更新的代码的话，可能会直接刷新页面 TODO：解释下为啥会刷新页面)，那么这个 vue component 会被重新加载一次。对应的会重新进行前面的1，2，3流程。
+5. 在我们开发 vue 的应用当中，除了修改组件当中的`<template>`，`<script>`中的内容外会进行热更新外，在我们修改`<style>`样式内容的时候也有热更新的效果。这也是 vue component 在编译阶段在 vue style block 的代码当中部署了热更新代码的原因。具体更新策略可参见[vue-style-loader](https://github.com/vuejs/vue-style-loader)
