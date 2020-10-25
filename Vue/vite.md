@@ -98,6 +98,35 @@ prevStyles.slice(nextStyles.length).forEach((_, i) => {
 
 > src/node/server/serverPluginModuleRewrite.ts
 
+js module 路径的解析以及 module graph 依赖的生成：建立 importer 和 importee 之间的依赖关系。
+
+```javascript
+export const moduleRewritePlugin: ServerPlugin = ({
+  root,
+  app,
+  watcher,
+  resolver
+}) => {
+  app.use(async (ctx, next) => {
+    ...
+    const importer = removeUnRelatedHmrQuery(
+      resolver.normalizePublicPath(ctx.url)
+    )
+    ctx.body = rewriteImports(
+      root,
+      content!,
+      importer,
+      resolver,
+      ctx.query.t
+    )
+    ...
+  })
+}
+```
+
+1. 使用`es-module-lexer`解析代码当中被引入的模块 imports；
+2. 遍历 imports，通过 importeeMap 和 importerMap 建立起 importer 和 importee 之间的相互依赖关系（module graph 也是在这个阶段生成的）；
+
 #### client
 
 > src/client/client.ts
