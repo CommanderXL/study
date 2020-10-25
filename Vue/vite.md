@@ -59,7 +59,40 @@ const sendReload = () => {
 }
 ```
 
-4. 如果是 template block 的部分发生了变化，将`needRerender`标志位置为 true；
+4. 如果是 template block 的部分发生了变化，将`needRerender`标志位置为 true
+
+5. 如果[css module](https://github.com/vitejs/vite#css-modules)发生了变化，或[css variable](https://github.com/vitejs/vite#css-pre-processors)发生了变化，或 css scope属性发生变化，那么直接 sendReload()，并退出当前的 handleVueReload 的流程；
+
+7. 如果仅是 style 样式的内容发生了变化，那么会通过 wss 发送 `style-update` 类型的更新消息
+
+```javascript
+// only need to update styles if not reloading, since reload forces
+// style updates as well.
+nextStyles.forEach((_, i) => {
+  if (!prevStyles[i] || !isEqualBlock(prevStyles[i], nextStyles[i])) {
+    didUpdateStyle = true
+    const path = `${publicPath}?type=style&index=${i}`
+    send({
+      type: 'style-update',
+      path,
+      changeSrcPath: path,
+      timestamp
+    })
+  }
+})
+
+// stale styles always need to be removed
+prevStyles.slice(nextStyles.length).forEach((_, i) => {
+  didUpdateStyle = true
+  send({
+    type: 'style-remove',
+    path: publicPath,
+    id: `${styleId}-${i + nextStyles.length}`
+  })
+})
+```
+
+8. 此外在这个插件内部还监听了 vue sfc 当中的 custom block 的变更，来决定是否需要进行`vue-reload`的操作流程。
 
 #### serverPluginModuleRewrite
 
