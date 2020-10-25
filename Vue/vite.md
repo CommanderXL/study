@@ -9,6 +9,7 @@
 > src/node/server/serverPluginHmr.ts
 
 1. 插件内部初始化一个 Websocket server；
+
 2. `watcher.on('change')`绑定监听文件改动监听事件；
 
 ```javascript
@@ -21,8 +22,42 @@ watcher.on('change', file => {
 })
 ```
 
-3. hasDeadEnd 需要进行`full-reload`级别的更新；
+3. 获取这个文件的所有 importers，初始化 hmrBoundaries，dirtyFiles；
 
+4. walkImportChain 收集所有的 hmrBoundaries，dirtyFiles 以及判断 hasDeadEnd（这里的 hasDeadEnd 其实就是看依赖的模块间(除了 vue 文件外，可以理解为 vue 自动部署了相关 hmr 代码)是否部署了 import.meta.hot API）；
+
+5. 如果 hasDeadEnd 则需要进行`full-reload`级别的更新；否则还是进行模块级别的热更新；
+
+```javascript
+...
+if (hasDeadEnd) {
+  send({
+    type: 'full-reload',
+    path: publicPath
+  })
+  console.log(chalk.green(`[vite] `) + `page reloaded.`)
+} else {
+  const boundaries = [...hmrBoundaries]
+  const file =
+    boundaries.length === 1 ? boundaries[0] : `${boundaries.length} files`
+  console.log(
+    chalk.green(`[vite:hmr] `) +
+      `${file} hot updated due to change in ${relativeFile}.`
+  )
+  send({
+    type: 'multi',
+    updates: boundaries.map((boundary) => {
+      return {
+        type: boundary.endsWith('vue') ? 'vue-reload' : 'js-update', // 如果是 vue 文件那么是 vue-reload 类型的更新，如果是 js 文件，那么是 js-update 类型的更新
+        path: boundary,
+        changeSrcPath: publicPath,
+        timestamp
+      }
+    })
+  })
+}
+...
+```
 
 #### serverPluginVue
 
@@ -126,6 +161,35 @@ export const moduleRewritePlugin: ServerPlugin = ({
 
 1. 使用`es-module-lexer`解析代码当中被引入的模块 imports；
 2. 遍历 imports，通过 importeeMap 和 importerMap 建立起 importer 和 importee 之间的相互依赖关系（module graph 也是在这个阶段生成的）；
+
+```javascript
+
+...
+const prevImportees = importeeMap.get(importer)
+const currentImportees = new Set<string>()
+importeeMap.set(importer, currentImportees)
+...
+const importee = cleanUrl(resolved)
+if (
+  importee !== importer &&
+  // no need to track hmr client or module dependencies
+  importee !== clientPublicPath
+) {
+  currentImportees.add(importee)
+  ensureMapEntry(importerMap, importee).add(importer)
+}
+...
+
+// src/node/server/serverPluginHmr
+export function ensureMapEntry(map: HMRStateMap, key: string): Set<string> {
+  let entry = map.get(key)
+  if (!entry) {
+    entry = new Set<string>()
+    map.set(key, entry)
+  }
+  return entry
+}
+```
 
 #### client
 
