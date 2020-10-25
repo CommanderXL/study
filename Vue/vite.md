@@ -194,3 +194,5 @@ export function ensureMapEntry(map: HMRStateMap, key: string): Set<string> {
 #### client
 
 > src/client/client.ts
+
+被注入到浏览器当中的 hmr 运行时的代码。用以和 serverPluginHmr 生成的 wss 建立连接。同时用以接收 wss push 过来的不同类型的更新代码策略。
