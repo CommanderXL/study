@@ -43,9 +43,21 @@ webpack 构建了一套在前端运行的模块系统。类 commonjs 的方案�
 
 ### webpack 对应的实现
 
+1. 项目的执行流程
+
 ### 热更新模块 API 的部署
 
 ### vue 项目的热更新流程
+
+日常开发当中 vue sfc 的形式，经由 vue-loader 的处理变成如下的字符串：
+
+TODO: vue-loader 处理过后的图
+
+a. template block(render function)
+b. script block(export default vue component options)
+c. style block(动态插 style 标签)
+
+本地开发环境下完成，
 
 ### 基于 ESM 的开发流程
 
