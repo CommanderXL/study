@@ -8,9 +8,16 @@ a. 模块的发展历程
 b. 页面刷新
 c. 这个技术出现的背景
 
+分享的议题：
+
+1. HMR 工作流程是怎么样的？
+2. webpack 的 HMR 实现？
+2. module 依赖关系是如何建立的，HMR 更新策略是怎么样的？
+3. webpack(现在) / vite(未来) 实现的 HMR 有什么异同？
+
 ### 全流程
 
-回想下目前的开发方式：
+简单看下目前的开发方式：
 
 通过一个 cli 命令完成项目的初始化。
 
@@ -41,11 +48,181 @@ webpack 构建了一套在前端运行的模块系统。类 commonjs 的方案�
 
 2. 更新
 
+### webpack 模块系统
+
+```javascript
+(function(modules) {
+
+})({
+  moduleA: function(module, __webpack_exports__, __webpack_require__) {
+    // moduleA content
+  },
+  moduleB: function(module, __webpack_exports__, __webpack_require__) {
+    // moduleB content
+  }
+})
+
+```
+
 ### webpack 对应的实现
 
-1. 项目的执行流程
+1. webpack 编译构建；
 
-### 热更新模块 API 的部署
+2. webpack-dev-server；
+
+3. 浏览器；
+
+4. 用户；
+
+a. 初次构建
+b. 代码发生变更的二次构建
+
+但是在我们实际的业务开发当中，hmr 离我们似近似远。
+
+近：时时刻刻都在使用；
+远：要使用这个功能开箱即用，不需要我们做其他工作；
+
+这是因为我们使用的 framework 在使用 webpack 作为构建工具的过程中，已经帮我们实现了对应 hmr 所需要部署的接口和代码。
+
+hmr 整套的技术方案其实包含两部分的内容：
+
+1. 构建工具(webpack，vite/snowpack)提供 hmr 框架；
+
+2. 接入构建工具的代码，依照 hmr 的规范部署热更新的接口；
+
+
+hmr 框架所包含的内容：
+
+1. wss / eventSource 推送服务；
+  a. 和 browser 进行通讯，http 1.x req/res(or loop?)）；
+  b. 但是你代码发生变更和修改后，浏览器是没有感知的，所以如果浏览器也能感知到代码发生了变更，那么就需要一个通讯的机制 -> push 主动推送编译构建信息
+2. 浏览器需要部署 ws client 的代码与 wss 进行通讯；(ws client 的代码需要构建工具提供以及自动注入)
+
+当 wss <-> ws client 建立起来后，构建服务(user code)、wss 服务、浏览器 三者之间才建立起了联系；
+
+user code 变化 -> wss 服务 -> 浏览器；
+
+浏览器能感知到具体是哪个文件发生了变化(webpack 使用 hash 作为通讯感知，vite 使用文件路径)。
+
+3. 浏览器感知文件发生变更后的更新策略；
+
+4. module dependency graph；
+
+以上就是 hmr 框架所需要包含的几个关键的点。
+
+但是对于用户代码来说如果想要使用 hmr 的功能，那么就需要依照 hmr 框架所定义的规范来部署 hmr 相关的接口。这部分的代码是需要用户手动写的。
+
+
+热更新的接口：
+
+1. accept
+
+2. decline
+
+3. dispose
+
+----
+
+demo + 关键流程的截图
+
+hash 即为构建的 token
+
+具体讲下，module 之间的依赖是如何建立的。当其中一个 module 发生了变化，那么接下来的热更新的策略是如何定义的。
+
+### webpack hmr 实现
+
+1. webpack 提供了打包构建的服务；
+
+2. webpack-dev-server 提供了静态文件伺服服务器 + wss；
+
+webpack hmr 的功能作为插件的方式被集成到 webpack 编译构建的流程当中。相关的插件为：`lib/HotModuleReplacementPlugin.js`。这个插件完成的主要的工作就是：
+
+// TODO: hooks 
+1. 修改 webpack bootstrap runtime 代码，拓展 module 上的 hmr 属性； 
+
+snippet1:
+
+```javascript
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/
+/******/ 		// Check if module is in cache
+/******/ 		if(installedModules[moduleId]) {
+/******/ 			return installedModules[moduleId].exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = installedModules[moduleId] = {
+/******/ 			i: moduleId,
+/******/ 			l: false,
+/******/ 			exports: {}
+/******/ 		};
+/******/
+/******/ 		// Execute the module function
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/
+/******/ 		// Flag the module as loaded
+/******/ 		module.l = true;
+/******/
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+```
+
+snippet2: 
+
+```javascript
+/******/ function __webpack_require__(moduleId) {
+/******/
+/******/ // Check if module is in cache
+/******/ if (installedModules[moduleId]) {
+  /******/ return installedModules[moduleId].exports
+  /******/
+} // Create a new module (and put it into the cache)
+/******/ /******/ var module = (installedModules[moduleId] = {
+  /******/ i: moduleId,
+  /******/ l: false,
+  /******/ exports: {},
+  /******/ hot: hotCreateModule(moduleId),
+  /******/ parents:
+    ((hotCurrentParentsTemp = hotCurrentParents),
+    (hotCurrentParents = []),
+    hotCurrentParentsTemp),
+  /******/ children: []
+  /******/
+}) // Execute the module function
+/******/
+/******/ /******/ modules[moduleId].call(
+  module.exports,
+  module,
+  module.exports,
+  hotCreateRequire(moduleId)
+) // Flag the module as loaded
+/******/
+/******/ /******/ module.l = true // Return the exports of the module
+/******/
+/******/ /******/ return module.exports
+/******/
+} // expose the modules object (__webpack_modules__)
+```
+
+
+a. 提供了 module.hot 属性，用以 module 部署 hmr 相关的接口；
+
+b. 提供了 module.children | module.parents 相关的属性，用以记录 module 之间的依赖关系；
+
+c. 对`__webpack_require__`提供一层代理，module 之间的依赖关系就是通过这个代理方法来建立的；
+
+
+// TODO: hooks
+2. 将`lib/HotModuleReplace.runtime.js`代码注入到 webpack bootstrap runtime 当中，提供 hmr 的运行时代码；
+
+a. 例如 hotCreateModule / hotCreateRequire 方法实现；
+
+b. 提供 hot.accept / hot.decline / hot.dispose 等模块热更新的方法实现；
+
+c. 提供 hotCheck() / hotApply()
+
+----
 
 ### vue 项目的热更新流程
 
@@ -57,7 +234,17 @@ a. template block(render function)
 b. script block(export default vue component options)
 c. style block(动态插 style 标签)
 
-本地开发环境下完成，
+本地开发环境下 vue-loader 完成对于 module.hot.* 相关 api 的部署。
 
 ### 基于 ESM 的开发流程
+
+1. ESM 规范
+
+### webpack 和 vite 对于 HMR 实现的异同
+
+1. 依赖关系的建立；
+2. vite 对于 vue 文件的 hmr 定制化的处理；
+3. webpack 是编译流程前置，vite 是编译流程后置。
+
+
 
