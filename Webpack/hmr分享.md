@@ -1,19 +1,12 @@
-1. 全流程
-2. 模型/要素 进行抽象
-3. Webpack 对应的实现
-4. ESM 对应的实现（未来）
-5. 重要的一点：如何定义更新的策略 （vue-loader）
-
-a. 模块的发展历程
-b. 页面刷新
-c. 这个技术出现的背景
-
 分享的议题：
 
 1. HMR 工作流程是怎么样的？
+
 2. webpack 的 HMR 实现？
-2. module 依赖关系是如何建立的，HMR 更新策略是怎么样的？
-3. webpack(现在) / vite(未来) 实现的 HMR 有什么异同？
+
+3. module 依赖关系是如何建立的，HMR 更新策略是怎么样的？
+
+4. webpack(现在) / vite(未来) 实现的 HMR 有什么异同？
 
 ### 全流程
 
@@ -61,18 +54,6 @@ webpack 构建了一套在前端运行的模块系统。类 commonjs 的方案�
 webpack 模块系统是 webpack hmr 方案的基础。即 webpack hmr 为 webpack 模块系统量身定制的。
 
 ### webpack 对应的实现
-
-1. webpack 编译构建；
-
-2. webpack-dev-server；
-
-3. 浏览器；
-
-4. 用户；
-
-a. 初次构建
-
-b. 代码发生变更的二次构建
 
 但是在我们实际的业务开发当中，hmr 离我们似近似远。
 
@@ -134,7 +115,7 @@ hash 即为构建的 token
 
 1. webpack 提供了打包构建的服务；
 
-2. webpack-dev-server 提供了静态文件伺服服务器 + wss；
+2. webpack-dev-server 提供了静态文件伺服服务器 + ws server + ws client
 
 webpack hmr 的功能作为插件的方式被集成到 webpack 编译构建的流程当中。相关的插件为：`lib/HotModuleReplacementPlugin.js`。这个插件完成的主要的工作就是：
 
@@ -231,9 +212,9 @@ c. 提供 hotCheck() / hotApply()
 
 ### Dirty Module Check
 
-1. Bubble up
+1. Bubble up（发生变化的模块的父模块如果没有部署 module.hot.* 相关的接口，那么就继续向上找父模块的父模块）
 
-2. Hmr boundaries
+2. Hmr boundaries（必须要有完备的 hmr boundaries，否则触发 reload 操作）
 
 
 ### vue 项目的热更新流程
@@ -243,17 +224,21 @@ c. 提供 hotCheck() / hotApply()
 TODO: vue-loader 处理过后的图
 
 a. template block(render function)
+
 b. script block(export default vue component options)
+
 c. style block(动态插 style 标签)
 
 本地开发环境下 vue-loader 完成对于 module.hot.* 相关 api 的部署。
 
-### 基于 ESM 的开发流程
+### 基于 ESM 的热更新
 
-1. ESM 规范
+1. 模块系统使用 ESM 规范，意味着浏览器里面可以直接写 import / exports 这样的代码，而不需要进行编译。
 
-### webpack 和 vite 对于 HMR 实现的异同
+webpack 和 vite 对于 HMR 实现的异同
 
 1. 依赖关系的建立；
-2. vite 对于 vue 文件的 hmr 定制化的处理；
+
+2. vite 对于 vue 文件的 hmr 定制化的处理（监听 *.vue 和 *.js 文件）；
+
 3. webpack 是编译流程前置，vite 是编译流程后置。
