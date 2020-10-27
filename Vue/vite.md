@@ -196,3 +196,18 @@ export function ensureMapEntry(map: HMRStateMap, key: string): Set<string> {
 > src/client/client.ts
 
 被注入到浏览器当中的 hmr 运行时的代码。用以和 serverPluginHmr 生成的 wss 建立连接。同时用以接收 wss push 过来的不同类型的更新代码策略。
+
+
+### 和 Webpack HMR 方案的异同
+
+1. 依赖关系的建立：Webpack 在 browser 运行时记录，vite 在服务侧编译时记录；
+
+2. Dirty Module Check 的流程：Webpack 在 browser 运行时进行，vite 在文件发生变更后再服务侧编译环节即进行。
+
+3. Module 更新：Webpack 直接替换本地缓存的模块（即删除掉）。而 vite 是直接请求新的模块内容并使用新的模块。
+
+4. Webpack 编译流程前置，vite 编译流程后置且按需编译；
+
+5. Webpack 使用 JSONP 请求新的编译生成的模块。vite 直接使用 ESM import 动态加载发生变更的模块内容。读取 export 导出的内容。
+
+6. vite 对于 vue 文件变更的 hmr 做了定制化的处理。
