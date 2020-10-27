@@ -237,8 +237,10 @@ c. style block(动态插 style 标签)
 
 webpack 和 vite 对于 HMR 实现的异同
 
-1. 依赖关系的建立；
+1. 依赖关系的建立：Webpack 在 browser 记录，vite 在编译服务侧记录；
 
 2. vite 对于 vue 文件的 hmr 定制化的处理（监听 *.vue 和 *.js 文件）；
 
 3. webpack 是编译流程前置，vite 是编译流程后置。
+
+4. webpack 使用 JSONP 请求新的编译生成的模块。vite 直接使用 ESM import 动态加载发生变更的模块内容。
