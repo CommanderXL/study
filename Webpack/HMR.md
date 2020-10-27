@@ -1,11 +1,5 @@
 ## webpack hmr
 
-相关资料：
-
-* [Webpack HMR 原理解析](https://zhuanlan.zhihu.com/p/30669007)
-* [Webpack 热更新实现原理分析](https://zhuanlan.zhihu.com/p/30623057)
-* [Webpack HMR 官方文档](https://webpack.docschina.org/guides/hot-module-replacement/#-hmr)
-
 ### webpack-dev-server
 
 在使用 webpack-dev-server 的过程中，如果指定了 hot 配置的话（使用 inline mode 的前提下）， wds 会在内部更新 webpack 的相关配置，即将 HotModuleReplacementPlugin 加入到 webpack 的 plugins 当中。
@@ -57,8 +51,6 @@ mainTemplate.hooks.moduleRequire.tap(
 ```
 
 这个 hook 主要完成的工作是在生成 webpack bootstrap runtime 代码当中对加载 module 的 `require function`进行替换，变为`hotCreateRequire(${varModuleId})`的形式，这样做的目的其实就是对于 module 的加载做了一层代理，在加载 module 的过程当中建立起相关的依赖关系(需要注意的是这里的依赖关系并非是 webpack 在编译打包构建过程中的那个依赖关系，而是在 hmr 模式下代码执行阶段，一个 module 加载其他 module 时在 hotCreateRequire 内部会建立起相关的加载依赖关系，方便之后的修改代码之后进行的热更新操作)，具体这块的分析可以参见下面的章节。
-
-// TODO: hotCreateRequire 方法需要重点分析，这是模块之间的依赖进行热更新非常重要的地方
 
 ```javascript
 mainTemplate.hooks.bootstrap.tap(
@@ -694,3 +686,12 @@ if (module.hot) {
 3. 如果这个 vue component 提供了 template 模板的话，也会部署**模板的热更新代码**（即这个 component 的模板发生了变化，那么会触发 api.rerender 方法）；
 4. 当这个 vue component 的依赖发生了变化，且这些依赖都部署了热更新的代码(如果没有部署热更新的代码的话，可能会直接刷新页面 TODO：解释下为啥会刷新页面)，那么这个 vue component 会被重新加载一次。对应的会重新进行前面的1，2，3流程。
 5. 在我们开发 vue 的应用当中，除了修改组件当中的`<template>`，`<script>`中的内容外会进行热更新外，在我们修改`<style>`样式内容的时候也有热更新的效果。这也是 vue component 在编译阶段在 vue style block 的代码当中部署了热更新代码的原因。具体更新策略可参见[vue-style-loader](https://github.com/vuejs/vue-style-loader)
+
+
+----
+
+相关资料：
+
+* [Webpack HMR 原理解析](https://zhuanlan.zhihu.com/p/30669007)
+* [Webpack 热更新实现原理分析](https://zhuanlan.zhihu.com/p/30623057)
+* [Webpack HMR 官方文档](https://webpack.docschina.org/guides/hot-module-replacement/#-hmr)
