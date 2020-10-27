@@ -25,15 +25,23 @@ c. 这个技术出现的背景
 2. 修改代码（本地服务监听修改，给 browser 推送修改信息）
 3. 页面自动刷新(局部刷新 + 全部刷新)（browser 来决定更新的策略）
 
+时间倒退5，6年，模块打包工具还没有大面积推广使用的时候。那个时间 gulp、grunt 等自动化构建工具，
+
+`gulp-liveReload`、`browserSync` 
+
 在 hmr 之前，使用 liveReload 的方式去完成页面全量刷新。
 
-而 hmr 做到局部刷新
+对比与 liveReload 全量刷新页面的方式来说，hmr 可以做到局部更新。但是这个局部更新的前提是：模块化。即知道到底是模块发生了变化来执行对应的更新策略。
+
+### 前端模块化 
+
+（模块的发展历程）
+
+AMD/CMD/CommonJS/ESM 规范
 
 ### hmr 实现的要素
 
 局部刷新 -> 模块级别的刷新
-
-（模块的发展历程）
 
 webpack 提供的最为核心的功能：打包。一个依赖就作为一个模块。
 
@@ -50,19 +58,7 @@ webpack 构建了一套在前端运行的模块系统。类 commonjs 的方案�
 
 ### webpack 模块系统
 
-```javascript
-(function(modules) {
-
-})({
-  moduleA: function(module, __webpack_exports__, __webpack_require__) {
-    // moduleA content
-  },
-  moduleB: function(module, __webpack_exports__, __webpack_require__) {
-    // moduleB content
-  }
-})
-
-```
+webpack 模块系统是 webpack hmr 方案的基础。即 webpack hmr 为 webpack 模块系统量身定制的。
 
 ### webpack 对应的实现
 
@@ -75,11 +71,13 @@ webpack 构建了一套在前端运行的模块系统。类 commonjs 的方案�
 4. 用户；
 
 a. 初次构建
+
 b. 代码发生变更的二次构建
 
 但是在我们实际的业务开发当中，hmr 离我们似近似远。
 
 近：时时刻刻都在使用；
+
 远：要使用这个功能开箱即用，不需要我们做其他工作；
 
 这是因为我们使用的 framework 在使用 webpack 作为构建工具的过程中，已经帮我们实现了对应 hmr 所需要部署的接口和代码。
@@ -94,8 +92,11 @@ hmr 整套的技术方案其实包含两部分的内容：
 hmr 框架所包含的内容：
 
 1. wss / eventSource 推送服务；
+
   a. 和 browser 进行通讯，http 1.x req/res(or loop?)）；
+
   b. 但是你代码发生变更和修改后，浏览器是没有感知的，所以如果浏览器也能感知到代码发生了变更，那么就需要一个通讯的机制 -> push 主动推送编译构建信息
+
 2. 浏览器需要部署 ws client 的代码与 wss 进行通讯；(ws client 的代码需要构建工具提供以及自动注入)
 
 当 wss <-> ws client 建立起来后，构建服务(user code)、wss 服务、浏览器 三者之间才建立起了联系；
@@ -224,6 +225,17 @@ c. 提供 hotCheck() / hotApply()
 
 ----
 
+### Module Dependency Graph
+
+一个 webpack 构建打包的项目，module 作为整个项目的最小构成单元。运行时确认的 Module Dependency Graph。
+
+### Dirty Module Check
+
+1. Bubble up
+
+2. Hmr boundaries
+
+
 ### vue 项目的热更新流程
 
 日常开发当中 vue sfc 的形式，经由 vue-loader 的处理变成如下的字符串：
@@ -245,6 +257,3 @@ c. style block(动态插 style 标签)
 1. 依赖关系的建立；
 2. vite 对于 vue 文件的 hmr 定制化的处理；
 3. webpack 是编译流程前置，vite 是编译流程后置。
-
-
-
