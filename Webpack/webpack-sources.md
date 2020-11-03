@@ -79,9 +79,9 @@ class ReplaceSource extends Source {
     }, this)
 
     // 这里主要是因为在 this._sortReplacements() 方法的时候，是将 end / start / insertIndex 较大的排在前面，
-		// 因此在 this.replacements.forEach 方法对源码进行切割的时候，是从源码从后向前进行切割的。
-		// 所以在接下来的代码拼接的环节，需要从后向前遍历
-		// write out result array in reverse order
+    // 因此在 this.replacements.forEach 方法对源码进行切割的时候，是从源码从后向前进行切割的。
+    // 所以在接下来的代码拼接的环节，需要从后向前遍历
+    // write out result array in reverse order
     let resultStr = ''
     for (let i = result.length; i >= 0; i--) {
       resultStr += result[i]
