@@ -127,6 +127,32 @@ Don't add polyfills automatically per file, and don't transform import "core-js"
 
 **这个插件所做的工作其实也是引用 `core-js` 相关的模块来完成 `polyfill` 的功能。最终所达到的效果和使用 `@babel/polyfill` 是一样的。**
 
+配置方法：
+
+```javascript
+{
+  "plugins": [
+    [
+      "@babel/plugin-transform-runtime",
+      {
+        "corejs": 3
+      }
+    ]
+  ]
+}
+```
+
+需要注意的是不同 `corejs` 版本提供的 helpers 有一些功能上的差异：`corejs: 2` 仅支持全局的定义，例如 `Promise`，和一些静态方法，例如 `Array.from`，实例上的方法是是不支持的，例如 `[].includes`。不过 `corejs: 3` 是支持实例上的方法的。
+
+默认情况下，`@babel/plugin-transform-runtime` 是不会引入对于 proposals 的 polyfill 的，如果你是使用 `corejs: 3` 的话，可以通过配置 `proposal: true` 来开启这个功能。
+
+
+| corejs option | Install command |
+| -- | -- |
+| false | `npm install --save @babel/runtime` |
+| 2 | `npm install --save @babel/runtime-corejs2` |
+| 3 | `npm install --save @babel/runtime-corejs3` |
+
 ### 技术实现细节
 
 The transform-runtime transformer plugin does three things:
