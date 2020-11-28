@@ -2,7 +2,7 @@
 
 ## @babel/preset-env
 
-`@babel/preset-env` 主要的功能是依据项目经过 `babel` 编译构建后产生的代码所对应运行的平台。
+`@babel/preset-env` 主要的功能是依据项目经过 `babel` 编译构建后产生的代码所对应运行的目标平台。`@babel/preset-env` 内部依赖了很多插件： `@babel/plugin-transform-*`。这些插件的工作主要就是 `babel` 在处理代码的过程当中对于新的 ES 语法的转换，将高版本的语法转化为低版本的写法。例如 `@babel/plugin-transform-arrow-function` 是用来转化箭头函数语法的。
 
 基本的配置方法：
 
@@ -85,7 +85,7 @@ import "core-js/modules/esnext.math.scale";
 
 自动探测代码当中使用的新的特性，并结合目标平台来决定引入对应新特性的 `polyfill`，因此这个配置是会最大限度的去减少引入的 `polyfill` 的数量来保证最终生成的 `bundler` 体积大小。
 
-不过需要注意的是：由于 `babel` 处理代码本来就是一个非常耗时的过程，因此在我们实际的项目当中一般是对于 `node_modules` 当中的 `package` 进行 `exclude` 配置给忽略掉的，除非是一些明确需要走项目当中的 `babel` 编译的 `package` 会单独的去 `include`，所以 `useBuiltIns: 'usage'` 这种用法的话有个风险点就是 `node_modules` 当中的第三方包在实际的编译打包处理流程当中没有被处理（例如有些 `package` 提供了 esm 规范的源码，同时 `package.json` 当中也配置了 `module` 字段，那么例如使用 `webpack` 这样的打包工具的话会引入 `module` 字段对应的入口文件）
+**不过需要注意的是：由于 `babel` 处理代码本来就是一个非常耗时的过程，因此在我们实际的项目当中一般是对于 `node_modules` 当中的 `package` 进行 `exclude` 配置给忽略掉的，除非是一些明确需要走项目当中的 `babel` 编译的 `package` 会单独的去 `include`，所以 `useBuiltIns: 'usage'` 这种用法的话有个风险点就是 `node_modules` 当中的第三方包在实际的编译打包处理流程当中没有被处理（例如有些 `package` 提供了 esm 规范的源码，同时 `package.json` 当中也配置了 `module` 字段，那么例如使用 `webpack` 这样的打包工具的话会引入 `module` 字段对应的入口文件）**
 
 ##### useBuiltIns: false
 
@@ -94,3 +94,6 @@ Don't add polyfills automatically per file, and don't transform import "core-js"
 #### corejs
 
 `corejs` 的配置选项需要搭配着 `useBuiltIns: usage` 或 `useBuiltIns: entry` 来使用。默认情况下，被注入的 polyfill 都是稳定的已经被纳入 `ECMAScript` 规范当中的特性。
+
+
+## @babel/plugin-transform-runtime
