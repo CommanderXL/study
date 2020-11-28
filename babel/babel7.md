@@ -57,3 +57,32 @@ import "core-js/modules/es.string.pad-end"
 ```
 
 **注：其实这里的 useBuiltIns: `entry` 的配置以及需要在业务代码当中需要注入 `core-js`和 `regenerator-runtime/runtime`，在业务代码当中注入对应的 package 从使用上来讲更多的是起到了占位的作用，由 `@babel/preset-env` 再去根据不同的目标平台去引入对应所需要的 `polyfill` 文件**
+
+同时在使用的过程中，如果是 `import 'core-js'` 那么在处理的过程当中会引入所有的 `ECMAScript` 特性的 polyfill，如果你只希望引入部分的特性，那么可以：
+
+In:
+
+```javascript
+import 'core-js/es/array'
+import 'core-js/proposals/math-extensions'
+```
+
+Out:
+
+```javascript
+import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.array.unscopables.flat-map";
+import "core-js/modules/esnext.math.clamp";
+import "core-js/modules/esnext.math.deg-per-rad";
+import "core-js/modules/esnext.math.degrees";
+import "core-js/modules/esnext.math.fscale";
+import "core-js/modules/esnext.math.rad-per-deg";
+import "core-js/modules/esnext.math.radians";
+import "core-js/modules/esnext.math.scale";
+```
+
+##### useBuiltIns: 'usage'
+
+自动探测代码当中使用的新的特性，并结合目标平台来决定引入对应新特性的 `polyfill`，因此这个配置是会最大限度的去减少引入的 `polyfill` 的数量来保证最终生成的 `bundler` 体积大小。
+
+不过需要注意的是：由于 `babel` 处理代码本来就是一个非常耗时的过程，因此在我们实际的项目当中一般是对于 `node_modules` 当中的 `package` 进行 `exclude` 配置给忽略掉的，除非是一些明确需要走项目当中的 `babel` 编译的 `package` 会单独的去 `include`，所以 `useBuiltIns: 'usage'` 这种用法的话有个风险点就是 `node_modules` 当中的第三方包在实际的编译打包处理流程当中没有被处理（例如有些 `package` 提供了 esm 规范的源码，同时 `package.json` 当中也配置了 `module` 字段，那么例如使用 `webpack` 这样的打包工具的话会引入 `module` 字段对应的入口文件）
