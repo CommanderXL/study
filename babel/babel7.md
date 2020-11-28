@@ -95,7 +95,51 @@ Don't add polyfills automatically per file, and don't transform import "core-js"
 
 #### corejs
 
-`corejs` 的配置选项需要搭配着 `useBuiltIns: usage` 或 `useBuiltIns: entry` 来使用。默认情况下，被注入的 polyfill 都是稳定的已经被纳入 `ECMAScript` 规范当中的特性。
+`corejs` 的配置选项需要搭配着 `useBuiltIns: usage` 或 `useBuiltIns: entry` 来使用。默认情况下，被注入的 polyfill 都是稳定的已经被纳入 `ECMAScript` 规范当中的特性。如果你需要使用一些 proposals 当中的 feature 的话，那么需要配置：
+
+```javascript
+{
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        // 相关 preset 的配置
+        corejs: {
+          version: 3,
+          proposals: true
+        }
+      }
+    ]
+  ]
+}
+```
 
 
 ## @babel/plugin-transform-runtime
+
+出现的背景：
+
+`Babel` 在编译处理代码的过程当中会使用一些 helper 辅助函数，例如 `_extend`。这些辅助函数一般都会被添加到每个需要的被处理的文件当中。
+
+因此 `@babel/plugin-transform-runtime` 所要解决的问题就是将所有对于需要这些 helper 辅助函数的引入全部指向 `@babel/runtime/helpers` 这个 module 当中的辅助函数，而不是给每个文件都添加对应 helper 辅助函数的内容。
+
+另外一个目的就是去创建一个沙盒环境。因为如果你直接引入 `core-js`，或者 `@babel/polyfill` 的话，它所提供的 polyfill，例如 `Promise`，`Set`，`Map` 等，是直接在全局环境下所定义的。因此会影响到所有使用到这些 API 的文件内容。所以如果你是写一个 library 的话，最好使用 @babel/plugin-transform-runtime 来完成相关 polyfill 的引入，这样能避免污染全局环境。
+
+**这个插件所做的工作其实也是引用 `core-js` 相关的模块来完成 `polyfill` 的功能。最终所达到的效果和使用 `@babel/polyfill` 是一样的。**
+
+### 技术实现细节
+
+The transform-runtime transformer plugin does three things:
+
+1. Automatically requires @babel/runtime/regenerator when you use generators/async functions (toggleable with the regenerator option).
+
+2. Can use core-js for helpers if necessary instead of assuming it will be polyfilled by the user (toggleable with the corejs option)
+
+3. Automatically removes the inline Babel helpers and uses the module @babel/runtime/helpers instead (toggleable with the helpers option).
+
+
+What does this actually mean though? Basically, you can use built-ins such as Promise, Set, Symbol, etc., as well use all the Babel features that require a polyfill seamlessly, without global pollution, making it extremely suitable for libraries.
+
+## 相关文档
+
+1. [@babel/plugin-transform-runtime](https://babel.docschina.org/docs/en/babel-plugin-transform-runtime)
