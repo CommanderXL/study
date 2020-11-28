@@ -87,6 +87,8 @@ import "core-js/modules/esnext.math.scale";
 
 **不过需要注意的是：由于 `babel` 处理代码本来就是一个非常耗时的过程，因此在我们实际的项目当中一般是对于 `node_modules` 当中的 `package` 进行 `exclude` 配置给忽略掉的，除非是一些明确需要走项目当中的 `babel` 编译的 `package` 会单独的去 `include`，所以 `useBuiltIns: 'usage'` 这种用法的话有个风险点就是 `node_modules` 当中的第三方包在实际的编译打包处理流程当中没有被处理（例如有些 `package` 提供了 esm 规范的源码，同时 `package.json` 当中也配置了 `module` 字段，那么例如使用 `webpack` 这样的打包工具的话会引入 `module` 字段对应的入口文件）**
 
+同时，如果使用 `useBuiltIns: 'usage'` 配置的话。是会在每个文件当中去引入相关的 `polyfill` 的，所以这里如果不借助 `webpack` 这种打包工具的话，是会造成代码冗余的。
+
 ##### useBuiltIns: false
 
 Don't add polyfills automatically per file, and don't transform import "core-js" or import "@babel/polyfill" to individual polyfills.
