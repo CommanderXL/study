@@ -142,6 +142,9 @@ Don't add polyfills automatically per file, and don't transform import "core-js"
 }
 ```
 
+The plugin defaults to assuming that all polyfillable APIs will be provided by the user. Otherwise the corejs option needs to be specified.
+
+
 需要注意的是不同 `corejs` 版本提供的 helpers 有一些功能上的差异：`corejs: 2` 仅支持全局的定义，例如 `Promise`，和一些静态方法，例如 `Array.from`，实例上的方法是是不支持的，例如 `[].includes`。不过 `corejs: 3` 是支持实例上的方法的。
 
 默认情况下，`@babel/plugin-transform-runtime` 是不会引入对于 proposals 的 polyfill 的，如果你是使用 `corejs: 3` 的话，可以通过配置 `proposal: true` 来开启这个功能。
