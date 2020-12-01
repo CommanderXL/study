@@ -172,3 +172,5 @@ What does this actually mean though? Basically, you can use built-ins such as Pr
 ## 相关文档
 
 1. [@babel/plugin-transform-runtime](https://babel.docschina.org/docs/en/babel-plugin-transform-runtime)
+
+2. [polyfill还是transform-runtime](https://segmentfault.com/a/1190000020237790)
