@@ -1,5 +1,20 @@
 ## 接口
 
+接口可以被类（class）去实现（implement），同时也可用于对对象的描述。
+
+```javascript
+interface Person {
+  name: string
+  age?: number
+}
+
+// 用于对对象的描述
+let tom: Person = {
+  name: 'Tom',
+  age: 25
+}
+```
+
 需要注意在写 interface 时有关函数的类型定义：
 
 ```javascript
@@ -9,6 +24,7 @@ interface PersonalIntl {
   f2 = () => any
 }
 
+// 接口被类（class）所实现（implement）
 class Person implements PersonalIntl {
   f1 () {   // 最终这个方法是挂在原型链上的
     console.log(this)
