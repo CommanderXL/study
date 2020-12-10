@@ -110,7 +110,60 @@ TODO: `@vue/cli` 设计的执行规范
 
 这些非常独立的功能都单独抽离成了可拔插的插件，安装即启用。
 
-以上功能有个特点就是和平台是完全解耦的，所以在拆解的过程中可以拆的比较彻底。但是由于 `mpx` 项目的特殊性，即要支持基于 `wx` 小程序的跨端以及 `web` 开发，同时还要支持小程序的云函数、小程序插件模式的开发，且不同开发模式的编译构建配置都不相同。
+以上功能有个特点就是和平台是完全解耦的，所以在拆解的过程中可以拆的比较彻底。但是由于 `mpx` 项目的特殊性，即要支持基于 `wx` 小程序的跨端以及 `web` 开发，同时还要支持小程序的云函数、小程序插件模式的开发，且不同开发模式的编译构建配置都有些差异。
+
+首先在不同平台开发模式下是有 `mpx` 编译构建的基础配置的，这个是和平台没有太多关系的，因此将这部分的配置单独抽离为一个插件：`vue-cli-plugin-mpx`，同时这个插件也被置为了 `@mpxjs/cli` 的 `preset` 预设插件，不管任何项目开发模式下，这个插件都会被默认的安装。
+
+```javascript
+// vue-cli-plugin-mpx
+
+module.exports = function (api, options, webpackConfig) {
+  webpackConfig.module
+    .rule('json')
+    .test(/\.json$/)
+    .resourceQuery(/__component/)
+    .type('javascript/auto')
+
+  webpackConfig.module
+    .rule('wxs-pre-loader')
+    .test(/\.(wxs|qs|sjs|filter\.js)$/)
+    .pre()
+    .use('mpx-wxs-pre-loader')
+    .loader(MpxWebpackPlugin.wxsPreLoader().loader)
+
+  webpackConfig.module.rules.delete('images')
+  const mpxUrlLoader = MpxWebpackPlugin.urlLoader({
+    name: 'img/[name][hash].[ext]'
+  })
+  webpackConfig.module
+    .rule('images')
+    .test(/\.(png|jpe?g|gif|svg)$/)
+    .use('mpx-url-loader')
+    .loader(mpxUrlLoader.loader)
+    .options(mpxUrlLoader.options)
+
+  const transpileDepRegex = genTranspileDepRegex(options.transpileDependencies)
+  webpackConfig.module
+    .rule('js')
+    .test(/\.js$/)
+    .include
+      .add(filepath => transpileDepRegex && transpileDepRegex.test(filepath))
+      .add(api.resolve('src'))
+      .add(api.resolve('node_modules/@mpxjs'))
+      .add(api.resolve('test'))
+        .end()
+    .use('babel-loader')
+      .loader('babel-loader')
+
+  webpackConfig.resolve.extensions
+    .add('.mpx')
+    .add('.wxml')
+    .add('.ts')
+    .add('.js')
+
+  webpackConfig.resolve.modules.add('node_modules')
+}
+```
 
 ### @vue/cli 能力复用
 
