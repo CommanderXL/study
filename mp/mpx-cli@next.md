@@ -9,11 +9,11 @@
 完成项目的初始化后，除了一些基础配置文件外，整个项目的文件主要包含了如下的结构：
 
 ```javascript
--- mpx-cube-ui
+-- mpx-project
  |-- src // 项目源码
  |-- config // 项目配置文件
    |-- dll.config.js // dll 配置
-   |-- index.js
+   |-- index.js // 配置入口文件
    |-- mpxLoader.conf.js // mpx-loader 配置
    |-- mpxPlugin.conf.js // mpx webpack-plugin 配置
    |-- user.conf.js // 用户的 prompts 选择信息
@@ -21,9 +21,9 @@
    |-- build.js // 构建编译脚本
    |-- getPlugins.js // webpack plugins 
    |-- getRules.js // webpack module rules
-   |-- getWebpackConf.js
-   |-- utils.js
-   |-- webpack.base.conf.js
+   |-- getWebpackConf.js // webpack 配置生成辅助函数
+   |-- utils.js // 工具函数
+   |-- webpack.base.conf.js // webpack 基础配置
 ```
 
 在初始化的项目当中，有关项目的所有配置文件，编译构建代码是全部暴露给开发者的，开发者可以对这些文件进行修改来满足自己实际的项目开发需要。同时还可以基于这一套原始的模板文件二次拓展为满足自己业务场景的模板。
@@ -81,13 +81,21 @@ TODO: `@vue/cli` 设计的执行规范
 基于这样一种现状以及 `@mpxjs/cli` 所要解决的问题，从跨平台的角度出发将功能进行了拆分，最终拆解为如下的9个插件：
 
 * vue-cli-plugin-mpx
+
 * vue-cli-plugin-mpx-mp
+
 * vue-cli-plugin-mpx-web
+
 * vue-cli-plugin-mpx-cloud-func
+
 * vue-cli-plugin-mpx-plugin-mode
+
 * vue-cli-plugin-mpx-eslint
+
 * vue-cli-plugin-mpx-unit-test
+
 * vue-cli-plugin-mpx-typescript
+
 * vue-cli-plugin-mpx-dll
 
 这些拆解出来的插件都将和功能相关的**项目模板**以及**编译构建**配置进行了收敛。
@@ -114,7 +122,7 @@ TODO: `@vue/cli` 设计的执行规范
 
 TODO：补一个集合的图
 
-在不同平台开发模式下是有 `mpx` 编译构建的基础配置的，这个是和平台没有太多关系，因此将这部分的配置单独抽离为一个插件：`vue-cli-plugin-mpx`，同时这个插件也被置为了 `@mpxjs/cli` 的 `preset` 预设插件，不管任何项目开发模式下，这个插件都会被默认的安装。
+在不同平台开发模式下是有 `mpx` 编译构建的基础配置的，这个是和平台没有太多关系，因此将这部分的配置单独抽离为一个插件：`vue-cli-plugin-mpx`，**同时这个插件也被置为了 `@mpxjs/cli` 的 `preset` 预设插件，不管任何项目开发模式下，这个插件都会被默认的安装**。
 
 ```javascript
 // vue-cli-plugin-mpx
@@ -172,5 +180,7 @@ module.exports = function (api, options, webpackConfig) {
 在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的。目前像 `热更新`、`MPA 多页应用` 等比较常用的功能暂时没有提供。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
 
 **所以 `@mpxjs/cli@next` 版本里面做了一项非常重要的工作就是复用 `@vue/cli` 的能力，弥补 `mpx` 项目在跨 `web` 项目编译构建的不足。**
+
+因此关于 `mpx` 跨 `web` 编译构建的部分也单独抽离为一个插件：`vue-cli-plugin-mpx-web`，这个插件所做的工作就是在 `@vue/cli` 提供的 `web` 编译构建的能力上去适配 `mpx` 项目。这样也就完成了 `mpx` 跨 `web` 项目编译构建能力的增强。
 
 ### 没有银弹
