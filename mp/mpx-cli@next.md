@@ -12,15 +12,15 @@
 -- mpx-cube-ui
  |-- src // 项目源码
  |-- config // 项目配置文件
-   |-- dll.config.js
+   |-- dll.config.js // dll 配置
    |-- index.js
    |-- mpxLoader.conf.js // mpx-loader 配置
    |-- mpxPlugin.conf.js // mpx webpack-plugin 配置
    |-- user.conf.js // 用户的 prompts 选择信息
  |-- build // 编译构建配置
-   |-- build.js
-   |-- getPlugins.js
-   |-- getRules.js
+   |-- build.js // 构建编译脚本
+   |-- getPlugins.js // webpack plugins 
+   |-- getRules.js // webpack module rules
    |-- getWebpackConf.js
    |-- utils.js
    |-- webpack.base.conf.js
@@ -36,7 +36,7 @@
 
 *  如果远程模板的维护者如果对远程模板(mpx-template)进行了更新，对于用户来说没有一个很好的方式完成升级工作，基本只能通过 copy 代码的方式，将 `mpx-template` 更新后的内容复制一份到自己的项目当中；
 
-* `@mpxjs/cli` 提供的是大而全的能力，从项目结构角度来说没法做到按需。例如我需要开发一个小程序，但是像 `dll` 这种增强的功能或者是没有使用到的小程序插件的构建配置都会出现在生成项目当中(虽然通过一些配置在构建过程中关闭了这些功能)。那么用户在进行编译打包构建配置的时候需要花些时间去理解整个的配置生成过来，来决定到底需要在哪里进行改造。
+* `@mpxjs/cli` 提供的是大而全的能力，从项目结构角度来说没法做到按需。例如我需要开发一个小程序，但是像 `dll` 这种增强的功能或者是没有使用到的小程序插件的构建配置都会出现在生成项目当中(虽然通过一些配置在构建过程中关闭了这些功能)。那么用户在进行编译打包构建配置的时候需要花些时间去理解整个配置的生成过程，来决定到底需要在哪里进行改造。
 
 
 2. 对于 `@mpxjs/cli` 的开发者而言：
@@ -88,6 +88,11 @@
 * vue-cli-plugin-mpx-typescript
 * vue-cli-plugin-mpx-dll
 
+这些拆解出来的插件都将和功能相关的**项目模板**以及**编译构建**配置进行了收敛。
+
+项目模板的生成不用说，借助 `@vue/cli` 的 `Generator API` 按需去生成项目开发所需要的模板，例如项目需要使用 `eslint` 的功能，那么在生成项目的时候会生成对应 `vue-cli-plugin-mpx-eslint` 所提供的模板文件，如果不需要使用，项目当中最终也不会出现和 `eslint` 相关的文件配置。
+
+重点说下编译构建的配置是如何进行拆解的：
 
 
 ### @vue/cli 能力复用
