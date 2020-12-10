@@ -48,6 +48,11 @@
 
 `vue` 在2年前发布了 `@vue/cli@3.x`。和 `2.x` 版本相比而言，整个 `@vue/cli` 的架构发生了非常大的变化，从基于模板的脚手架迭代为基于插件化的脚手架。简单的概述下整个的构架就是：
 
+一个 `vue-cli-plugin` 核心主要包含了2部分的内容：
+
+* `generator` 模板生成器
+
+* `webpack` 编译构建配置
 
 ## 改造细节
 
@@ -65,7 +70,25 @@
 
 公共能力：`dll`
 
-基本上面提到的所有开发模式都对应了不同的目录结构以及编译构建配置。
+基本上面提到的所有开发模式都对应了
+
+1. **不同的目录结构**；
+
+2. **不同的编译构建配置**
+
+基于这样一种现状以及 `@mpxjs/cli` 所要解决的问题，从跨平台的角度出发将功能进行了拆分，最终拆解为如下的9个插件：
+
+* vue-cli-plugin-mpx
+* vue-cli-plugin-mpx-mp
+* vue-cli-plugin-mpx-web
+* vue-cli-plugin-mpx-cloud-func
+* vue-cli-plugin-mpx-plugin-mode
+* vue-cli-plugin-mpx-eslint
+* vue-cli-plugin-mpx-unit-test
+* vue-cli-plugin-mpx-typescript
+* vue-cli-plugin-mpx-dll
+
+
 
 ### @vue/cli 能力复用
 
