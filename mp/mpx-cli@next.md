@@ -96,23 +96,23 @@
 
 基于这样一种现状以及 `@mpxjs/cli` 所要解决的问题，从跨平台的角度出发将功能进行了拆分，最终拆解为如下的9个插件：
 
-* vue-cli-plugin-mpx
+* [vue-cli-plugin-mpx](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx)（mpx 基础开发插件）
 
-* vue-cli-plugin-mpx-mp
+* [vue-cli-plugin-mpx-mp](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-mp)（mpx 小程序平台开发插件）
 
-* vue-cli-plugin-mpx-web
+* [vue-cli-plugin-mpx-web](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-web)（mpx 跨 web 平台开发插件）
 
-* vue-cli-plugin-mpx-cloud-func
+* [vue-cli-plugin-mpx-cloud-func](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-cloud-func)（微信小程序云函数开发插件）
 
-* vue-cli-plugin-mpx-plugin-mode
+* [vue-cli-plugin-mpx-plugin-mode](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-plugin-mode)（微信小程序插件模式开发插件）
 
-* vue-cli-plugin-mpx-eslint
+* [vue-cli-plugin-mpx-eslint](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-eslint)（mpx eslint 插件）
 
-* vue-cli-plugin-mpx-unit-test
+* [vue-cli-plugin-mpx-unit-test](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-unit-test)（小程序单元测试插件）
 
-* vue-cli-plugin-mpx-typescript
+* [vue-cli-plugin-mpx-typescript](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-typescript)（mpx typescript 插件）
 
-* vue-cli-plugin-mpx-dll
+* [vue-cli-plugin-mpx-dll](https://github.com/mpx-ecology/mpx-cli/tree/master/packages/vue-cli-plugin-mpx-dll)（Webpack Dll 插件）
 
 这些拆解出来的插件都将和功能相关的**项目模板**以及**编译构建**配置进行了收敛。
 
@@ -191,7 +191,7 @@ module.exports = function (api, options, webpackConfig) {
 ```
 
 
-### @vue/cli 能力复用
+### Web 平台编译构建能力增强
 
 在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的，像 `热更新`、`MPA 多页应用` 等比较常用的功能是用户用户重新去手动搭建一套的。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
 
