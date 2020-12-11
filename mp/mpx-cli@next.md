@@ -46,15 +46,19 @@
 
 ## 解决方案
 
-`vue` 在2年前发布了 `@vue/cli@3.x`。和 `2.x` 版本相比而言，整个 `@vue/cli` 的架构发生了非常大的变化，从基于模板的脚手架迭代为基于插件化的脚手架。简单的概述下整个的构架就是：
+`vue` 在2年前发布了 `@vue/cli@3.x`，和 `2.x` 版本相比而言，整个 `@vue/cli` 的架构发生了非常大的变化，从基于模板的脚手架迭代为基于插件化的脚手架。简单的概述下整个插件化的构架就是：
 
-一个 `vue-cli-plugin` 核心主要包含了2部分的内容：
+* @vue/cli 提供 vue cli 命令，负责偏好设置，生成模板、`vue-cli-plugin` 插件依赖管理的工作，例如 `vue create <projectName>`、`vue add <pluginName>`；
 
-* `generator` 模板生成器
+* @vue/cli-service 作为 @vue/cli 整个插件系统当中的内部核心插件，提供了 npm script 注册服务，内置了部分 webpack 配置的同时，又提供了 `vue-cli-plugin` 插件的导入、加载以及 webpack 配置更新服务等。
 
-* `webpack` 编译构建配置
+以上是 `@vue/cli` 生态当中最为核心的两部分内容，二者分工明确，各司其职。
 
-TODO: `@vue/cli` 设计的执行规范
+此外在 `@vue/cli` 生态当中非常重要的一个点就是 `vue-cli-plugin` 插件。根据 `@vue/cli` 设计的规范，开发一个 `vue-cli-plugin` 需要遵照相关的约定来进行开发：
+
+* @vue/cli 约定插件如果要生成模板，那么需要提供 `generator` 入口文件；
+
+* @vue/cli-service 约定插件的 `webpack` 配置更新需要放到插件的入口文件当中来完成，同时插件的命名也需要包含 `vue-cli-plugin` 前缀，因为 @vue/cli-service 是依据命名来加载相关的插件的；
 
 ## 改造细节
 
