@@ -177,7 +177,7 @@ module.exports = function (api, options, webpackConfig) {
 
 ### @vue/cli 能力复用
 
-在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的。目前像 `热更新`、`MPA 多页应用` 等比较常用的功能暂时没有提供。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
+在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的，像 `热更新`、`MPA 多页应用` 等比较常用的功能暂时没有提供。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
 
 **所以 `@mpxjs/cli@next` 版本里面做了一项非常重要的工作就是复用 `@vue/cli` 的能力，弥补 `mpx` 项目在跨 `web` 项目编译构建的不足。**
 
@@ -190,3 +190,5 @@ module.exports = function (api, options, webpackConfig) {
 例如 `@vue/cli-service` 内置了一些 `webpack` 的配置，因为 `@vue/cli` 是专门针对 `web`应用的，这些配置会在所有的编译构建流程当中生效，不过这些配置当中有些对于小程序的开发来说是不需要的。
 
 那么针对这种情况，为了避免不同模式下的 `webpack` 配置相互污染。`web` 侧的编译构建还是基于 `@vue/cli` 提供的能力去适配 `mpx` 的 `web` 开发。而小程序侧的编译构建配置是通过 `@vue/cli-service` 内部暴露出来的一些方法去跳过一些对于小程序开发来说不需要的 `webpack` 配置来最终满足小程序的构建配置。
+
+另外就是 `@vue/cli` 的工作流的模式为：在 `@vue/cli-service` 内部收敛了编译构建的运行，所有其他的 `vue-cli-plugin` 的角色其实都像是装配流水线上的工人根据需要对 `webpack` 配置进行拓展。
