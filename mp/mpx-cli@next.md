@@ -50,6 +50,8 @@
 
 `vue` 在2年前发布了 `@vue/cli@3.x`，和 `2.x` 版本相比而言，整个 `@vue/cli` 的架构发生了非常大的变化，从基于模板的脚手架迭代为基于插件化的脚手架。简单的概述下整个插件化的构架就是：
 
+![@vue-cli.png](../images/mp/vue-cli.png)
+
 * @vue/cli 提供 vue cli 命令，负责偏好设置，生成模板、`vue-cli-plugin` 插件依赖管理的工作，例如 `vue create <projectName>`、`vue add <pluginName>`；
 
 * @vue/cli-service 作为 @vue/cli 整个插件系统当中的内部核心插件，提供了 npm script 注册服务，内置了部分 webpack 配置的同时，又提供了 `vue-cli-plugin` 插件的导入、加载以及 webpack 配置更新服务等。
@@ -134,7 +136,7 @@
 
 以上功能有个特点就是和平台是完全解耦的，所以在拆解的过程中可以拆的比较彻底。但是由于 `mpx` 项目的特殊性，即要支持基于 `wx` 小程序的跨端以及 `web` 开发，同时还要支持小程序的云函数、小程序插件模式的开发，且不同开发模式的编译构建配置都有些差异。可以用如下的集合图来表示他们之间的关系：
 
-TODO：补一个集合的图
+![mpx-cli-set](../images/mp/mpx-cli-set.png)
 
 在不同平台开发模式下是有 `mpx` 编译构建的基础配置的，这个是和平台没有太多关系，因此将这部分的配置单独抽离为一个插件：`vue-cli-plugin-mpx`，**同时这个插件也被置为了 `@mpxjs/cli` 的 `preset` 预设插件，不管任何项目开发模式下，这个插件都会被默认的安装**。
 
