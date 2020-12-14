@@ -58,11 +58,11 @@
 
 以上是 `@vue/cli` 生态当中最为核心的两部分内容，二者分工明确，各司其职。
 
-此外在 `@vue/cli` 生态当中非常重要的一个点就是 `vue-cli-plugin` 插件。根据 `@vue/cli` 设计的规范，开发一个 `vue-cli-plugin` 需要遵照相关的约定来进行开发：
+此外在 `@vue/cli` 生态当中非常重要的一个点就是 `vue-cli-plugin` 插件。根据 `@vue/cli` 设计的规范，开发一个 `vue-cli-plugin` 需要遵照**相关的约定**来进行开发：
 
-* @vue/cli 约定插件如果要生成模板，那么需要提供 `generator` 入口文件；
+* @vue/cli **约定**插件如果要生成模板，那么需要提供 `generator` 入口文件；
 
-* @vue/cli-service 约定插件的 `webpack` 配置更新需要放到插件的入口文件当中来完成，同时插件的命名也需要包含 `vue-cli-plugin` 前缀，因为 @vue/cli-service 是依据命名来加载相关的插件的；
+* @vue/cli-service **约定**插件的 `webpack` 配置更新需要放到插件的入口文件当中来完成，同时插件的命名也需要包含 `vue-cli-plugin` 前缀，因为 @vue/cli-service 是依据命名来加载相关的插件的；
 
 再回过头来看 `@mpxjs/cli@2.x` 版本所遇到的几个痛点在 `@vue/cli@3.x` 新的架构模式下都得到了很好的解决：
 
@@ -79,6 +79,8 @@
 从跨平台的角度出发：
 
 1. web 开发
+
+* 基于 `wx` 的跨 `web` 开发；
 
 2. 小程序开发
 
@@ -190,10 +192,13 @@ module.exports = function (api, options, webpackConfig) {
 }
 ```
 
+在小程序的开发模式下，`vue-cli-plugin-mpx-mp` 会在 `vue-cli-plugin-mpx` 的基础上去拓展 `webpack` 配置以满足小程序的编译构建。
+
+在跨 web 的开发模式下，`vue-cli-plugin-mpx-web` 会在 `vue-cli-plugin-mpx` 和 `@vue/cli` 的基础上去拓展配置以满足 web 侧的开发编译构建。
 
 ### Web 平台编译构建能力增强
 
-在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的，像 `热更新`、`MPA 多页应用` 等比较常用的功能是用户用户重新去手动搭建一套的。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
+在 `@mpxjs/cli@2.x` 版本当中有关 `web` 侧的编译构建的配置是比较初级的，像 `热更新`、`MPA 多页应用` 等比较常用的功能是需要用户重新去手动搭建一套的。而 `@vue/cli@3.x` 即为 `vue` 项目而生，提供了非常完备的 `web` 应用的编译构建打包配置。
 
 **所以 `@mpxjs/cli@next` 版本里面做了一项非常重要的工作就是复用 `@vue/cli` 的能力，弥补 `mpx` 项目在跨 `web` 项目编译构建的不足。**
 

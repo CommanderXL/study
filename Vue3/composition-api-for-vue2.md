@@ -34,6 +34,8 @@ $options.data = function wrappedData() {
 
 ## 响应式系统
 
+`Composition Api` 使用的是一套独立的响应式系统，这套系统可以脱离 vue 的环境来被使用。
+
 ## 生命周期
 
 ```javascript
@@ -70,7 +72,7 @@ function injectHookOption(
   val: Function
 ) {
   const options = vm.$options as any
-  const mergeFn = Vue.config.optionMergeStrategies[hook] // 获取生命周期钩子函数的合并策略函数
+  const mergeFn = Vue.config.optionMergeStrategies[hook] // 获取生命周期钩子函数的合并策略函数，Hooks 和 props 会默认合并为数组
   options[hook] = mergeFn(options[hook], wrapHookCall(vm, val))
 }
 
