@@ -1,17 +1,24 @@
 {
   "presets": [
-    ["@babel/preset-env", {
-      "targets": {
-        "browsers": [
-          "> 0.01%",
-          "last 2 versions",
-          "not ie <= 8"
-        ]
-      },
-      "useBuiltIns": "usage"
-    }]
+    [
+      "@babel/preset-env",
+      {
+        // "targets": {
+        //   "browsers": ["> 0.01%", "last 2 versions", "not ie <= 8"]
+        // },
+        "modules": false,
+        // "useBuiltIns": "usage",
+        // "corejs": 3,
+        "targets": "ios >= 14"
+      }
+    ]
   ],
   "plugins": [
-    "@babel/plugin-transform-runtime"
+    [
+      "@babel/plugin-transform-runtime",
+      {
+        "corejs": 3
+      }
+    ]
   ]
 }
