@@ -250,3 +250,15 @@ module.exports = {
 例如 `@vue/cli-service` 内置了一些 `webpack` 的配置，因为 `@vue/cli` 是专门针对 `web`应用的，这些配置会在所有的编译构建流程当中生效，不过这些配置当中有些对于小程序的开发来说是不需要的。
 
 那么针对这种情况，为了避免不同模式下的 `webpack` 配置相互污染。`web` 侧的编译构建还是基于 `@vue/cli` 提供的能力去适配 `mpx` 的 `web` 开发。而小程序侧的编译构建配置是通过 `@vue/cli-service` 内部暴露出来的一些方法去跳过一些对于小程序开发来说不需要的 `webpack` 配置来最终满足小程序的构建配置。
+
+因此在各插件的开发当中，需要暴露该插件所应用的平台：
+
+```javascript
+module.export.platform = 'mp'  // 可选值： 'web'
+```
+
+这样在实际的构建过程当中通过平台的标识来决定对应哪些插件会生效。
+
+## 如何开发一个 mpx 项目的 vue-cli-plugin
+
+具体参阅[文档](https://github.com/mpx-ecology/mpx-cli/blob/master/PLUGIN_GUIDE.md)
