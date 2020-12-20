@@ -169,6 +169,10 @@ The transform-runtime transformer plugin does three things:
 
 What does this actually mean though? Basically, you can use built-ins such as Promise, Set, Symbol, etc., as well use all the Babel features that require a polyfill seamlessly, without global pollution, making it extremely suitable for libraries.
 
+## Some tips
+
+1. 如果使用 `@babel/preset-env` 走 `useBuiltIns: usage(或 entry)` 搭配 `browserlist` 的这种 `polyfill` 的方式的话，`polyfill` 是会污染全局的。如果是走 `@babel/plugin-transform-runtime` 插件的 `polyfill` 的话不会污染全局。
+
 ## 相关文档
 
 1. [@babel/plugin-transform-runtime](https://babel.docschina.org/docs/en/babel-plugin-transform-runtime)
