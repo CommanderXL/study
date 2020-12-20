@@ -120,7 +120,7 @@ export function defineAccessControl(target: AnyObject, key: any, val?: any) {
       const value = getter ? getter.call(target) : val
       // if the key is equal to RefKey, skip the unwrap logic
       if (key !== RefKey && isRef(value)) {
-        return value.value
+        return value.value // 对于 ref 类型数据的 unwrap 操作
       } else {
         return value
       }
@@ -134,7 +134,7 @@ export function defineAccessControl(target: AnyObject, key: any, val?: any) {
       // If and only if "value" is ref and "newVal" is not a ref,
       // the assignment should be proxied to "value" ref.
       if (key !== RefKey && isRef(value) && !isRef(newVal)) {
-        value.value = newVal
+        value.value = newVal // 对于 ref 类型数据的 unwrap 操作
       } else if (setter) {
         setter.call(target, newVal)
       } else {
