@@ -171,7 +171,9 @@ What does this actually mean though? Basically, you can use built-ins such as Pr
 
 ## Some tips
 
-1. 如果使用 `@babel/preset-env` 走 `useBuiltIns: usage(或 entry)` 搭配 `browserlist` 的这种 `polyfill` 的方式的话，`polyfill` 是会污染全局的。如果是走 `@babel/plugin-transform-runtime` 插件的 `polyfill` 的话不会污染全局。
+1. 如果使用 `@babel/preset-env` 走 `useBuiltIns: usage` 搭配 `browserlist` 的这种 `polyfill` 的方式的话，`polyfill` 是会污染全局的(`entry` 模式也是污染全局)。不过这种配置的方式会依据目标打包平台来一定程度上减少不需要被加入到编译打包流程的 `polyfill` 的数量，因此这种方式也对应的能较少 bundle 最终的体积大小。
+
+2. 如果是走 `@babel/plugin-transform-runtime` 插件的 `polyfill` 的话不会污染全局。但是这个插件没法利用 `browserlist` 的目标平台配置的策略。因此在你代码当中只要是使用了 `ES6+` 的新 api，一律都会引入对应的 `polyfill` 文件（而不考虑这个新的 api 是否被目标浏览器已经实现了），这样也会造成 bundle 体积增大。针对这个问题，官方也尝试提供一个新的 `babel-polyfills` package，以及策略去解决类似的问题。详见对应的[文档](https://github.com/babel/babel-polyfills)以及[issue](https://github.com/babel/babel/issues/10008)
 
 ## 相关文档
 
