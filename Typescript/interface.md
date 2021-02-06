@@ -35,3 +35,9 @@ class Person implements PersonalIntl {
   }
 }
 ```
+
+
+1. However, TypeScript takes the stance that there’s probably a bug in this code. Object literals get special treatment and undergo excess property checking when assigning them to other variables, or passing them as arguments. If an object literal has any properties that the “target type” doesn’t have, you’ll get an error:
+
+
+有一些内部隐式的类型检查策略: https://www.typescriptlang.org/docs/handbook/interfaces.html#excess-property-checks
