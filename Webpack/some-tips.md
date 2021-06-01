@@ -16,7 +16,22 @@ webpack 当中的 module 的概念(可以理解为一个文件对应一个 modul
 
 5. source (用以获取 module 文本内容的)
 
-等相关 api 的集合，最终通过 `new NormalModule()` 类去创建对应的实例
+等相关 api 的集合。这些基础的属性定义在 `NormalModule.js` 类当中，不过 `NormalModule` 也继承了其他的类，这些基类同时也提供了一些额外的属性定义，例如继承的 `Module` 类，`DependenciesBlock` 类，其中 `DependenciesBlock` 提供了一些关键的依赖相关的属性：
+
+```javascript
+class DependenciesBlock {
+  constructor() {
+    /** @type {Dependency[]} */
+    this.dependencies = [];
+    /** @type {AsyncDependenciesBlock[]} */
+    this.blocks = [];
+    /** @type {DependenciesBlockVariable[]} */
+    this.variables = [];
+	}
+}
+```
+
+最终通过 `new NormalModule()` 类去创建对应的实例
 
 ```javascript
 // 通过
@@ -159,14 +174,14 @@ class NormalModule extends Module {
 watchpack 提供了 timestamps 的 map 结构，用来缓存文件编译相关的信息
 
 
-fileDependencies / contextDependencies
+fileDependencies(文件路径) / contextDependencies(文件目录路径)
 
 
 一个 module 的 buildModule 的流程：
 
-1. 首先进入 loaders 处理的流程；
+1. 首先进入 loaders 处理的流程，在此阶段可以对于源码做各种侵入性的改造，但是最终所要达到的效果就是经过 loaders 处理后的代码能交由 parser 进行编译处理；
 
-2. parse 过程，在 parse 过程当中完成依赖的收集工作
+2. parse 过程，在 parse 过程当中完成依赖的收集工作。
 
 
 ----
@@ -174,3 +189,57 @@ fileDependencies / contextDependencies
 _addModuleChain -> createModule -> processModuleDependencies (针对入口文件的处理)
 
 processModuleDependencies -> addModuleDependencies (针对依赖 module 的处理)
+
+在 addModuleDependencies 方法当中针对多个依赖项(`['dependencyA', 'dependencyB', 'dependencyC']`)是一个**`并行`**的异步流程([asyncLib.forEach](https://caolan.github.io/async/v3/docs.html#eachOf))：
+
+```javascript
+/*
+
+Tips: 因此不同依赖之间的处理时机是没有严格的时序保证的
+
+*/
+addModuleDependencies(
+  module,
+  dependencies,
+  bail,
+  cacheGroup,
+  recursive,
+  callback
+) {
+  // forEach 并行
+  asyncLib.forEach(
+    dependencies,
+    (item, callback) => {
+      // 异步处理流程
+    },
+    err => {
+      if (err) {
+        // do something
+      }
+      return process.nextTick(callback)
+    }
+  )
+}
+```
+
+在 module 的开始构建流程当中，会添加几个比较重要的属性：
+
+```javascript
+build(options, compilation, resolver, fs, callback) {
+  this.buildTimestamp = Date.now();
+  this.built = true;
+  this._source = null; // 源码属性
+  this._ast = null; // ast 结构
+  this._buildHash = "";
+  this.error = null;
+  this.errors.length = 0;
+  this.warnings.length = 0;
+  this.buildMeta = {};
+  // 记录这个模块经过 loader / parser 处理后的相关信，这个 module 相关的 fileDependencies/contextDependencies 依赖
+  this.buildInfo = {
+    cacheable: false,
+    fileDependencies: new Set(),
+    contextDependencies: new Set()
+  };
+}
+```
