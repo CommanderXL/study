@@ -51,6 +51,14 @@ create module 之后，通过 `this.addModule(module)` 方法来给 compilation 
 
 ```javascript
 /**
+ * @typedef {Object} AddModuleResult
+ * @property {Module} module the added or existing module
+ * @property {boolean} issuer was this the first request for this module
+ * @property {boolean} build should the module be build
+ * @property {boolean} dependencies should dependencies be walked
+ */
+
+/**
  * @param {Module} module module to be added that was created
  * @param {any=} cacheGroup cacheGroup it is apart of
  * @returns {AddModuleResult} returns meta about whether or not the module had built had an issuer, or any dependnecies
