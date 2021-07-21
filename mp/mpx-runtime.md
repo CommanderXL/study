@@ -63,7 +63,7 @@ module.exports = Behavior({
 		// 记录 dom. -> 获取这个节点 id 在整个 tree 当中的 domNode (实际上就是 vdom 的子树)
 		this.domNode = cache.getNode(pageId, nodeId)
 		if (!this.domNode) return
-		
+
 		// 存储 document
 		this.document = cache.getDocument(pageId)
 
@@ -93,17 +93,20 @@ module.exports = Behavior({
 })
 ```
 
-
 #### 模板的构建
 
 ```javascript
 // 子树
-<template name="subtree"></template>
+;<template name="subtree"></template>
 
 // 叶子节点 (没有子元素的节点)
-domInfo.isLeaf = !domInfo.isImage && !domInfo.useTemplate && domInfo.type === 'element' && !child.children.length && NEET_RENDER_TO_CUSTOM_ELEMENT.indexOf(child.tagName) === -1
+domInfo.isLeaf =
+  !domInfo.isImage &&
+  !domInfo.useTemplate &&
+  domInfo.type === 'element' &&
+  !child.children.length &&
+  NEET_RENDER_TO_CUSTOM_ELEMENT.indexOf(child.tagName) === -1
 ```
-
 
 ### Taro
 
