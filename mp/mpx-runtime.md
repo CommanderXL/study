@@ -44,8 +44,8 @@ function onSelfNodeUpdate() {
 
 **在框架层面接管了 vnode 的 diff 和 patch 的操作。所以在 kbone 或者 rax 只需要在提供的 dom 层去代理相关的底层操作，搜集需要被更新的数据，然后再通过 setData 将数据更新到视图。**
 
-子组件根据 id 获取根树的 vdom 片段
-根树 在递归渲染模板的阶段，会过滤掉子组件的 vdom，这部分统一交给 自定义组件 上下文当中去渲染。这样就可以做到局部更新。
+**子组件根据 id 获取根树的 vdom 片段
+根树 在递归渲染模板的阶段，会过滤掉子组件的 vdom，这部分统一交给 自定义组件 上下文当中去渲染。这样就可以做到局部更新。**
 
 ```javascript
 // miniprogram-element/src/base.js
@@ -114,11 +114,118 @@ domInfo.isLeaf =
 
 通过对于 Dom Node.ops 相关操作的代理，收集 vnode diff 相关的数据。统一在顶层派发 diff 数据后的 setData 操作。
 
-对于 `custom-wrapper` 性能优化的组件来说。和 `Kbone` 实现的方案不一致的地方是 diff 数据后，会对数据路径进行分析，找到 `custom-wrapper` 节点实例。
+**对于 `custom-wrapper` 性能优化的组件来说。和 `Kbone` 实现的方案不一致的地方是 diff 数据后，会对数据路径进行分析，找到 `custom-wrapper` 节点实例**。
 
 ```javascript
 // packages/taro-runtime/src/dom/root.ts
+export class TaroRootElement extends TaroElement {
+	...
+	public performUpdate(initRender = false, prerender: Func) {
+		...
+    // 收集数据更新
+    while (this.updatePayloads.length > 0) {
+      const { path, value } = this.updatePayloads.shift()!
+      if (path.endsWith(Shortcuts.Childnodes)) {
+        resetPaths.add(path)
+      }
+      data[path] = value
+    }
+    ...
 
+    if (isFunction(prerender)) {
+      prerender(data)
+    } else {
+      this.pendingUpdate = false
+      const customWrapperUpdate: { ctx: any, data: Record<string, any> }[] = []
+      const normalUpdate = {}
+      if (!initRender) {
+        for (const p in data) {
+          const dataPathArr = p.split('.')
+          let hasCustomWrapper = false
+          // 遍历数据更新 path
+          for (let i = dataPathArr.length; i > 0; i--) {
+            const allPath = dataPathArr.slice(0, i).join('.')
+            // nn: NodeName
+            // 获取节点名，如果为 custom-wrapper，在当前上下文获取 custom-wrapper 的实例
+            // 如果存在这个组件实例，序列化更新的数据 path，并推入到 customWrapperUpdate 更新队列里面。
+            const getData = get(ctx.__data__ || ctx.data, allPath)
+            if (getData && getData.nn && getData.nn === CUSTOM_WRAPPER) {
+              const customWrapperId = getData.uid
+              const customWrapper = ctx.selectComponent(`#${customWrapperId}`)
+              const splitedPath = dataPathArr.slice(i).join('.')
+              if (customWrapper) {
+                hasCustomWrapper = true
+                customWrapperUpdate.push({
+                  ctx: ctx.selectComponent(`#${customWrapperId}`),
+                  data: {
+                    [`i.${splitedPath}`]: data[p]
+                  }
+                })
+              }
+              break
+            }
+          }
+          if (!hasCustomWrapper) {
+            normalUpdate[p] = data[p]
+          }
+        }
+      }
+      const updateArrLen = customWrapperUpdate.length
+      if (updateArrLen) {
+        const eventId = `${this._path}_update_${eventIncrementId()}`
+        const eventCenter = this.eventCenter
+        let executeTime = 0
+        eventCenter.once(eventId, () => {
+          executeTime++
+          if (executeTime === updateArrLen + 1) {
+            perf.stop(SET_DATA)
+            if (!this.pendingFlush) {
+              this.flushUpdateCallback()
+            }
+            if (initRender) {
+              perf.stop(PAGE_INIT)
+            }
+          }
+        }, eventCenter)
+        // 遍历 customWrapperUpdate 完成自定义组件(在对应的上下文)的数据更新
+        customWrapperUpdate.forEach(item => {
+          if (process.env.NODE_ENV !== 'production' && options.debug) {
+            // eslint-disable-next-line no-console
+            console.log('custom wrapper setData: ', item.data)
+          }
+          item.ctx.setData(item.data, () => {
+            eventCenter.trigger(eventId)
+          })
+        })
+        // 在 root tree 的上下文当中完成数据的更新(和 custom-wrapper 不是同一个上下文)
+        if (Object.keys(normalUpdate).length) {
+          if (process.env.NODE_ENV !== 'production' && options.debug) {
+            // eslint-disable-next-line no-console
+            console.log('setData:', normalUpdate)
+          }
+          ctx.setData(normalUpdate, () => {
+            eventCenter.trigger(eventId)
+          })
+        }
+      } else {
+        if (process.env.NODE_ENV !== 'production' && options.debug) {
+          // eslint-disable-next-line no-console
+          console.log('setData:', data)
+        }
+        ctx.setData(data, () => {
+          perf.stop(SET_DATA)
+          if (!this.pendingFlush) {
+            this.flushUpdateCallback()
+          }
+          if (initRender) {
+            perf.stop(PAGE_INIT)
+          }
+        })
+      }
+    }
+	}
+	...
+}
 ```
 
 ### Rax
