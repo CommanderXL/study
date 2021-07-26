@@ -110,4 +110,15 @@ domInfo.isLeaf =
 
 ### Taro
 
+局部更新方案：
+
+通过对于 Dom Node.ops 相关操作的代理，收集 vnode diff 相关的数据。统一在顶层派发 diff 数据后的 setData 操作。
+
+对于 `custom-wrapper` 性能优化的组件来说。和 `Kbone` 实现的方案不一致的地方是 diff 数据后，会对数据路径进行分析，找到 `custom-wrapper` 节点实例。
+
+```javascript
+// packages/taro-runtime/src/dom/root.ts
+
+```
+
 ### Rax
