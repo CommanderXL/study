@@ -228,4 +228,20 @@ export class TaroRootElement extends TaroElement {
 }
 ```
 
+但是对于 taro 性能优化方面有2个方向存疑：
+
+1. 借助 `comp` 自定义渲染的时候，vnode diff 后进行的局部更新仍然是 root.path 
+
+就是官方文档里面提到在微信小程序里面使用 template 进行递归渲染的时候，通过 baseLevel 来决定当 dom 层级达到一定层数后插入一层自定义组件 comp 协助递归。
+
+最终达到的效果是将 setData 设置的路径 path 减少，通过在自定义组件的上下文当中进行 setData，这样最终达到的效果就是 vnode diff 过通过 setData 设置的 path 路径减少，最终的效果就是 setData 设置的数据量也相应减少。
+
+这个流程在 custom-wrapper 里面是正常的。这是因为在 performUpdate 方法里面会找 custom-wrapper 实例和它的上下文，最终在计算出来的新 path 是 i.cn，这样路径会有所减少。
+
+但是通过 comp 自定义组件进行递归渲染的组件，在 vnode diff 后进行局部更新时其实是没有找对应自定义组件实例的，所以通过 baseLevel 设置的层面以及通过 comp 自定义组件进行渲染的组件并不能达到性能优化的效果。因为调试的时候发现这部分的 vnode diff 数据完后，还是通过 root.cn 即根树为路径进行 setData。
+
+2. `custom-wrapper` 嵌套使用的场景
+
+在嵌套的上下文当中(即上下文不一致的情况下)获取 `custom-wrapper` 实例有问题。
+
 ### Rax
