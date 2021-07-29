@@ -244,4 +244,12 @@ export class TaroRootElement extends TaroElement {
 
 在嵌套的上下文当中(即上下文不一致的情况下)获取 `custom-wrapper` 实例有问题。[微信选择器文档](https://developers.weixin.qq.com/miniprogram/dev/api/wxml/SelectorQuery.selectAll.html)
 
+#### 模板构建
+
+```javascript
+// shared/src/template.ts (buildTemplate)  -> taro-mini-runner/src/plugins.ts
+
+
+```
+
 ### Rax
