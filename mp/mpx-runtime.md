@@ -244,6 +244,62 @@ export class TaroRootElement extends TaroElement {
 
 在嵌套的上下文当中(即上下文不一致的情况下)获取 `custom-wrapper` 实例有问题。[微信选择器文档](https://developers.weixin.qq.com/miniprogram/dev/api/wxml/SelectorQuery.selectAll.html)
 
+
+-----
+
+局部更新方案的部分设计方案：
+
+1. `comp` 隔离组件的事件实现方案
+
+在 wx 环境下，虽然在使用 comp 自定义组件进行了隔离用以递归渲染的处理，但是在运行时层面有维护一颗完成的 vDom 树，因此在模板递归渲染的时候每个元素节点都有一个 id 用以唯一标识，在事件处理阶段即通过 document.getElementById 用以获取对应的节点的实例，在 vDom 上有所有缓存的事件，因此接下来可完成事件的派发工作。
+
+```javascript
+// @taro-runtime/src/dom/event.ts
+
+export function eventHandler () {
+  hooks.modifyMpEvent?.(event)
+
+  if (event.currentTarget == null) {
+    event.currentTarget = event.target
+  }
+
+  
+  // 通过 id 找到对应的 node 节点
+  const node = document.getElementById(event.currentTarget.id)
+  if (node) {
+    // 派发事件的函数
+    const dispatch = () => {
+      const e = createEvent(event, node)
+      hooks.modifyTaroEvent?.(e, node)
+      node.dispatchEvent(e)
+    }
+    if (typeof hooks.batchedEventUpdates === 'function') {
+      const type = event.type
+
+      if (
+        !hooks.isBubbleEvents(type) ||
+        !isParentBinded(node, type) ||
+        (type === TOUCHMOVE && !!node.props.catchMove)
+      ) {
+        // 最上层组件统一 batchUpdate
+        hooks.batchedEventUpdates(() => {
+          if (eventsBatch[type]) {
+            eventsBatch[type].forEach(fn => fn())
+            delete eventsBatch[type]
+          }
+          dispatch()
+        })
+      } else {
+        // 如果上层组件也有绑定同类型的组件，委托给上层组件调用事件回调
+        (eventsBatch[type] ||= []).push(dispatch)
+      }
+    } else {
+      dispatch()
+    }
+  }
+}
+```
+
 #### 模板构建
 
 ```javascript
