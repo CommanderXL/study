@@ -309,3 +309,29 @@ export function eventHandler () {
 ```
 
 ### Rax
+
+
+---- 
+
+### Mpx 运行时核心
+
+Mpx@2.x 引入了 Render Function，来完成依赖的收集和重新 setData 的机制
+
+运行时方案对于 Render Function 做增强 -> 引入了 vDom
+
+properties -> computed 数据（单向数据流）
+
+vDom -> setData({ r: vDom }) -> doRenderWithVNode 全量更新
+
+dataChange -> diffVnode -> doRenderWithVNode 局部更新
+
+Mpx-render-template 渲染引擎
+
+### Mpx 编译核心
+
+依赖的处理 -> 运行时组件的收集
+
+template-compiler -> 组件的收集
+
+Mpx-render-template 动态生成
+
