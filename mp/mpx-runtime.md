@@ -325,13 +325,15 @@ vDom -> setData({ r: vDom }) -> doRenderWithVNode 全量更新
 
 dataChange -> diffVnode -> doRenderWithVNode 局部更新
 
-Mpx-render-template 渲染引擎
+Mpx-render-template 渲染引擎 -> 模板的类型的分类 (view、static-view、pure-view 等)
 
 ### Mpx 编译核心
 
 依赖的处理 -> 运行时组件的收集
 
 template-compiler -> 组件的收集
+
+生成 vDom Render Function
 
 Mpx-render-template 动态生成
 
