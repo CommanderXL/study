@@ -9,3 +9,7 @@
 ### 代码书写
 
 1. [杂谈代码整洁](https://mp.weixin.qq.com/s/s_2dfOnMqND1qKjTfnmg5A?from=10B9093010&launchid=10000365--x&WBAPIAnalysisOriUICodes=10000001&v_p=89&aid=01A6KIz-KXGucKBHskOBOMMRfsDUFDplH-wv4f4yVsY2SjS78.&wm=3333_2001&theme=dark)
+
+### 软技能
+
+1. [《技术领导力：程序员如何才能带团队》知识总结](http://r12f.com/posts/reading-time-technical-leadership/)
