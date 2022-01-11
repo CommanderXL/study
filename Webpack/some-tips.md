@@ -2,19 +2,23 @@ webpack 相关的一些个人总结
 
 ## module
 
+通过一个 request 路径去构造一个 module
+
 webpack 当中的 module 的概念(可以理解为一个文件对应一个 module)：
 
 是一个包含了这个文件的
 
 1. request 路径
 
-2. 所有loaders集合
+2. 所有 loaders 集合
 
-3. parser (js编译器)
+3. parser (js 编译器)
 
 4. generator (module 生成器)
 
 5. source (用以获取 module 文本内容的)
+
+6. dependencies (只有这个 module 经过 parse 后才完成依赖的收集工作)
 
 等相关 api 的集合。这些基础的属性定义在 `NormalModule.js` 类当中，不过 `NormalModule` 也继承了其他的类，这些基类同时也提供了一些额外的属性定义，例如继承的 `Module` 类，`DependenciesBlock` 类，其中 `DependenciesBlock` 提供了一些关键的依赖相关的属性：
 
@@ -22,12 +26,12 @@ webpack 当中的 module 的概念(可以理解为一个文件对应一个 modul
 class DependenciesBlock {
   constructor() {
     /** @type {Dependency[]} */
-    this.dependencies = [];
+    this.dependencies = []
     /** @type {AsyncDependenciesBlock[]} */
-    this.blocks = [];
+    this.blocks = []
     /** @type {DependenciesBlockVariable[]} */
-    this.variables = [];
-	}
+    this.variables = []
+  }
 }
 ```
 
@@ -65,7 +69,7 @@ create module 之后，通过 `this.addModule(module)` 方法来给 compilation 
  */
 addModule(module, cacheGroup) {
   // identifier 就是这个 module 的路径
-  const identifier = module.identifier(); 
+  const identifier = module.identifier();
 		// 是否是已经被编译过的 module 依赖
   const alreadyAddedModule = this._modules.get(identifier);
   if (alreadyAddedModule) {
@@ -131,8 +135,9 @@ addModule(module, cacheGroup) {
 }
 ```
 
-
 ！！！module.needRebuild() 方法用以 timestamp 的文件改变的判断准则
+
+一个 module 经由 loaders 处理过后，将会得到非常重要的配置信息：`fileDependencies`、`contextDependencies` 用以作为 **module 是否还需要重新被 loaders 处理的缓存策略信息**。
 
 loader 的缓存策略：
 
@@ -177,13 +182,11 @@ class NormalModule extends Module {
 }
 ```
 
-2. 
+2.
 
 watchpack 提供了 timestamps 的 map 结构，用来缓存文件编译相关的信息
 
-
 fileDependencies(文件路径) / contextDependencies(文件目录路径)
-
 
 一个 module 的 buildModule 的流程：
 
@@ -191,10 +194,9 @@ fileDependencies(文件路径) / contextDependencies(文件目录路径)
 
 2. parse 过程，在 parse 过程当中完成依赖的收集工作。
 
+---
 
-----
-
-_addModuleChain -> createModule -> processModuleDependencies (针对入口文件的处理)
+\_addModuleChain -> createModule -> processModuleDependencies (针对入口文件的处理)
 
 processModuleDependencies -> addModuleDependencies (针对依赖 module 的处理)
 
@@ -250,4 +252,53 @@ build(options, compilation, resolver, fs, callback) {
     contextDependencies: new Set()
   };
 }
+```
+
+---
+
+## Resolver
+
+ResolverFactory
+
+
+## Dependency
+
+Dependency 依赖
+
+`class EntryDependency extends ModuleDependency` 模板依赖包含了一个 module 的 request 路径
+
+Dependency 和 Module 之间的区别？
+
+Dependency 记录了依赖的路径和它的 parentModule(即哪个模块对它的依赖)
+
+## webpack5 编译构建流程
+
+```javascript
+// EntryPlugin.js
+const { entry, options, context } = this
+const dep = EntryPlugin.createDependency(entry, options)
+
+compiler.hooks.make.tapAsync('EntryPlugin', (compilation, callback) => {
+  compilation.addEntry(context, dep, options, (err) => {
+    callback(err)
+  })
+})
+```
+
+```javascript
+// compilation.js
+_addModuleItem
+
+addModuleTree({ context, dependency, contextInfo })
+
+handleModuleCreation()
+
+factorizeModule()
+
+addModule()
+
+// 建立起 module 和 dependency 之间的联系
+moduleGraph.setResolvedModule()
+
+_handleModuleBuildAndDependencies()
 ```
