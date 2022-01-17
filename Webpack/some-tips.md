@@ -269,7 +269,16 @@ Dependency 依赖
 
 Dependency 和 Module 之间的区别？
 
-Dependency 记录了依赖的路径和它的 parentModule(即哪个模块对它的依赖)
+Dependency 记录了依赖的路径和它的 parentModule(即哪个模块对它的依赖)。
+
+`compilation.chunkGraph` 提供了一系列有关 chunk 和其所包含的 module 之间的操作API：
+
+```javascript
+compilation.chunkGraph.isModuleInChunk
+compilation.chunkGraph.disconnectChunkAndModule // 解除 module 和 chunk 之间的关系，最终 module 不会输出到 chunk 里面
+compilation.chunkGraph.connectChunkAndModule // 建立 module 和 chunk 之间的关系
+compilation.chunkGraph.setModuleId // 手动设置 chunk 当中的 module 对应的 id 值
+```
 
 ## webpack5 编译构建流程
 
