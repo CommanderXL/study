@@ -175,6 +175,10 @@ What does this actually mean though? Basically, you can use built-ins such as Pr
 
 2. 如果是走 `@babel/plugin-transform-runtime` 插件的 `polyfill` 的话不会污染全局。但是这个插件没法利用 `browserlist` 的目标平台配置的策略。因此在你代码当中只要是使用了 `ES6+` 的新 api，一律都会引入对应的 `polyfill` 文件（而不考虑这个新的 api 是否被目标浏览器已经实现了），这样也会造成 bundle 体积增大。针对这个问题，官方也尝试提供一个新的 `babel-polyfills` package，以及策略去解决类似的问题。详见对应的[文档](https://github.com/babel/babel-polyfills)以及[issue](https://github.com/babel/babel/issues/10008)
 
+3. `loose` 模式
+
+`Babel` 对于代码处理的[策略](https://2ality.com/2015/12/babel6-loose-mode.html)
+
 ## 相关文档
 
 1. [@babel/plugin-transform-runtime](https://babel.docschina.org/docs/en/babel-plugin-transform-runtime)
