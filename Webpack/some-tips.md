@@ -300,8 +300,10 @@ _addModuleItem
 
 addModuleTree({ context, dependency, contextInfo })
 
+// 创建 module
 handleModuleCreation()
 
+// 通过 ModuleFactory 创建 module 实例
 factorizeModule()
 
 addModule()
@@ -309,5 +311,8 @@ addModule()
 // 建立起 module 和 dependency 之间的联系
 moduleGraph.setResolvedModule()
 
+// 开始 buildModule，完成后在回调里面开始处理对应的依赖
 _handleModuleBuildAndDependencies()
+
+processModuleDependencies(module)
 ```
