@@ -1,14 +1,18 @@
 ## Some tips for Loader
 
-### Inline MatchResource
+### [Inline MatchResource](https://webpack.js.org/api/loaders/#thisimportmodule)
 
-可以用来改造 module ext，使得原有的 resource 不走 module.rule 的匹配策略，而是根据 `!=!` 之前的 resource 进行 rule 匹配工作来选择使用对应的 loader
+可以用来改造 module ext，使得原有的 resource 不走 module.rule 的匹配策略，而是根据 `!=!` 之前的 resource 进行 rule 匹配工作来选择使用对应的 loader。因此在 `!=!` 右侧经过 loader 处理后返回的内容会交给 `!=!` 之前经过 module rule 匹配到的 loader 做进一步的处理。
 
-适用的场景：
+一般适用的场景就是一个 module 经过原有的 loader 处理后还需要其他的 loader 处理其对应的内容。
 
 ### Pitcher Loader
 
-一般用以构建新的 module path -> 然后加入编译流程当中(记得剔除原有的 pitcher loader)
+非常灵活的一个特性。因为是先于 loader 实际处理模块方法的执行，所以可以在 pitcher 阶段做一些其他的事情。
+
+例如在 `vue-loader` 当中：
+
+例如在 `mpx` 当中，利用 `extractor loader` 的 pitcher 阶段，通过 `importModule` 方法获取已经构造好的不同的 block 执行导出的内容来完成 template/style/json block 的抽离工作。
 
 ### [importModule](https://webpack.js.org/api/loaders/#thisimportmodule)
 
