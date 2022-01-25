@@ -6,13 +6,15 @@
 
 一般适用的场景就是一个 module 经过原有的 loader 处理后还需要其他的 loader 处理其对应的内容。
 
-### Pitcher Loader
+### [Pitcher Loader](https://webpack.js.org/api/loaders/#pitching-loader)
 
 非常灵活的一个特性。因为是先于 loader 实际处理模块方法的执行，所以可以在 pitcher 阶段做一些其他的事情。
 
-例如在 `vue-loader` 当中：
+例如在 `vue-loader` 当中：一个 `.vue` 文件经由 `vue-loader` 处理过后生成一个新的 `js module` 进入到编译环节，对于不同的依赖(virtual module 的路径上都会带有 `vue&type=xxx` 的标识)的处理就会匹配到 `pitcher loader`，进而交由 `pitcher loader` 来处理生成一个新的 `js module`，这个 `js module` 的依赖都是通过 `inline loader` 来完成对于模块的处理以及导出的。
 
-例如在 `mpx` 当中，利用 `extractor loader` 的 pitcher 阶段，通过 `importModule` 方法获取已经构造好的不同的 block 执行导出的内容来完成 template/style/json block 的抽离工作。
+例如在 `mpx` 当中，利用 `extractor loader` 的 pitcher 阶段，通过 `importModule` 方法获取已经构造好的不同的 block 执行导出的内容来完成 `template/style/json block` 的抽离工作。
+
+`mpx` 和 `vue` 对于 sfc 的处理不一致的地方在于 `mpx` 需要把 `template/style/json` 都单独的抽离出来，所以还涉及到模块实际执行的导出，这里都涉及到 importModule 方法。
 
 ### [importModule](https://webpack.js.org/api/loaders/#thisimportmodule)
 
