@@ -1,5 +1,7 @@
 ## Some tips for Loader
 
+webpack 在处理 module dependencies 的时候是并行处理的。
+
 ### [Inline MatchResource](https://webpack.js.org/api/loaders/#thisimportmodule)
 
 可以用来改造 module ext，使得原有的 resource 不走 module.rule 的匹配策略，而是根据 `!=!` 之前的 resource 进行 rule 匹配工作来选择使用对应的 loader。因此在 `!=!` 右侧经过 loader 处理后返回的内容会交给 `!=!` 之前经过 module rule 匹配到的 loader 做进一步的处理。
@@ -10,7 +12,7 @@
 
 非常灵活的一个特性。因为是先于 loader 实际处理模块方法的执行，所以可以在 pitcher 阶段做一些其他的事情。
 
-例如在 `vue-loader` 当中：一个 `.vue` 文件经由 `vue-loader` 处理过后生成一个新的 `js module` 进入到编译环节，对于不同的依赖(virtual module 的路径上都会带有 `vue&type=xxx` 的标识)的处理就会匹配到 `pitcher loader`，进而交由 `pitcher loader` 来处理生成一个新的 `js module`，这个 `js module` 的依赖都是通过 `inline loader` 来完成对于模块的处理以及导出的。
+例如在 `vue-loader` 当中：一个 `.vue` 文件经由 `vue-loader` 处理过后生成一个新的 `js module` 进入到编译环节，对于不同的依赖(virtual module 的路径上都会带有 `vue&type=xxx` 的标识)的处理就会匹配到 `pitcher loader`，进而交由 `pitcher loader` 来处理生成一个新的 `js module`，这个 `js module` 的依赖都是通过 `inline loader` 来完成对于模块的处理以及导出的。所以在这个过程当中，有2次生成 js module 的过程，第一次是将 `.vue` 转化为 js module，然后处理依赖（可以看做一个新的 module），处理依赖的过程中，就是处理这个 module 经过 loader 后生成的内容，即 pitcher loader 返回新的 js module 再次进行编译构建流程。
 
 例如在 `mpx` 当中，利用 `extractor loader` 的 pitcher 阶段，通过 `importModule` 方法获取已经构造好的不同的 block 执行导出的内容来完成 `template/style/json block` 的抽离工作。
 
