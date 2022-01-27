@@ -23,6 +23,24 @@ webpack 在处理 module dependencies 的时候是并行处理的。
 
 直接加载给定路径的 module，获取这个 module 被导出的内容，就相当于可以在一个模块的 loader 阶段起一个 childCompiler 去完成其他模块的编译工作，获取其他模块经过编译后导出(exports of module)的内容。
 
+最终其他模块（包括这个模块依赖所挂载到 `buildInfo.assetsInfo` 上的信息）导出的内容会被绑定到当前模块的 `assetsInfo` 属性上：
+
+```javascript
+// excuteModule 里面的执行机制比较复杂
+compilation.executeModule(referencedModule, {}, (err, result) => {
+  ...
+  for (const [name, { source, info }] of result.assets) {
+    const { buildInfo } = loaderContext._module
+    if (!buildInfo.assets) {
+      buildInfo.assets = Object.create(null)
+      buildInfo.assetsInfo = new Map()
+    }
+    buildInfo.assets[name] = source
+    buildInfo.assetsInfo.set(name, info)
+  }
+  callback(null, result.exports)
+})
+```
 
 ### [loadModule](https://webpack.js.org/api/loaders/#thisloadmodule)
 
