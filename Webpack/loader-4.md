@@ -29,6 +29,7 @@ webpack 在处理 module dependencies 的时候是并行处理的。
 // excuteModule 里面的执行机制比较复杂
 compilation.executeModule(referencedModule, {}, (err, result) => {
   ...
+  // result.assets 上包含了这个模块以及其所依赖模块挂载至 buildInfo.assetsInfo 上的内容
   for (const [name, { source, info }] of result.assets) {
     const { buildInfo } = loaderContext._module
     if (!buildInfo.assets) {
@@ -55,3 +56,11 @@ loadModule(request: string, callback: function(err, source, sourceMap, module))
 **`loadModule` 和 `importModule` 之间的区别在于 `loadModule` 获取到的这个模块本身经过编译构建后的代码，而 `importModule` 是可以获取这个 module 导出的内容。**
 
 这2个方法都是在 `webpack/lib/dependencies/LoaderPlugin.js` 通过插件的形式在 loaderContext 上完成方法的注册。在这个模块的具体处理过程中，两个方法的差异也是在 importModule 在编译完这个模块结束后，获取对应的 js module，会继续执行 `compilation.excuteModule` 完成对于这个 js module 的执行，如果有导出内容的话，则会获取最终导出的内容。
+
+### [resolve](https://webpack.js.org/api/loaders/#thisresolve)
+
+```javascript
+resolve(context: string, request: string, callback: function(err, result: string))
+```
+
+需要注意的是这里的 resolve 操作是会自动的将所有的依赖都添加到当前 module 上的
