@@ -337,3 +337,6 @@ template-compiler -> 组件的收集
 
 Mpx-render-template 动态生成
 
+---- 
+
+前提：同一 runtime 环境下
