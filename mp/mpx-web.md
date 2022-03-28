@@ -289,6 +289,3 @@ export default class MPXProxy {
 ```
 
 所以在 web 场景下，对于小程序的一些增强的能力就不需要执行了，统一由 vue 去接管。
-
-
-MpxWebpackPlugin.loader()  -> processTemplate(完成 builtInComponentsMap 的收集) -> processScript
