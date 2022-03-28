@@ -549,3 +549,36 @@ export { add } from './add'
 ```
 
 具体替换的工作可以查阅`HarmonyExportSpecifierDependency.Template`和`HarmonyExportImportedSpecifierDependency.Template`提供的依赖模板函数。
+
+
+-----
+
+## Webpack5 相关
+
+核心相关：
+
+```javascript
+class Compilation {
+  _codeGenerationModule() {
+    let codeGenerated = false
+    const cache = new MultiItemCache()
+
+    ...
+
+    cache.get((err, cachedResult) => {
+      let result
+      ...
+      
+      result = module.codeGeneration({
+        chunkGraph,
+        moduleGraph,
+        dependencyTemplates,
+        runtimeTemplate,
+        runtime
+      })
+    })
+  }
+}
+```
+
+[`RuntimeTemplate`](https://xxx) 类主要是用以生成 module 运行时相关代码的模板类。
