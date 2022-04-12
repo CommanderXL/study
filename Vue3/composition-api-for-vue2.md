@@ -18,6 +18,8 @@ export default {
 }
 ```
 
+插件混入了全局的钩子函数，在 `beforeCreated` 执行的阶段完成一些 composition api 初始化的操作。
+
 在 vue 实例的生命周期执行的时机为：`initProps` -> `initMethods` -> `initData`。其中 `Composition Api` 对于 vue 实例的 `data` 属性做了一层代理，确保 `setup` 函数的调用是在 `data` 初始化之前。
 
 ```javascript
