@@ -6,6 +6,7 @@ Pinia 也可以理解为 Vue 的一个 hook 功能。
 
 ```javascript
 export function createPinia(): Pinia {
+  // 新建一个 scope 实例
   const scope = effectScope(true)
 
   const state = scope.run<Ref<Record<string, StateTree>>>(() => ref<Recorld<string, StateTree>>())!
@@ -181,3 +182,14 @@ export default {
 * `mapState`
 * `mapGetters` 和 `mapState` 等价
 * `mapActions`
+
+
+-----
+
+Pinia 内部使用了 [`vue-demi`](https://github.com/vueuse/vue-demi) 这个 pkg 暴露了兼容 vue2&vue3 2个版本的api。
+
+------
+
+相关文章：
+
+* [vue-demi 介绍](https://antfu.me/posts/make-libraries-working-with-vue-2-and-3)
