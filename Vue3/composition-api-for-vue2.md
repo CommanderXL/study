@@ -353,7 +353,136 @@ export function computed(gettersOrOptions) {
 
 ### effectScope
 
-### watchEffect
+```javascript
+// src/apis/effectScope.ts
+/*
+  @internal
+*/
+export function getCurrentScopeVM() {
+  return getCurrentScope()?.vm || getCurrentInstance()?.proxy 
+}
+
+// 在进行 vm 实例和 effectScope 绑定的过程当中，也注册了 vue 实例在 destory 阶段所要做的工作，就是 scope.stop 来清楚这些副作用相关的依赖关系
+export function bindCurrentScopeVM(
+  vm: ComponentInternalInstance
+): EffectScope {
+  if (!vm.scope) {
+    const scope = new EffectImpl(vm.proxy) as EffectScope
+    vm.scope = scope
+    vm.$proxy.$on('hooks:destoryed', () => scope.stop())
+  }
+  return vm.scope
+}
+```
+
+专门提供了一个API用以 effect 的收集工作并提供了相关的API对于 effect 做统一的管理。事实上在我们使用 composition-api 的时候，都是需要一个 vue 实例作为载体的（不管这个 vue 实例是作为实际的需要被其他组件使用的组件还是说仅仅是在 vue 的生态里面使用这些能力）。
+
+就拿我们熟知的和渲染有关的 render watcher，以及 computed 这些借助 Watcher。一旦这些 watcher 获取值的过程中就会就会进行响应式数据的依赖关系绑定。在 Vue2 当中这些 watcher 都是和组件都非常强的绑定关系的，一旦组件被销毁，那么对应的依赖关系也会被清除掉。然而在 composition-api 当中，你可以在任何地方使用响应式的 api，但是这些响应式的 api 的依赖关系和副作用却不是那么方便的进行管理。
+
+所以官方提供了 EffectScope 这个更加抽象的 api 来对 vue 生态当中的响应式数据和所带来的副作用进行统一的管理。我们通过分析 `@vue/composition-api` 相关的代码也会发现一个 vue 实例的创建也会伴随着 effectScope 的创建。
+
+```javascript
+// src/mixins.ts
+
+function initSetup(vm: ComponentInstance, props: Record<any, any> = {}) {
+  const setup = vm.$options.setup!
+  const ctx = createSetupContext(vm)
+  const instance = toVue3ComponentInstance(vm) // 在这个方法里面完成 vm 实例和 scope 绑定：bindCurrentScopeToVM 
+  ...
+
+  let binding: ReturnType<SetupFunction<Data, Data>> | undefined | null
+  activeCurrentInstance(instance, () => {
+    // setup 接受的第一个参数为 props，第二个参数接受的是 setup 函数上下文
+    binding = setup(props, ctx)
+  })
+}
+
+// src/utils/instance.ts
+export function activeCurrentInstance(
+  instance: ComponentInternalInstance,
+  fn: (instance: ComponentInternalInstance) => any,
+  onError?: (err: Error) => any
+) {
+  let prevVm = getCurrentInstance()
+  setCurrentInstance()
+  ...
+}
+
+// src/runtimeContexts.ts
+export function setCurrentInstance(instance: ComponentInternalInstance | null) {
+  if (!currentInstanceTracking) return
+  const prev = currentInstance
+  prev?.scope.off() // 停止上一个 scope 的收集工作
+  currentInstance = instance // 设置当前访问的 vue 实例
+  currentInstance?.scope.on() // 设置当前的 effectScope
+}
+```
+
+在组件销毁的时候会自动触发 `scope.stop()` 来消除副作用之前的依赖关系(在 `bindCurrentScopeVM` 完成 vm 实例和 scope 绑定的时候就完成了 destory 生命周期的注册)。
+
+此外还可以看到的就是在一个组件的生命周期当中，内部是通过调用 `new EffectImpl(vm) as EffectScope` 来完成 scope 的初始化的工作，这里接受的参数就是当前的组件实例。但是对于我们不是在一个组件的生命周期当中去使用响应式api的时候是调用 `new EffectScope()` 这个时候不需要接受参数，而是内部会创建一个全新的 vue 实例并完成 scope 的初始化以及和 vue 实例绑定的过程。
+
+```javascript
+export class EffectScope extends EffectScopeImpl {
+  constructor(detached = false) {
+    let vm: Vue = undefined!
+    withCurrentInstanceTrackingDisabled(() => {
+      // 创建一个全新的 vue 实例
+      vm = defineComponentInstance(getVueConstructor())
+    })
+    super(vm)
+    if (!detached) {
+      recordEffectScope(this)
+    }
+  }
+}
+```
+
+当我们需要清除这部分响应式数据的依赖关系的时候，直接调用 `scope.stop`，其实内部就会调用绑定的 vm 实例的 `destory` 方法完成组件的清除工作。
+
+```javascript
+class EffectScopeImpl {
+  active = true
+  effects: EffectScope[] = []
+  cleanups: (() => void)[] = []
+
+  /**
+   * @internal
+   **/
+  vm: Vue
+
+  constructor(vm: Vue) {
+    this.vm = vm
+  }
+
+  run<T>(fn: () => T): T | undefined {
+    if (this.active) {
+      try {
+        this.on()
+        return fn()
+      } finally {
+        this.off()
+      }
+    } else if (__DEV__) {
+      warn(`cannot run an inactive effect scope.`)
+    }
+    return
+  }
+
+  ...
+
+  stop() {
+    if (this.active) {
+      this.vm.$destroy()
+      this.effects.forEach((e) => e.stop())
+      this.cleanups.forEach((cleanup) => cleanup())
+      this.active = false
+    }
+  }
+}
+```
+
+### watch & watchEffect
 
 ## 生命周期
 
