@@ -98,10 +98,10 @@ createComponent({
 
 ### Reactivity APIs
 
-在响应式系统方面，mpx 本身的能力和 vue 保持一致。插件仅依赖响应式接口 `obserable`，所以在支持 Reactivity APIs 的时候只对于 MpxProxy 提供了静态方法 `observable`：
+在响应式系统方面，mpx 本身的能力和 vue 保持一致。插件仅依赖响应式接口 `obserable`，所以在支持 Reactivity APIs （例如 `reactive`、`ref` 等）的时候只需要对 MpxProxy 提供静态方法 `observable`：
 
 ```javascript
-class MpxProxy {
+export default class MpxProxy {
   constructor() {
     ...
   }
@@ -148,10 +148,42 @@ MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部�
 所以针对 LifeCycle Hooks 的实现做了如下的改造：
 
 1. LifeCycle optionMergeStrategies 补齐(@vue/composition-api 强依赖合并策略)；
-2. Web 侧生命周期转化为 mpxProxy 内部生命周期；
+2. setup 函数执行收集完 LifeCycle Hooks 后，部分 Web 侧生命周期需转化为 mpxProxy 内部生命周期；
 
 ```javascript
 // todo 补点代码
+export default class MpxProxy {
+
+  static config = mpxProxyConfig
+
+  constructor() {
+    ...
+  }
+
+  initData (data, dataFn) {
+    if (typeof data === 'function') {
+      data = data()
+
+      // web 侧生命周期转化为 mpxProxy 内部生命周期
+      INNER_LIFECYCLES.forEach(lifecycle => {
+        const webLifecycle = lifecycle.replace(/_/g, '')
+        if (this.options[webLifecycle]) {
+          this.options[lifecycle] = this.options[webLifecycle]
+          delete this.options[webLifecycle]
+        }
+      })
+      // 收集 setup 返回的响应式数据，作为小程序渲染逻辑
+      if (this.target.__composition_api_state__) {
+        const { rawBindings = {} } = this.target.__composition_api_state__
+        Object.keys(rawBindings).forEach(name => {
+          if (hasOwn(this.target, name)) {
+            this.localKeysMap[name] = true
+          }
+        })
+      }
+    }
+  }
+}
 ```
 
 
@@ -184,7 +216,13 @@ createComponent({
 这也是 mpx 在不做非常大的变动下支持 composition-api 一个比较重要的点。所以可以在 `setup` 里面返回事件处理函数：
 
 ```javascript
-// todo 补一个实例
+<template>
+  <button bindtap="toggle">按钮点击</button>
+<template>
+
+<script>
+import { createComponent } from '@mpxjs/core'
+
 createComponent({
   setup(props, { emit, refs }) {
     const toggle = function () {
@@ -196,9 +234,16 @@ createComponent({
     }
   }
 })
+</script>
 ```
 
-### Property
+setup 函数执行完后返回的方法、属性都会挂载至小程序实例上。不过在支持事件的时候，因为 setup context 是在 `@vue/composition-api` 内部构造的一个全新的 context，所以触发事件的 API(`emit`)和小程序(`triggerEvent`)目前没法拉齐，为了支持事件也只能抹平对应的能力：
+
+```javascript
+mpx.prototype.$emit = function (...args) {
+  this.triggerEvent(...args)
+}
+```
 
 ### Store
 
