@@ -27,6 +27,8 @@ mpxProxy 内部接管了当前小程序实例的响应式数据初始化、数�
 
 在这样的一个前提下思考：**是否可以直接复用 `@vue/composition-api` 的能力，将这个属于 vue 的插件作为 mpx 的插件来使用，用以实现 mpx 的 composition-api 能力**，这样 mpx 不管在开发小程序还是跨 web 场景的应用下都可以使用 composition-api 能力，且不需要单独维护一个完整的 composition-api 的 package。
 
+在整个的方案实现上采用的整体的思路是：将 mpxProxy 做能力增强，以供 `@vue/composition-api` 来消费使用。
+
 这里我想分几个模块来说下这部分的工作：
 
 ### 插件使用
@@ -47,9 +49,32 @@ VueCompositionAPI.install = function (proxy1, options, proxy2) {
 
 ### 对于 setup() 支持
 
-因为 composition-api 在 beforeCreate hook 对于 data 做了一层代理，在获取 data 之前完成 setup 函数的执行。
+`setup` 函数接受2个参数，第一个为组件定义的 `properties`，另外一个是 setup 的上下文，上下文 context 提供了事件触发(emit)，获取模板节点实例(refs)等属性。
 
+因为 composition-api 是在 beforeCreate hook 对于 data 做了一层代理，在获取 data 之前完成 setup 函数的执行。
 
+```javascript
+import { createComponent } from '@mpxjs/core'
+
+createComponent({
+  properties: {
+    name: {
+      type: string,
+      value: 'Foo'
+    }
+  },
+  setup(props, context) {
+
+  }
+})
+```
+
+不过在 setup 函数有一个单独的 context 上下文是在 `@vue/composition-api` 内构造出来的，主要是提供了对于：
+
+* refs
+* emit
+
+这部分的 api 其实上也是调用组件实例上的方法。这部分是没有什么能力对这个 context 做改造或者增强的。
 
 问题一：是对于 this.target(小程序实例) 还是说 mpxProxy(mpx组件实例) 做增强？他们之间的关系是 mpxProxy.target === 小程序实例
 
@@ -73,7 +98,7 @@ VueCompositionAPI.install = function (proxy1, options, proxy2) {
 
 ### Reactivity APIs
 
-在响应式系统方面，mpx 的实现和 vue 保持一致。插件仅依赖响应式接口 `obserable`，所以在支持 Reactivity APIs 的时候只对于 MpxProxy 提供了静态方法 `observable`：
+在响应式系统方面，mpx 本身的能力和 vue 保持一致。插件仅依赖响应式接口 `obserable`，所以在支持 Reactivity APIs 的时候只对于 MpxProxy 提供了静态方法 `observable`：
 
 ```javascript
 class MpxProxy {
@@ -87,26 +112,97 @@ class MpxProxy {
 }
 ```
 
+不过在支持 `computed`、`watch` 等相关 API 的时候。因为 vue 引入了一套更加抽象的统一管理副作用的 API：`EffectScope`，可以说是整个 vue 的响应式系统都是基于 `EffectScope` 来构建的。事实上一个 `EffectScope` 和一个组件实例一一对应，有可能这个组件实例并非承载实际渲染页面的作用，仅仅是用作管理副作用的容器而存在。
+
+不过在目前 mpx 的设计当中，mpxProxy 是强依赖小程序实例以及实例的生命周期的，他们之间是一一绑定的关系，也就意味着 mpxProxy 没法脱离小程序实例使用。但是 mpx 要实现 composition-api 同样也会遇到统一管理副作用的问题。所以 mpxProxy 的作用不仅仅需要对于小程序实例做增强，同时也需要作为管理副作用的容器。
+
+那么针对这个问题：
+
+```javascript
+// core/src/core.js
+export default class MpxProxy {
+  constructor(
+    options, 
+    target = {
+      __getInitialData: () => {},
+      __render: () => {}
+    }, 
+    params = []
+  ) {
+    ...
+    this.created(params)
+  }
+}
+```
+
+MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部的一些核心 API 等。
+
 ### LifeCycle
 
-在上文也提到 mpx 做跨端是基于小程序做增强，所以在书写一些 api 的时候都是遵照着小程序的规范进行编写的，然后 mpx 在内部做封装和抹平的工作。对于生命周期也是一样，是基于微信小程序的组件的生命周期去做其他平台（其他小程序/web）的兼容。
+在 mpx LifeCycle 的设计当中是依托不同平台（小程序/vue）的生命周期进行构建，因此实际上存在2套生命周期，一套是各平台的(小程序/vue)组件的生命周期，以及 mpx 依托这些平台组件的生命周期而自己内部定义的一套 mpxProxy 生命周期。在小程序实例的关键 LifeCycle Hook 将用户定义的生命周期收敛至 mpxProxy 内部统一的生命周期进行管理。(todo：一张图简单的理解下)
 
-而在 mpx 实现过程中，对于小程序组件实例的代理有一套内部的生命周期函数。即2套生命周期，一套是各平台的(小程序/vue)组件的生命周期，以及 mpx 依托这些平台组件的生命周期而自己内部定义的一套 mpxProxy 生命周期。
+在实现 composition-api 过程中有个比较核心的点就是动态更新生命周期 Hooks，例如在 Vue 当中是在 setup 执行过程中去收集其他的生命周期 Hooks，并动态更新。
+
+对应到小程序平台侧，首先**明确一点就是小程序自身的生命周期 Hooks 是没法动态更新的，这里的动态更新也是利用 mpxProxy 内部定义的一套生命周期，在小程序 setup 函数执行并收集完生命周期 Hooks 后也是动态更新的内部生命周期**。
+
+所以针对 LifeCycle Hooks 的实现做了如下的改造：
+
+1. LifeCycle optionMergeStrategies 补齐(@vue/composition-api 强依赖合并策略)；
+2. Web 侧生命周期转化为 mpxProxy 内部生命周期；
+
+```javascript
+// todo 补点代码
+```
+
 
 ### 事件
 
-小程序的事件处理函数是可以动态挂载的，即：
+在 composition-api 中事件方法和组件的实例的绑定是在 setup 执行完后完成的。
+
+在小程序侧的 methods 是可以动态挂载的，即：
 
 ```javascript
-// todo: 一个简单的动态挂载事件处理函数的 demo
+<template>
+  <button bindtap="toggle">按钮点击</button>
+<template>
+
+<script>
+import { createComponent } from '@mpxjs/core'
+
+createComponent({
+  lifetimes: {
+    ready() {
+      this.tapBtn = function () {
+        console.log('tapBtn')
+      }
+    }
+  }
+})
+</script>
 ```
 
 这也是 mpx 在不做非常大的变动下支持 composition-api 一个比较重要的点。所以可以在 `setup` 里面返回事件处理函数：
 
 ```javascript
 // todo 补一个实例
+createComponent({
+  setup(props, { emit, refs }) {
+    const toggle = function () {
+      console.log('tapBtn')
+    }
+
+    return {
+      toggle
+    }
+  }
+})
 ```
 
 ### Property
 
 ### Store
+
+----
+
+1. 对于代码的复用；
+2. 对于web生态的复用(脱离平台)
