@@ -64,7 +64,9 @@ createComponent({
     }
   },
   setup(props, context) {
+    props.name
 
+    context.emit('updateValue')
   }
 })
 ```
@@ -75,6 +77,8 @@ createComponent({
 * emit
 
 这部分的 api 其实上也是调用组件实例上的方法。这部分是没有什么能力对这个 context 做改造或者增强的。
+
+对于 setup() 的支持，从功能这个角度是可以拉齐的，不过在 API 的调用和属性访问上不太好拉齐，主要体现在事件触发，以及 refs 获取上。
 
 问题一：是对于 this.target(小程序实例) 还是说 mpxProxy(mpx组件实例) 做增强？他们之间的关系是 mpxProxy.target === 小程序实例
 
@@ -137,6 +141,8 @@ export default class MpxProxy {
 
 MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部的一些核心 API 等。
 
+### Scheduler
+
 ### LifeCycle
 
 在 mpx LifeCycle 的设计当中是依托不同平台（小程序/vue）的生命周期进行构建，因此实际上存在2套生命周期，一套是各平台的(小程序/vue)组件的生命周期，以及 mpx 依托这些平台组件的生命周期而自己内部定义的一套 mpxProxy 生命周期。在小程序实例的关键 LifeCycle Hook 将用户定义的生命周期收敛至 mpxProxy 内部统一的生命周期进行管理。(todo：一张图简单的理解下)
@@ -151,14 +157,29 @@ MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部�
 2. setup 函数执行收集完 LifeCycle Hooks 后，部分 Web 侧生命周期需转化为 mpxProxy 内部生命周期；
 
 ```javascript
-// todo 补点代码
+import { mergeWebHook } from '../helper/utils'
+
+const LIFECYCLES_HOOKS = [
+  'beforeMount',
+  'mounted',
+  'updated',
+  'destoryed'
+]
+
+const mpxProxyConfig = {
+  optionMergeStrategies: {}
+}
+
+LIFECYCLE_HOOKS.forEach(hook => {
+  mpxProxyConfig.optionMergeStrategies[hook] = mergeWebHook
+})
+
+
 export default class MpxProxy {
 
   static config = mpxProxyConfig
 
-  constructor() {
-    ...
-  }
+  constructor() {}
 
   initData (data, dataFn) {
     if (typeof data === 'function') {
@@ -186,12 +207,13 @@ export default class MpxProxy {
 }
 ```
 
+当然对于 LifeCycle Hooks 的支持也并没有那么的理想，主要体现在 mpx 的设计当中是以小程序的生命周期为书写标准，所以在使用 `@vue/composition-api` 暴露出来的 Hooks 肯定是和原有的小程序的生命周期 Hook 有差异的，使用过程中肯定是有一定的心智负担的。
 
 ### 事件
 
-在 composition-api 中事件方法和组件的实例的绑定是在 setup 执行完后完成的。
+在 composition-api 中事件方法和组件的实例进行绑定是在 setup 执行完后完成的。
 
-在小程序侧的 methods 是可以动态挂载的，即：
+在小程序侧的 methods 可以动态挂载，即：
 
 ```javascript
 <template>
@@ -237,7 +259,7 @@ createComponent({
 </script>
 ```
 
-setup 函数执行完后返回的方法、属性都会挂载至小程序实例上。不过在支持事件的时候，因为 setup context 是在 `@vue/composition-api` 内部构造的一个全新的 context，所以触发事件的 API(`emit`)和小程序(`triggerEvent`)目前没法拉齐，为了支持事件也只能抹平对应的能力：
+setup 函数执行完后返回的方法、属性都会挂载至小程序实例上。**不过在支持事件的时候，因为 setup context 是在 `@vue/composition-api` 内部构造的一个全新的 context，所以触发事件的 API(`emit`)和小程序(`triggerEvent`)目前没法拉齐**，为了支持事件也只能抹平对应的能力：
 
 ```javascript
 mpx.prototype.$emit = function (...args) {
@@ -250,4 +272,4 @@ mpx.prototype.$emit = function (...args) {
 ----
 
 1. 对于代码的复用；
-2. 对于web生态的复用(脱离平台)
+2. 对于web生态的复用(脱离平台)，例如 vue 生态的复用
