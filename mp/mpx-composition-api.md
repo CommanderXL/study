@@ -1,21 +1,14 @@
+以下是我对于在不改动目前 mpx 整体架构源码的情况下去支持 composition-api 的尝试和探索。
+
 mpx 设计理念是基于小程序框架做渐进增强，在小程序框架里每个 Component，Page 构造函数其实内部是做了一定程度的实例封装，所以对于 mpx 来说，渐进增强的核心也就是对于 Component，Page 在运行时环节做能力增强，剩下的渲染工作交给小程序的框架去接管。这块在跨 web 的场景中也是一样，组件的生命周期、渲染等等都是由 Vue 去接管的，在运行时环节需要做的一项比较重要的工作就是 api 差异的抹平。（这里可以有个图来展示框架渲染以及 mpx 所做的工作）
 
-在接口设计层面，在组件内部要想获取数据，方法都是通过组件实例(这里的组件实例也就是小程序的组件实例，mpx 对于这个实例做了增强) this 去访问，mpx 通过暴露一个 Factory Function，外部通过这 Factory Function 的原型拓展其他的属性、方法。当小程序的实例进入实例化阶段(MpxProxy)后，再完成将Factory Function 的原型拓展挂载至小程序的实例 this 上。在这里面有2个实例需要区分下，一个就是小程序原本的实例，还有一个是 mpxProxy，他们之前的关系是：
+在接口设计层面，在组件内部要想获取数据，方法都是通过组件实例(这里的组件实例也就是小程序的组件实例，mpx 对于这个实例做了增强) this 去访问，mpx 通过暴露一个 Factory Function，外部通过这 Factory Function 的原型拓展其他的属性、方法。当小程序的实例进入实例化阶段(MpxProxy)后，再完成将 Factory Function 的原型拓展挂载至小程序的实例 this 上。在这里面有2个实例需要区分下，一个就是小程序原本的实例，还有一个是 mpxProxy，他们之前的关系是：
 
 ```javascript
 this.__mpxProxy = mpxProxy
 ```
 
-mpxProxy 内部接管了当前小程序实例的响应式数据初始化、数据 diff 以及建立响应式数据和 render watcher 之间的联系等。从这些功能的角度来说，mpxProxy 和一个 vue 实例提供的功能差不多，当然差异还是比较大的，因为 vue 实例是由 Vue Constructor 实例化出来的，所以继承了各种拓展的属性和方法。但是 mpxProxy ...
-
-对内，在 mpx runtime 层面有个非常重要的内容，就是 MpxProxy，与平台无关，对于小程序组件(页面)/web 实例做增强的工作。
-
-在 mpx runtime 实现当中有2部分比较核心的内容：
-
-* options 处理
-* 组件实例的增强(对于跨 web 的场景直接交给 Vue 接管)
-
-----
+在 mpxProxy 内部接管了当前小程序实例的响应式数据初始化、数据 diff 以及建立响应式数据和 render watcher 之间的联系等。从这些功能的角度来说，mpxProxy 和一个 Vue 实例提供的功能是有重合的，当然差异还是比较大，因为 Vue 实例是由 Vue Constructor 实例化出来的，所以继承了各种拓展的属性和方法。但是对于 mpxProxy 来说仅做小程序实例的增强的工作，并不承载对外暴露接口去完成拓展，都是交由 Factory Function 的原型拓展来完成，例如mixin，响应式接口等都是通过 Factory Function 去暴露的，所以 mpxProxy 和 Vue 实例之间从功能和定位来说差异较大。
 
 在开始介绍整个的方案前，首先看下 Vue@2.x 对于 composition-api 的支持，整体还是采用插件的方式去增强这部分的能力，强依赖 Vue Constructor 全局构造函数，通过 `mixin`、`optionMergeStrategies` 等能力去改变 Vue 实例化的组件的能力和行为：
 
@@ -23,11 +16,11 @@ mpxProxy 内部接管了当前小程序实例的响应式数据初始化、数�
 * LifeCycle Hooks：利用 optionMergeStrategies 的机制，动态收集并更新 LifeCycle Hooks；
 * Reactive：依赖 `Vue.observable` 完成响应式数据初始化；
 
-对于 mpx 而言，同样提供了全局 mixin 的能力，以及在小程序开始实例化之前的 beforeCreate hook，在 LifeCycle Hooks 方面依托小程序的 Hooks 构建了一套 mpxProxy inner LifeCycle Hooks，此外 mpx 目前的响应式系统基本和 Vue@2.x 保持一致。
+对于 mpx 而言，同样提供了全局 mixin 的能力（通过 Factory Function 暴露的），以及在小程序开始实例化之前的 beforeCreate hook，在 LifeCycle Hooks 方面依托小程序的 Hooks 构建了一套 mpxProxy inner LifeCycle Hooks，此外 mpx 目前的响应式系统基本和 Vue@2.x 保持一致。
 
 在这样的一个前提下思考：**是否可以直接复用 `@vue/composition-api` 的能力，将这个属于 vue 的插件作为 mpx 的插件来使用，用以实现 mpx 的 composition-api 能力**，这样 mpx 不管在开发小程序还是跨 web 场景的应用下都可以使用 composition-api 能力，且不需要单独维护一个完整的 composition-api 的 package。
 
-在整个的方案实现上采用的整体的思路是：将 mpxProxy 做能力增强，以供 `@vue/composition-api` 来消费使用。
+最终我尝试的思路是：将 mpxProxy 做能力增强，以供 `@vue/composition-api` 来消费使用。
 
 这里我想分几个模块来说下这部分的工作：
 
@@ -45,11 +38,11 @@ VueCompositionAPI.install = function (proxy1, options, proxy2) {
 }
 ```
 
-这样插件可以直接作用于 MpxProxy，从而对小程序实例做增强。（不过这里面需要注意的一点是插件在执行过程中即会使用到 MpxProxy 的能力，同时也会使用小程序的实例。
+这样插件可以直接作用于 MpxProxy，从而对小程序实例做增强。（不过这里面需要注意的一点是插件在执行过程中即会使用到 MpxProxy 的能力，同时也会使用小程序的实例）
 
 ### 对于 setup() 支持
 
-`setup` 函数接受2个参数，第一个为组件定义的 `properties`，另外一个是 setup 的上下文，上下文 context 提供了事件触发(emit)，获取模板节点实例(refs)等属性。
+`setup` 函数接受2个参数，第一个为组件定义的 `properties`，另外一个是 setup 的上下文 context，上下文 context 提供了事件触发(emit)，获取模板节点实例(refs)等属性。
 
 因为 composition-api 是在 beforeCreate hook 对于 data 做了一层代理，在获取 data 之前完成 setup 函数的执行。
 
@@ -80,19 +73,7 @@ createComponent({
 
 对于 setup() 的支持，从功能这个角度是可以拉齐的，不过在 API 的调用和属性访问上不太好拉齐，主要体现在事件触发，以及 refs 获取上。
 
-问题一：是对于 this.target(小程序实例) 还是说 mpxProxy(mpx组件实例) 做增强？他们之间的关系是 mpxProxy.target === 小程序实例
-
 在我们平时写 mpx 代码的时候，this 的指向都是小程序实例，只不过 mpx 对于这个实例做了能力的增强。
-
-对外，暴露了一个 mpx Constructor 用以一些方法的拓展。 mpx Constructor 做能力增强 -> 可以实例化一个 MpxProxy.
-
-不过需要明确的一点是
-
-那么我们仔细分析下 composition-api 的实现，它还是借助 Vue 的插件系统去完成，最为核心的还是对于全局唯一的 Vue Constructor 进行拓展改造。
-
-对于整个的技术方案前提的是在对原有的 mpx 运行时的架构设计不做大的改动情况下，去实现 composition-api 的能力。
-
-在 mixin 的生命周期里面访问的都是 target
 
 所要解决的核心的问题：
 
@@ -141,7 +122,9 @@ export default class MpxProxy {
 
 MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部的一些核心 API 等。
 
-### Scheduler
+对于支持 `watch`、`computed`、`reactive`、`ref` 等 Reactive API.
+
+对于一些新的 Reactive API，例如 `watchPostEffect`、`watchSyncEffect`(watch api alias) 涉及到 scheduler 调度器的执行，目前 mpx 的能力是能支持到 sync
 
 ### LifeCycle
 
@@ -267,9 +250,12 @@ mpx.prototype.$emit = function (...args) {
 }
 ```
 
+所以在事件的支持上也只能做到功能上能拉齐，但是 API 的调用和原本的事件调用有些差异的。
+
 ### Store
 
-----
+
+经过这次的探索
 
 1. 对于代码的复用；
 2. 对于web生态的复用(脱离平台)，例如 vue 生态的复用
