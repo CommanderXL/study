@@ -22,7 +22,7 @@ this.__mpxProxy = mpxProxy
 
 在这样的一个前提下思考：**是否可以直接复用 `@vue/composition-api` 的能力，将这个属于 vue 的插件作为 mpx 的插件来使用，用以实现 mpx 的 composition-api 能力**，这样 mpx 不管在开发小程序还是跨 web 场景的应用下都可以使用 composition-api 能力，且不需要单独维护一个完整的 composition-api 的 package。
 
-最终我尝试的思路是：**将 mpxProxy 做能力增强，以供 `@vue/composition-api` 来消费使用**。
+最终我尝试的思路是：**将 mpxProxy 做能力增强，以供 `@vue/composition-api` 来消费使用，`@vue-composition-api` 所依赖的所有的能力都由 mpxProxy 来提供**。
 
 这里我想分几个模块来说下这部分的工作：
 
@@ -106,7 +106,7 @@ export default class MpxProxy {
 
 不过在目前 mpx 的设计当中，mpxProxy 是强依赖小程序实例以及实例的生命周期的，他们之间是一一绑定的关系，也就意味着 mpxProxy 没法脱离小程序实例使用。但是 mpx 要实现 composition-api 同样也会遇到统一管理副作用的问题。所以 mpxProxy 的作用不仅仅需要对于小程序实例做增强，同时也需要作为管理副作用的容器。同时容器还需要具备自己的初始化（收集副作用）和销毁（清除副作用）的一套逻辑。
 
-那么针对这个问题：
+那么针对这个问题，对于 mpxProxy 的生命周期做一点闭环改造，`created` 阶段在构造函数的时候便开始调用：
 
 ```javascript
 // core/src/core.js
@@ -125,11 +125,9 @@ export default class MpxProxy {
 }
 ```
 
-MpxProxy 可脱离小程序的实例单独实例化，同时还暴露了内部的一些核心 API 等。
+这样最终 MpxProxy 可脱离小程序的实例单独实例化，不仅仅承载了对于小程序实例增强的工作，同时还作为整个 composition-api 系统当中管理副作用的容器而使用。
 
-对于支持 `watch`、`computed`、`reactive`、`ref` 等 Reactive API.
-
-对于一些新的 Reactive API，例如 `watchPostEffect`、`watchSyncEffect`(watch api alias) 涉及到 scheduler 调度器的执行，目前 mpx 的能力是能支持到 sync
+因为 mpx 的响应式系统基本和 Vue 保持一致，所以对于 Reactive API: `watch`、`computed`、`reactive`、`ref`、`watchPostEffect`、`watchSyncEffect` 等可以非常低的成本去支持。因为 Reactive API 不依赖平台，所以在使用上也比较顺滑。
 
 ### LifeCycle
 
