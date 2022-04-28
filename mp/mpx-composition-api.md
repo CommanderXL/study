@@ -2,7 +2,7 @@
 
 不同于其他的全运行时小程序框架可以在上层直接使用 Vue、React，在生态能力的复用上会更加的容易，用一部分的性能牺牲换取了开发体验。mpx 作为编译型小程序框架依托小程序规范做能力增强，运行时部分极为轻量简洁，配合编译构建阶段的包体积优化和基于Render Function的数据依赖追踪做到业内小程序的性能最优。
 
-我前段花了点时间尝试探索 mpx 对于 web 生态能力的复用。核心的目的是更加深入的了解在以后的业务迭代当中是否有更多的可能将 web 生态当中的能力直接嵌入到 mpx 当中来做功能的拓展，用以减少代码的维护以及开发成本。
+上周花了几天时间尝试探索 mpx 对于 web 生态能力的复用。核心的目的是更加深入的了解在以后的业务迭代当中是否有更多的可能将 web 生态当中的能力直接嵌入到 mpx 当中来做功能的拓展，用以减少代码的维护以及开发成本。
 
 在这里我是尝试在不改动目前 mpx 整体架构源码的情况下去支持 composition-api 能力的尝试和探索。
 
@@ -238,7 +238,7 @@ createComponent({
 </script>
 ```
 
-这也是 mpx 在不做非常大的变动下支持 composition-api 一个比较重要的点。所以可以在 `setup` 里面返回事件处理函数：
+所以可以在 `setup` 里面直接返回事件处理函数：
 
 ```javascript
 <template>
@@ -323,7 +323,20 @@ createComponent({
 
 ### 总结
 
-顺着不改变 `@mpxjs/core` 的整体架构逻辑，只做小部分的 mpxProxy 的能力增强，同时直接引入 `@vue/composition-api` 作为 mpx 的 composition-api 能力的实现这样一个思路做下来。总体的代码量改动量不多，主要还是一些能力的补齐，从功能实现角度比较容易复用和拉齐，但是对于一些 API 的使用上会有比较大的心智负担，这也是可以预见的，因为**从整个框架的设计角度和出发点来看是基于小程序的规范去做增强，所以在跨平台(生态)方面的能力的抹平工作都是由小程序向web侧去兼容**。这次对于 mpx composition-api 能力的探索算是更加深入的去尝试把 web 相关生态的能力复用至小程序生态。
+最终的代码实现可以参见这个 [commit](https://github.com/CommanderXL/mpx/commit/d8b270d18141571c019bd69d6852397298efa980)。
+
+主要还是分为两大块，第一个为插件部分，对应到：`core/composition.js` 这部分，核心主要是抹平小程序平台/web侧的插件使用，这部分也是作为一个插件被 mpx 所消费。
+
+```javascript
+import mpx from '@mpxjs/core'
+import MpxCompositionAPI from '@mpxjs/composition-api' // 对应到 core/composition.js  
+
+mpx.use(MpxComsotionAPI)
+```
+
+另外一部分是 `core/proxy.js` 里面对于 mpxProxy 能力的增强。
+
+顺着不改变 `@mpxjs/core` 的整体架构逻辑，只做小部分的 mpxProxy 的能力增强，同时直接引入 `@vue/composition-api` 作为 mpx 的 composition-api 能力的实现这样一个思路做下来。总体的代码量改动量不多，主要还是一些能力的补齐，从功能实现角度比较容易复用和拉齐，但是对于一些 API 的使用上会有比较大的心智负担，这也是可以预见的，因为**从整个框架的设计角度和出发点来看是基于小程序的规范去做增强，所以在跨平台(生态)方面的能力的抹平工作都是由小程序向web侧去兼容**。这次对于 mpx composition-api 能力的探索算是更加深入的去尝试把 web 相关生态的能力复用至小程序生态，对于两者的复用性的可能性以及复用场景也有了更深的体会。
 
 虽然 mpx 必须依托各平台的生命周期去构建自己的实例，但是 composition-api 的引入会给 mpx runtime 层面的逻辑执行带来更多的**动态特性**，这部分的逻辑收敛对于我们想要基于 mpx runtime 做能力增强也带来了一些新的思路和想法。
 
