@@ -1,12 +1,14 @@
 ## 一次 mpx 对于 web 生态能力复用的探索
 
-最近花了点时间尝试探索 mpx 对于 web 生态能力的复用。核心的目的是更加深入的了解在以后的业务迭代当中是否有更多的可能将 web 生态当中的能力直接嵌入到 mpx 当中来做功能的拓展，用以减少代码的维护以及开发成本。
+不同于其他的全运行时小程序框架可以在上层直接使用 Vue、React，在生态能力的复用上会更加的容易，用一部分的性能牺牲换取了开发体验。mpx 作为编译型小程序框架依托小程序规范做能力增强，运行时部分极为轻量简洁，配合编译构建阶段的包体积优化和基于Render Function的数据依赖追踪做到业内小程序的性能最优。
 
-以下是我对于在不改动目前 mpx 整体架构源码的情况下去支持 composition-api 的尝试和探索。
+我前段花了点时间尝试探索 mpx 对于 web 生态能力的复用。核心的目的是更加深入的了解在以后的业务迭代当中是否有更多的可能将 web 生态当中的能力直接嵌入到 mpx 当中来做功能的拓展，用以减少代码的维护以及开发成本。
+
+在这里我是尝试在不改动目前 mpx 整体架构源码的情况下去支持 composition-api 能力的尝试和探索。
 
 ### 简单介绍
 
-mpx 设计理念是基于小程序框架做渐进增强，在小程序框架里每个 Component，Page 构造函数其实内部是做了一定程度的实例封装，所以对于 mpx 来说，渐进增强的核心也就是对于 Component，Page 在运行时环节做能力增强，剩下的渲染工作交给小程序的框架去接管。这块在跨 web 的场景中也是一样，组件的生命周期、渲染等等都是由 Vue 去接管的，在运行时环节需要做的一项比较重要的工作就是 api 差异的抹平。（这里可以有个图来展示框架渲染以及 mpx 所做的工作）
+mpx 设计理念是基于小程序规范做渐进增强，在小程序框架里每个 Component，Page 构造函数其实内部是做了一定程度的实例封装，所以对于 mpx 来说，渐进增强的核心也就是对于 Component，Page 在运行时环节做能力增强，剩下的渲染工作交给小程序的框架去接管。这块在跨 web 的场景中也是一样，组件的生命周期、渲染等等都是由 Vue 去接管的，在运行时环节需要做的一项比较重要的工作就是 api 差异的抹平。（这里可以有个图来展示框架渲染以及 mpx 所做的工作）
 
 在接口设计层面，在组件内部要想获取数据，方法都是通过组件实例(这里的组件实例也就是小程序的组件实例，mpx 对于这个实例做了增强) this 去访问，mpx 通过暴露一个 Factory Function，外部通过这 Factory Function 的原型拓展其他的属性、方法。当小程序的实例进入实例化阶段(MpxProxy)后，再完成将 Factory Function 的原型拓展挂载至小程序的实例 this 上。在这里面有2个实例需要区分下，一个就是小程序原本的实例，还有一个是 mpxProxy，他们之前的关系是：
 
@@ -16,13 +18,14 @@ this.__mpxProxy = mpxProxy
 
 在 mpxProxy 内部接管了当前小程序实例的响应式数据初始化、数据 diff 以及建立响应式数据和 render watcher 之间的联系等。从这些功能的角度来说，mpxProxy 和一个 Vue 实例提供的功能是有重合的，当然差异还是比较大，因为 Vue 实例是由 Vue Constructor 实例化出来的，所以继承了各种拓展的属性和方法。但是对于 mpxProxy 来说仅做小程序实例的增强的工作，并不承载对外暴露接口去完成拓展，都是交由 Factory Function 的原型拓展来完成，例如mixin，响应式接口等都是通过 Factory Function 去暴露的，所以 mpxProxy 和 Vue 实例之间从功能和定位来说差异较大。
 
-在开始介绍整个的方案前，首先看下 Vue@2.x 对于 composition-api 的支持，整体还是采用插件的方式去增强这部分的能力，强依赖 Vue Constructor 全局构造函数，通过 `mixin`、`optionMergeStrategies` 等能力去改变 Vue 实例化的组件的能力和行为：
+在开始介绍整个的方案前，首先看下 `Vue@2.x` 对于 composition-api 的支持，整体还是采用插件的方式去增强这部分的能力，强依赖 Vue Constructor 全局构造函数，通过 `mixin`、`optionMergeStrategies` 等能力去改变 Vue 实例化的组件的能力和行为：
 
 * Setup：全局 mixin beforeCreate hook；
 * LifeCycle Hooks：利用 optionMergeStrategies 的机制，动态收集并更新 LifeCycle Hooks；
 * Reactive：依赖 `Vue.observable` 完成响应式数据初始化；
+* ...
 
-对于 mpx 而言，同样提供了全局 mixin 的能力（通过 Factory Function 暴露的），以及在小程序开始实例化之前的 beforeCreate hook，在 LifeCycle Hooks 方面依托小程序的 Hooks 构建了一套 mpxProxy inner LifeCycle Hooks，此外 mpx 目前的响应式系统基本和 Vue@2.x 保持一致。
+对于 mpx 而言，同样提供了全局 mixin 的能力（通过 Factory Function 暴露的），以及在小程序开始实例化之前的 beforeCreate hook，在 LifeCycle Hooks 方面依托小程序的 Hooks 构建了一套 mpxProxy inner LifeCycle Hooks，此外 mpx 目前的响应式系统基本和 `Vue@2.x` 保持一致。
 
 在这样的一个前提下思考：**是否可以直接复用 `@vue/composition-api` 的能力，将这个属于 vue 的插件作为 mpx 的插件来使用，用以实现 mpx 的 composition-api 能力**，这样 mpx 不管在开发小程序还是跨 web 场景的应用下都可以使用 composition-api 能力，且不需要单独维护一个完整的 composition-api 的 package。
 
@@ -324,4 +327,4 @@ createComponent({
 
 虽然 mpx 必须依托各平台的生命周期去构建自己的实例，但是 composition-api 的引入会给 mpx runtime 层面的逻辑执行带来更多的**动态特性**，这部分的逻辑收敛对于我们想要基于 mpx runtime 做能力增强也带来了一些新的思路和想法。
 
-目前团队正在紧锣密鼓的重写 mpx runtime 层面的一些核心模块来支持 composition-api 的能力，在不久的一段时间后即将和大家见面！
+目前团队正在紧锣密鼓的重写 mpx runtime 层面的一些核心模块来实现 composition-api 的能力，在不久的一段时间后即将和大家见面！
