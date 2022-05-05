@@ -353,7 +353,7 @@ mpx.use(MpxComsotionAPI)
 
 在生态方面，Store 也计划在现有风格的基础上基于 Hooks 的实现提供一个 [Pinia](https://pinia.vuejs.org/introduction.html) 风格的 Store 来提供更好的使用体验。
 
-整个实现方案依然会遵循小程序能力增强的理念，在跨平台方面交由对应的 web 框架去接管。
+整个实现方案依然会遵循**小程序能力增强**的理念，在跨平台方面交由对应的 web 框架去接管。
 
 composition-api 的引入会给 mpx runtime 层面的逻辑执行带来更多的**动态特性**，这部分的逻辑收敛对于我们想要基于 mpx runtime 做小程序能力增强也带来了一些新的思路和想法。
 
