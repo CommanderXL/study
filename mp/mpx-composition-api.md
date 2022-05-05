@@ -349,7 +349,7 @@ mpx.use(MpxComsotionAPI)
 
 目前团队正在紧锣密鼓的重写 mpx runtime 层面的一些核心基础模块的实现（例如：`scheduler` 会基于小程序本身的渲染更新机制去重构、`watcher` 内部实现会和 `ReactiveEffect` 拉齐），使得整个响应式系统的表现和 Vue3 更加对齐。
 
-在 Hooks API 设计上还是会遵照小程序的规范去设计实现。
+在 composition-api 设计上还是会遵照小程序的规范去设计实现(例如 LifeCycle Hooks API 使用上仍然会和小程序规范对齐)。
 
 在生态方面，Store 也计划在现有风格的基础上基于 Hooks 的实现提供一个 [Pinia](https://pinia.vuejs.org/introduction.html) 风格的 Store 来提供更好的使用体验。
 
