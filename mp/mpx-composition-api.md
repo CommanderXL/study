@@ -347,10 +347,12 @@ mpx.use(MpxComsotionAPI)
 
 ### 未来规划
 
-目前团队正在紧锣密鼓的重写 mpx runtime 层面的一些核心基础模块的实现（例如：`scheduler` 会基于小程序本身的渲染更新机制去重构、`watcher` 会和 `ReactiveEffect` 拉齐），使得整个响应式系统的表现和 Vue3 更加对齐。
+目前团队正在紧锣密鼓的重写 mpx runtime 层面的一些核心基础模块的实现（例如：`scheduler` 会基于小程序本身的渲染更新机制去重构、`watcher` 内部实现会和 `ReactiveEffect` 拉齐），使得整个响应式系统的表现和 Vue3 更加对齐。
 
 在部分 Hooks API 设计上还是会遵照小程序的规范去设计实现。
 
 在生态方面，Store 也计划在现有风格的基础上基于 Hooks 的实现提供一个 [Pinia](https://pinia.vuejs.org/introduction.html) 风格的 Store 来提供更好的使用体验。
 
 composition-api 的引入会给 mpx runtime 层面的逻辑执行带来更多的**动态特性**，这部分的逻辑收敛对于我们想要基于 mpx runtime 做能力增强也带来了一些新的思路和想法。
+
+composition-api 的能力也会在不久的一段时间和大家见面。
