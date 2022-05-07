@@ -30,8 +30,9 @@ module.exports = function (content) {
 
     return async.waterfall(
       [
-        () => {}
-        () => {},
+        () => {...}, // processTemplate
+        () => {...}, // processStyle
+        () => {...}, // processJson
         ([templateRes, styleRes, jsonRes], callback) => {
 
         }
