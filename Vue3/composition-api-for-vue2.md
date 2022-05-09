@@ -484,6 +484,19 @@ class EffectScopeImpl {
 
 ### watch & watchEffect
 
+首先看下 watchEffect：
+
+```javascript
+export function watchEffect(
+  effect: WatchEffect,
+  options?: WatchOptionBase 
+) {
+  const opts = getWatchEffectOption(options)
+  const vm = getWatcherVM()
+  return createWatcher(vm, effect, null, opts)
+}
+```
+
 ## 生命周期
 
 ```javascript
