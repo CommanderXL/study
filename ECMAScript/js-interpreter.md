@@ -36,6 +36,68 @@ Interpreter.State = function(node, scope) {
 }
 ```
 
+3. object 对象构造函数
+
+```javascript
+Interpreter.Object = function(proto) {
+  this.getter = Object.create(null)
+  this.setter = Object.create(null)
+  this.properties = Object.create(null)
+  this.proto = proto
+}
+```
+
+4. 初始化内置的构造函数，例如 `Array`:
+
+```javascript
+Interpreter.prototype.initArray = function(globalObject) {
+  var thisInterpreter = this
+  var wrapper
+  // Array constructor
+  wrapper = function Array(var_args) {
+    if (thisInterpreter.calledWithNew()) { // 在代码解析执行阶段，获取通过数据共享获取当前执行方法
+      // Called as `new Array()`
+      var newArray = this
+    } else {
+      // Called as `Array()`
+      var newArray = thisInterpreter.createArray()
+    }
+    var first = arguments[0]
+    if (isNaN(Interpreter.legalArrayLength(first))) {
+        thisInterpreter.throwException(thisInterpreter.RANGE_ERROR,
+                                       'Invalid array length');
+      }
+      newArray.properties.length = first;
+    else {
+      for (var i = 0; i < arguments.length; i++) {
+        newArray.properties[i] = arguments[i];
+      }
+      newArray.properties.length = i;
+    }
+  }
+  this.ARRAY = this.createNativeFunction(wrapper, true) // 创建一个在宿主环境调用的函数 -> Array 构造函数
+  this.ARRAY_PROTO = this.ARRAY.properties['prototype'] // 设置原型属性
+  this.setProperty(globalObject, 'Array', this.ARRAY, Interpreter.NONENUMERABLE_DESCRIPTOR)
+
+  wrapper = function isArray(obj) {
+    return obj && obj.class === 'Array'
+  }
+  this.setProperty(this.ARRAY, 'isArray',
+                   this.createNativeFunction(wrapper, false),
+                   Interpreter.NONENUMERABLE_DESCRIPTOR);
+
+  // Instance methods on Array.
+  this.setProperty(this.ARRAY_PROTO, 'length', 0,
+      {configurable: false, enumerable: false, writable: true});
+  this.ARRAY_PROTO.class = 'Array';
+  
+  // 添加数组上的原型方法，例如 push、pop、shift 等等
+  this.polyfills_.push(
+    ...
+  )
+}
+```
+
 对于接受到的源码字符串，统一使用 acorn 进行 parse 并获得 ast。
 
 ```javascript
@@ -96,4 +158,31 @@ Interpreter.prototype.step = function() {
 }
 ```
 
-具体 string 执行的流程可以通过 `Interpreter.prototype.stepCallExpression` 方法来看下（因为 Js-interpreter 是使用 acorn 来做 parser，所以在 string excute 环节匹配 ast node 类型时是和 acorn ast node 的类型是保持一致的，即 stepXXX 方法）
+具体 string 执行的流程可以通过 `Interpreter.prototype.stepCallExpression` 方法来看下（因为 Js-interpreter 是使用 acorn 来做 parser，所以在 string excute 环节匹配 ast node 类型时是和 acorn ast node 的类型是保持一致的，即 stepXXX 方法）。
+
+这个是 ArrayExpression 的解析执行：
+
+```javascript
+Interpreter.prototype.stepArrayExpression = function(stack, state, node) {
+  var elements = node['elements']; // 获取数组所有的元素
+  var n = state.n_ || 0; // 可以理解为当前处理的元素的索引
+  if (!state.array_) {
+    state.array_ = this.createArray(); // 这个 arrayExpression 最终执行完的值，createArray 实例化一个 array
+    state.array_.properties.length = elements.length;
+  } else {
+    this.setProperty(state.array_, n, state.value);
+    n++;
+  }
+  while (n < elements.length) { // 遍历数组开始解析执行每个元素
+    // Skip missing elements - they're not defined, not undefined.
+    if (elements[n]) {
+      state.n_ = n; 
+      return new Interpreter.State(elements[n], state.scope); // 构建一个新的 state 
+    }
+    n++;
+  }
+  stack.pop(); // 当所有的 elements 都解析执行完之后，将当前这个 ArrayExpression 推出栈，同时更新栈内最后一个 state.value 的值，其实就是对应到数组真实计算出来的值
+  stack[stack.length - 1].value = state.array_;
+}
+```
+
