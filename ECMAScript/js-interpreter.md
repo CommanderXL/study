@@ -215,15 +215,67 @@ Interpreter.prototype.createFunctionBase_ = function(argumentLength, isConstruct
 }
 ```
 
-2. `nativeToPseudo`: Converts from a native JavaScript object or value to a JS-Interpreter object.Can handle JSON-style values, regular expressions, dates and functions。主要是完成宿主当中的数据向 vm 转化，使得其在 vm 当中能被正常的使用。
+2. `nativeToPseudo`: Converts from a native JavaScript object or value to a JS-Interpreter object.Can handle JSON-style values, regular expressions, dates and functions。
+
+主要是将宿主当中的数据类型转化为可以在 vm 当中能被正常使用的数据，主要是对于 Object、Function 这种类型数据，在 vm 当中是定义了全新的一套数据类型，所以对于一个 Object 来说是没法同时在宿主或者 vm 当中使用的，必须做转换。
 
 ```javascript
-Interpreter.prototype.nativeToPseudo = function() {
+Interpreter.prototype.nativeToPseudo = function(nativeObj) {
+  if (nativeObj instanceof Interpreter.Object) {
+    throw Error('Object is already pseudo')
+  }
 
+  if ((typeof nativeObj !== 'object' && typeof nativeObj !== 'function') || nativeObj === null) {
+    return nativeObj
+  }
+
+  if (nativeObj instanceof RegExp) {
+    var pseudoRegexp = this.createObjectProto(this.REGEXP_PROTO)
+    this.populateRegExp(pseudoRegexp, nativeObj)
+    return pseudoRegexp
+  }
+
+  if (nativeObj instanceof Date) {
+    var pseudoDate = this.createObjectProto(this.DATE_PROTO);
+    pseudoDate.data = new Date(nativeObj.valueOf());
+    return pseudoDate;
+  }
+
+  // 对于函数来说，其实是做了一层代理，通过 createNativeFunction 去创建一个 vm function，通过 func.nativeFunc 和宿主函数建立联系，具体到在 vm 执行这个函数的时候，实际上执行的是这个 wrapper，在 wrapper 内部会将 vm 执行过程中接受的参数通过 pseudoToNative 先转为 native 数据，然后调用 nativeObj，最后将函数执行为完返回的结果通过 nativeToPseudo 转回去
+  // 本质上还是数据类型的转化，函数的执行还是执行的宿主函数
+  if (typeof nativeObj === 'function') {
+    var thisInterpreter = this;
+    var wrapper = function() {
+      var args = Array.prototype.slice.call(arguments).map(function(i) {
+          return thisInterpreter.pseudoToNative(i);
+      });
+      var value = nativeObj.apply(thisInterpreter, args);
+      return thisInterpreter.nativeToPseudo(value);
+    };
+    var prototype = Object.getOwnPropertyDescriptor(nativeObj, 'prototype');
+    return this.createNativeFunction(wrapper, !!prototype);
+  }
+
+  if (Array.isArray(nativeObj)) {  // Array.
+    var pseudoArray = this.createArray(); // 先基于 ARRAY_PROTO 创建一个 vm array 实例
+    for (var i = 0; i < nativeObj.length; i++) {
+      if (i in nativeObj) {
+        this.setProperty(pseudoArray, i, this.nativeToPseudo(nativeObj[i]));
+      }
+    }
+    return pseudoArray;
+  }
+
+  // Object.
+  var pseudoObj = this.createObjectProto(this.OBJECT_PROTO); // 先基于 OBJECT_PROTO 创建一个 vm object 实例，依次遍历每个属性并将对应的值也做响应的转化
+  for (var key in nativeObj) {
+    this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
+  }
+  return pseudoObj;
 }
 ```
 
-3. `PseudoToNative`: Converts from a JS-Interpreter object to native JavaScript object.Can handle JSON-style values, regular expressions, and dates.Does handle cycles. 将原本在 vm 当中使用的数据通过这个方法完成转化，使得可以在宿主环境当中使用。
+1. `PseudoToNative`: Converts from a JS-Interpreter object to native JavaScript object.Can handle JSON-style values, regular expressions, and dates.Does handle cycles. 将原本在 vm 当中使用的数据通过这个方法完成转化，使得可以在宿主环境当中使用。
 
 ```javascript
 Interpreter.prototype.pseudoToNative = function() {
