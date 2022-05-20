@@ -36,7 +36,7 @@ Interpreter.State = function(node, scope) {
 }
 ```
 
-3. object 对象构造函数
+3. object 对象构造函数，vm 当中所有的 Object 类型数据都是基于这个构造函数来实例化的。在 vm 当中定义的 object 类型数据 pseudo：
 
 ```javascript
 Interpreter.Object = function(proto) {
@@ -186,3 +186,47 @@ Interpreter.prototype.stepArrayExpression = function(stack, state, node) {
 }
 ```
 
+vm 和宿主的交互：
+
+1. `createNativeFunction` 创建一个对于宿主函数的引用(`nativeFunc`)。这个函数内部创建一个代理函数 func，最终在 vm 执行函数的过程中，都是通过访问 `func.nativeFunc` 来完成宿主函数的调用的：
+
+```javascript
+Interpreter.prototype.createNativeFunction = function(nativeFunc, isConstructor) {
+  var func = this.createFunctionBase_(nativeFunc.length, isConstructor)
+  func.nativeFunc = nativeFunc
+  nativeFunc.id = this.functionCounter_++
+  this.setProperty(func, 'name', nativeFunc.name, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR)
+  return func
+}
+
+Interpreter.prototype.createFunctionBase_ = function(argumentLength, isConstructor) {
+  var func = this.createObjectProto(this.FUNCTION_PROTO) // 以 FUNCTION_PROTO 为原型创建一个函数实例
+  if (isConstructor) { // 如果这个函数需要被当做构造函数来使用，那么需要建立起和 Object 之间的原型链关系，所以这里通过 OBJECT_PROTO 实例化一个 object 实例，同时设置 func.prototype = object，这样便建立起了 Function 和 Object 之间的继承关系，同时给这个函数设置 constructor 构造函数属性
+    var proto = this.createObjectProto(this.OBJECT_PROTO)
+    this.setProperty(func, 'prototype', proto, Interpreter.NONENUMERABLE_DESCRIPTOR)
+    this.setProperty(func, 'constructor', func, Interpreter.NONENUMERABLE_DESCRIPTOR)
+  } else {
+    func.illegalConstructor = true
+  }
+  // 函数接受参数的个数
+  this.setProperty(func, 'length', argumentLength, Interpreter.READONLY_NONENUMERABLE_DESCRIPTOR)
+  func.class = 'Function'
+  return func
+}
+```
+
+2. `nativeToPseudo`: Converts from a native JavaScript object or value to a JS-Interpreter object.Can handle JSON-style values, regular expressions, dates and functions。主要是完成宿主当中的数据向 vm 转化，使得其在 vm 当中能被正常的使用。
+
+```javascript
+Interpreter.prototype.nativeToPseudo = function() {
+
+}
+```
+
+3. `PseudoToNative`: Converts from a JS-Interpreter object to native JavaScript object.Can handle JSON-style values, regular expressions, and dates.Does handle cycles. 将原本在 vm 当中使用的数据通过这个方法完成转化，使得可以在宿主环境当中使用。
+
+```javascript
+Interpreter.prototype.pseudoToNative = function() {
+
+}
+```
