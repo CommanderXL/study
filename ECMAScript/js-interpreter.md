@@ -241,7 +241,10 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
     return pseudoDate;
   }
 
-  // 对于函数来说，其实是做了一层代理，通过 createNativeFunction 去创建一个 vm function，通过 func.nativeFunc 和宿主函数建立联系，具体到在 vm 执行这个函数的时候，实际上执行的是这个 wrapper，在 wrapper 内部会将 vm 执行过程中接受的参数通过 pseudoToNative 先转为 native 数据，然后调用 nativeObj，最后将函数执行为完返回的结果通过 nativeToPseudo 转回去
+  // 对于函数来说，其实是做了一层代理，通过 createNativeFunction 去创建一个 vm function，通过 func.nativeFunc 和宿主函数建立联系
+  // 具体到在 vm 执行这个函数的时候，实际上执行的是这个 wrapper
+  // 在 wrapper 内部会将 vm 执行过程中接受的参数通过 pseudoToNative 先转为 native 数据
+  // 然后调用 nativeObj，最后将函数执行为完返回的结果通过 nativeToPseudo 转回去
   // 本质上还是数据类型的转化，函数的执行还是执行的宿主函数
   if (typeof nativeObj === 'function') {
     var thisInterpreter = this;
@@ -279,6 +282,57 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 
 ```javascript
 Interpreter.prototype.pseudoToNative = function() {
+  if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
+      pseudoObj === null) {
+    return pseudoObj;
+  }
+  if (!(pseudoObj instanceof Interpreter.Object)) {
+    throw Error('Object is not pseudo');
+  }
 
+  if (this.isa(pseudoObj, this.REGEXP)) {  // Regular expression.
+    var nativeRegExp = new RegExp(pseudoObj.data.source, pseudoObj.data.flags);
+    nativeRegExp.lastIndex = pseudoObj.data.lastIndex;
+    return nativeRegExp;
+  }
+
+  if (this.isa(pseudoObj, this.DATE)) {  // Date.
+    return new Date(pseudoObj.data.valueOf());
+  }
+
+  var cycles = opt_cycles || {
+    pseudo: [],
+    native: []
+  };
+  var i = cycles.pseudo.indexOf(pseudoObj);
+  if (i !== -1) {
+    return cycles.native[i];
+  }
+  cycles.pseudo.push(pseudoObj);
+  var nativeObj;
+  if (this.isa(pseudoObj, this.ARRAY)) {  // Array.
+    nativeObj = [];
+    cycles.native.push(nativeObj);
+    var len = this.getProperty(pseudoObj, 'length');
+    for (var i = 0; i < len; i++) {
+      if (this.hasProperty(pseudoObj, i)) {
+        nativeObj[i] =
+            this.pseudoToNative(this.getProperty(pseudoObj, i), cycles);
+      }
+    }
+  } else {  // Object.
+    nativeObj = {};
+    cycles.native.push(nativeObj);
+    var val;
+    for (var key in pseudoObj.properties) {
+      val = this.pseudoToNative(pseudoObj.properties[key], cycles);
+      // Use defineProperty to avoid side effects if setting '__proto__'.
+      Object.defineProperty(nativeObj, key,
+          {value: val, writable: true, enumerable: true, configurable: true});
+    }
+  }
+  cycles.pseudo.pop();
+  cycles.native.pop();
+  return nativeObj;
 }
 ```
