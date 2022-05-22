@@ -270,7 +270,7 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
   }
 
   // Object.
-  var pseudoObj = this.createObjectProto(this.OBJECT_PROTO); // 先基于 OBJECT_PROTO 创建一个 vm object 实例，依次遍历每个属性并将对应的值也做响应的转化
+  var pseudoObj = this.createObjectProto(this.OBJECT_PROTO); // 先基于 OBJECT_PROTO 创建一个 vm object 实例，依次遍历每个属性并将对应的值也做相应的转化
   for (var key in nativeObj) {
     this.setProperty(pseudoObj, key, this.nativeToPseudo(nativeObj[key]));
   }
@@ -278,10 +278,12 @@ Interpreter.prototype.nativeToPseudo = function(nativeObj) {
 }
 ```
 
-1. `PseudoToNative`: Converts from a JS-Interpreter object to native JavaScript object.Can handle JSON-style values, regular expressions, and dates.Does handle cycles. 将原本在 vm 当中使用的数据通过这个方法完成转化，使得可以在宿主环境当中使用。
+3. `PseudoToNative`: Converts from a JS-Interpreter object to native JavaScript object.Can handle JSON-style values, regular expressions, and dates.Does handle cycles. 
+
+将原本在 vm 当中使用的数据通过这个方法完成转化，使得可以在宿主环境当中使用。需要注意的是在 js-interpreter 自己构造的一套数据系统内，获取对象上的属性都是通过 `Interpreter.prototype.getProperty` 方法来获取（肯定不能和宿主类似，通过 `.` 操作符这种访问的方式）：
 
 ```javascript
-Interpreter.prototype.pseudoToNative = function() {
+Interpreter.prototype.pseudoToNative = function(pseudoObj, opt_cycles) {
   if ((typeof pseudoObj !== 'object' && typeof pseudoObj !== 'function') ||
       pseudoObj === null) {
     return pseudoObj;
@@ -300,7 +302,7 @@ Interpreter.prototype.pseudoToNative = function() {
     return new Date(pseudoObj.data.valueOf());
   }
 
-  var cycles = opt_cycles || {
+  var cycles = opt_cycles || { // 做数据的缓存，包括 pseduo 和 native 的，在递归处理的过程当中，如果遇到相同的 pseudo 数据可以直接返回
     pseudo: [],
     native: []
   };
