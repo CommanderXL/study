@@ -14,3 +14,7 @@
 * [重新构想原子化 CSS](https://mp.weixin.qq.com/s/YsCm7UqfhOZu5Jckc_QzDQ)
 
 * [官方文档](https://windicss.org/guide/)
+
+* [Facebook 重构：抛弃 Sass / Less ，迎接原子化 CSS 时代](https://juejin.cn/post/6917073600474415117#heading-0)
+
+* [浅谈 Atomic CSS 的发展背景与 Tailwind CSS](https://mp.weixin.qq.com/s/dSAitXlbLpnsM9uobezyhQ)
