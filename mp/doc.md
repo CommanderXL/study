@@ -2,3 +2,4 @@
 2. [微信小程序基础库版本分布占比](https://developers.weixin.qq.com/miniprogram/dev/framework/client-lib/version.html)
 3. [微信小程序自定义组件的模板和样式规则](https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/wxml-wxss.html)
 4. [微信小程序双线程模型](https://developers.weixin.qq.com/ebook?action=get_post_info&docid=0000286f908988db00866b85f5640a)
+5. [微信小程序同层渲染原理剖析](https://developers.weixin.qq.com/community/develop/article/doc/000c4e433707c072c1793e56f5c813)
