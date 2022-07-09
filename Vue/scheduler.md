@@ -152,11 +152,27 @@ function doWatch() {
 `queueWatcher` 方法只接受 watcher，那么 watcher 是在什么情况下才会产生呢？
 
 * render watcher
+* computed
 * user watcher
-  * computed
   * watch options
   * $watch api
 
-**对于 computed 而言，是一个 lazy watcher，lazy watcher 在初始化阶段和响应式数据发生变化通知更新的阶段，watcher 这个时候并不会重新计算值，而是改变自身的 `dirty` 属性，当实际访问到这个数据的时候才会重新计算。
+**对于 computed 而言，是一个 lazy watcher，lazy watcher 在初始化阶段和响应式数据发生变化通知更新的阶段，watcher 这个时候并不会重新计算值，而是改变自身的 `dirty` 属性，当实际访问到这个数据的时候才会重新计算。**
 
-对于其他的 watcher 来说，在初始化的阶段都会立即进行一次计算，进行一次响应式数据的收集工作，然后在响应式数据发生变化通知更新的阶段，对于在 options 上部署 `sync` 属性的 watcher 来说，这个 watcher 会立即重新计算值。没有部署 `sync` 属性的 watcher 会调用 `queueWatcher` 方法将这个 watcher 推入到更新队列当中。**
+**对于其他的 watcher 来说，在初始化的阶段都会立即进行一次计算，进行一次响应式数据的收集工作，然后在响应式数据发生变化通知更新的阶段，对于在 options 上部署 `sync` 属性的 watcher 来说，这个 watcher 会立即重新计算值。没有部署 `sync` 属性的 watcher 会调用 `queueWatcher` 方法将这个 watcher 推入到更新队列当中，交给 scheduler 统一进行调度执行**（例如 render watcher）
+
+在 `flushSchedulerQueue` 具体的执行阶段，首先会依据 watcher id 进行排序（升序），重新排序之后也就意味着不同 watcher id 的执行时机会有先后顺序，这里我们思考下在一个 vue instance 实例化阶段，不同的 watcher 都是什么时候产生的：
+
+* render watcher （`mounted` hook 之前，mountComponent 方法）
+* computed （`beforeCreate` 和 `created` 之间，initState 方法）
+* user watch
+  * watch options （同 computed）
+  * $watch api（和具体的调用时机有关：`this.$watch`）
+
+lazy/sync watcher 不在 scheduler 调度器的控制范围之内。所以在一个 vue instance 实例化阶段，watch options id 要比 render watcher 更小。那么在调度器的执行队列里面， watch options 也就会先执行。此外还有其他的情况，就是 vue instance 相互之间有联系的情况，例如：
+
+* 父子组件，props 传递；
+* 共同依赖 vuex 当中 state/getter 数据的不同组件；
+
+这些情况都有一个共性，就是不同的组件都依赖了同一份的响应式数据，响应式数据和这些组件的 render watcher 都建立起了依赖关系，因为响应式数据的触发也就会触发对应的 render watcher 的执行。对于父子组件而言都是依托 VNode 进行递归的组件实例初始化+渲染。那么对于父子组件而言，父组件的 render watcher 肯定要比子组件的 render watcher 初始化的更早，所以在响应式数据（对子组件而言是 props，对父组件可能就是 data）更新的时候首先是父组件的 render watcher 进行 update，其次才是子组件的 render watcher 进行 update。
+
