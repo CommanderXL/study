@@ -176,3 +176,20 @@ lazy/sync watcher 不在 scheduler 调度器的控制范围之内。所以在一
 
 这些情况都有一个共性，就是不同的组件都依赖了同一份的响应式数据，响应式数据和这些组件的 render watcher 都建立起了依赖关系，因为响应式数据的触发也就会触发对应的 render watcher 的执行。对于父子组件而言都是依托 VNode 进行递归的组件实例初始化+渲染。那么对于父子组件而言，父组件的 render watcher 肯定要比子组件的 render watcher 初始化的更早，所以在响应式数据（对子组件而言是 props，对父组件可能就是 data）更新的时候首先是父组件的 render watcher 进行 update，其次才是子组件的 render watcher 进行 update。
 
+watcher 进行排序后就进入到循环遍历开始执行 `watcher.run()` 方法的阶段。对于 `render watcher` 一般都部署了 `before` 接口用以触发 `beforeUpdate hook`。**在这些 watcher 执行的时候，是有可能有其他的 watcher 被加入到执行队列当中的。**
+
+当这一帧的所有 watcher 都更新完成后，调用 `resetSchedulerState` 方法完成 `scheduler` 状态的重置，伺候调用组件的 `update hooks`：
+
+```javascript
+function callUpdatedHooks(queue: Watcher[]) {
+  let i = queue.length
+  while(i--) {
+    const watcher = queue[i]
+    const vm = watcher.vm
+    // 在 render watcher 初始化阶段会在 watcher 上挂载 vm(vue instance)，因此在这里也用以获取 vue instance 来调用 update hooks
+    if (vm && vm._watcher === watcher && vm._isMounted && !vm._isDestoryed) {
+      callHook(vm, 'updated')
+    }
+  }
+}
+```
