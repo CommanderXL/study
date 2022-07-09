@@ -71,7 +71,7 @@ function flushSchedulerQueue() {
   for (index = 0; index < queue.length; index++) {
     watcher = queue[index]
     if (watcher.before) {
-      watcher.before()
+      watcher.before() // render watcher 上部署了 watcher.before 接口 -> src/core/instance/lifecycle.ts
     }
     id = watcher.id
     has[id] = null
@@ -109,3 +109,54 @@ function flushSchedulerQueue() {
   }
 }
 ```
+
+在分析 `flushSchedulerQueue` 方法之前，我们先来看下 scheduler 暴露出的 `queueWatcher` 是在什么情况下才被调用的：
+
+```javascript
+// src/core/observer/watcher.ts
+class Watcher {
+  ...
+  update() {
+    if (this.lazy) {
+      this.dirty = true
+    } else if (this.sync) {
+      this.run()
+    } else {
+      queueWatcher(this)
+    }
+  }
+}
+
+// src/v3/apiWatch.ts
+function doWatch() {
+  ...
+  if (flush === 'sync') {
+     watcher.update = watcher.run
+  } else if (flush === 'post') {
+    watcher.id = Infinity
+    watcher.update = () => queueWatcher(watcher)
+  } else {
+    watcher.update = () => {
+      if (instance && instance === currentInstance) {
+        // pre-watcher triggered inside setup()
+        const buffer = instance._preWatchers || (instance._preWatchers = [])
+        if (buffer.indexOf(watcher) < 0) buffer.push(watcher)
+      } else {
+        queueWatcher(watcher)
+      }
+    }
+  }
+}
+```
+
+`queueWatcher` 方法只接受 watcher，那么 watcher 是在什么情况下才会产生呢？
+
+* render watcher
+* user watcher
+  * computed
+  * watch options
+  * $watch api
+
+**对于 computed 而言，是一个 lazy watcher，lazy watcher 在初始化阶段和响应式数据发生变化通知更新的阶段，watcher 这个时候并不会重新计算值，而是改变自身的 `dirty` 属性，当实际访问到这个数据的时候才会重新计算。
+
+对于其他的 watcher 来说，在初始化的阶段都会立即进行一次计算，进行一次响应式数据的收集工作，然后在响应式数据发生变化通知更新的阶段，对于在 options 上部署 `sync` 属性的 watcher 来说，这个 watcher 会立即重新计算值。没有部署 `sync` 属性的 watcher 会调用 `queueWatcher` 方法将这个 watcher 推入到更新队列当中。**
