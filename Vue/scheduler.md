@@ -193,3 +193,9 @@ function callUpdatedHooks(queue: Watcher[]) {
   }
 }
 ```
+
+整个调度器有非常多的细节点值得我们去学习：
+
+1. nextTick(flushSchedulerQueue)
+2. 执行时机的控制
+3. 任务队列的处理
