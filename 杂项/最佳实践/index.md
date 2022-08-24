@@ -13,3 +13,8 @@
 ### 软技能
 
 1. [《技术领导力：程序员如何才能带团队》知识总结](http://r12f.com/posts/reading-time-technical-leadership/)
+
+
+### DDD
+
+1. [用DDD(领域驱动设计)和ADT(代数数据类型)提升代码质量](https://mp.weixin.qq.com/s/UaJ56G_Vdx6__6ximfP47A)
