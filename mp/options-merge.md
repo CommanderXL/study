@@ -67,7 +67,7 @@ export default function transferOptions(options, type) {
 export default function mergeOptions(options = {}, type, needConvert = true) {
   ...
 
-  // 申明一个新的 options 变量用以接收合并 mixins 各项的配置
+  // 声明一个新的 options 变量用以接收合并 mixins 各项的配置
   const newOptions = {}
   extractMixins(newOptions, options, needConvert)
 }
@@ -100,8 +100,10 @@ function mergeMixins(parent, child) {
     } else if (/^(data|dataFn)$/.test(key)) {
       mergeDataFn(parent, child, key)
     } else if (/^(computed|properties|props|methods|proto|options|relations)$/.test(key)) {
+      // 将对应 key 的值合并
       mergeShallowObj(parent, child, key)
     } else if (/^(watch|observers|pageLifetimes|events)$/.test(key)) {
+      // 合并后最终转为数组形式
       mergeToArray(parent, child, key)
     } else if (/^behaviors|externalClasses$/.test(key)) {
       mergeArray(parent, child, key)
@@ -111,6 +113,8 @@ function mergeMixins(parent, child) {
   }
 }
 ```
+
+通过 Mixin 的方式添加对于小程序页面/组件生命周期 Hook，利用这些核心的 Hook 来实例化 MpxProxy 实例。此外再次调用 `mergeOptions` 方法完成刚才 mixin 进来的页面/组件的生命周期 Hook。
 
 ```javascript
 // @mpxjs/core/src/platform/patch/wx/getDefaultOptions.js
