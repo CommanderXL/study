@@ -21,7 +21,7 @@ export default function createFactory(type) {
   // 获取在不同平台下 Mpx 注入的内置的 mixin
   rawOptions.mixins = getBuiltInMixins(rawOptions, type)
 
-  // 再次进行 mixins 的合并处理
+  // 再次进行 mixins 的合并处理，用以保证 mixin 的合并顺序以及最终代码的执行顺序
   const defaultOptions = getDefaultOptions(type, { rawOptions, currentInject })
 
   ...
@@ -90,5 +90,50 @@ function extractMixins(mergeOptions, options, needConvert) {
   // 进入到 options 具体每项的配置合并策略当中，最终的结果就是该 mixin 当中的每项配置都进行合并完
   mergeMixins(mergeOptions, options)
   return mergeOptions
+}
+
+function mergeMixins(parent, child) {
+  for (let key in child) {
+    if (currentHooksMap[key]) {
+      // 生命周期项的合并
+      mergeHooks(parent, child, key)
+    } else if (/^(data|dataFn)$/.test(key)) {
+      mergeDataFn(parent, child, key)
+    } else if (/^(computed|properties|props|methods|proto|options|relations)$/.test(key)) {
+      mergeShallowObj(parent, child, key)
+    } else if (/^(watch|observers|pageLifetimes|events)$/.test(key)) {
+      mergeToArray(parent, child, key)
+    } else if (/^behaviors|externalClasses$/.test(key)) {
+      mergeArray(parent, child, key)
+    } else if (key !== 'mixins' && key !== 'mpxCustomKeysForBlend') {
+      ...
+    }
+  }
+}
+```
+
+```javascript
+// @mpxjs/core/src/platform/patch/wx/getDefaultOptions.js
+
+export function getDefaultOptions(type, { rawOptions = {}, currentInject }) {
+  let hookNames = ['attched', 'ready', 'detached']
+
+  if (rawOptions.__pageCtor__) {
+    hookNames = ['onLoad', 'onReady', 'onUnload']
+  }
+  const rootMixins = [{
+    [hookNames[0]]() {
+      initProxy(this, rawOptions, currentInject)
+    },
+    [hookNames[1]]() {
+      if (this.__mpxProxy) this.__mpxProxy.mounted()
+    },
+    [hookNames[2]]() {
+      if (this.__mpxProxy) this.__mpxProxy.unmounted()
+    }
+  }]
+  rawOptions.mixins = rawOptions.mixins ? rootMixins.concat(rawOptions.mixins) : rootMixins
+  rawOptions = mergeOptions(rawOptions, type, false)
+  return filterOptions(rawOptions)
 }
 ```
