@@ -141,3 +141,5 @@ export function getDefaultOptions(type, { rawOptions = {}, currentInject }) {
   return filterOptions(rawOptions)
 }
 ```
+
+Mixin 钩子按照传入顺序(数组顺序)依次调用，并在调用组件自身的钩子之前被调用。
