@@ -79,7 +79,7 @@ export class ReactiveEffect {
 }
 ```
 
-依赖收集阶段：
+### 依赖收集阶段：
 
 在 v2 版本当中在创建响应式数据的过程中，针对每个响应式的 Key 创建了对于 `Dep` 的闭包用来收集所有依赖。
 而在 v3 版本当中比较核心的一个点就是对于想要变成响应式的数据而言都是通过相应的 api 来转化为响应式数据，例如 `reactive`、`ref`、`computed`，对于它们而言一个非常重要的工作就是数据代理。就拿 `ref` 来说可以将 primitive value 转化为响应式的数据，实际上在内部就是创建了一个新的代理对象 `RefImpl`，`computed` 数据实际返回了一个新的代理对象 `ComputedRefImpl`，`reative` 则是返回了一个 `Proxy` 对象。
@@ -126,8 +126,30 @@ export function trackEffects(dep: Dep, debuggerEventExtraInfo?: DebuggerEventExt
 }
 ```
 
-响应式数据发生变更，触发依赖更新阶段
+### 响应式数据发生变更，触发依赖更新阶段：
 
+针对 `ref` 和 `computed` 数据一样都是单值，所以对于这两者而言，如果数据发生了变化，其实就是需要获取数据上绑定的 `dep`，然后触发依赖当中保存的所有 `effect` 执行，这里在触发依赖更新的流程当中两种数据类型都是调用的同样的 `triggerRefValue` 方法（所以在 vue3 当中可以将 ref 以及 computed 数据类型联系起来看，它们都是提供了对于某个数据类型的代理，这个代理提供了 `get Value`、`set Value` 的方法用来收集依赖以及触发依赖的更新）：
+
+```javascript
+// packages/reactivity/src/ref.ts
+export function triggerRefValue(ref: RefBase<any>, newVal?: any) {
+  ref = toRaw(ref)
+  if (ref.dep) {
+    if (__DEV__){
+      triggerEffects(ref.dep, {
+        target: ref,
+        type: TriggerOpTypes.SET,
+        key: 'value',
+        newValue: newVal
+      })
+    } else {
+      triggerEffects(ref.dep)
+    }
+  }
+}
+```
+
+而针对 `reactive` 数据类型，当某个 `key` 的值发生变化后，也就是进入到 `proxy` 数据的 `set` 方法，首先需要根据对应的 `key` 找到对应的 `dep` 收集的所有 `reactiveEffect` 实例，然后再进入到后续的 `triggerEffects` 流程当中。
 
 所以对于这个方面，v3 相较于 v2 的抽象程度更高。
 
@@ -136,7 +158,70 @@ v2 都是基于 watcher 来实现，v3 基于 ReactiveEffect 来实现。
 在响应式系统里面，和响应式数据结合非常紧密的调度器（也就是响应式数据发生变化后，effect 依赖执行时机）设计这一块从执行时机上做了更细粒度的拆分设计，主要体现在将不同的 effect 函数做了类型区分和执行时机的调度，在一个 vue 实例化的生命周期当中，computed/watch api 的调用都是早于 render，针对 computed/watch effect：
 
 ```javascript
-// todo scheduler 代码
+// packages/runtime-core/src/scheduler.ts
+
+export function queuePreFlushCb(cb: SchedulerJob) {
+  queueCb(cb, activePreFlushCbs, pendingPreFlushCbs, preFlushIndex)
+}
+
+export function queuePostFlushCb(cb: SchedulerJobs) {
+  queueCb(cb, activePostFlushCbs, pendingPostFlushCbs, postFlushIndex)
+}
+
+export function flushPreFlushCbs() {
+  ...
+}
+
+export function flushPostFlushCbs() {
+  ...
+}
+
+function flushJobs(seen: CountMap) {
+  isFlushPending = false
+  isFlushing = true
+  if (__DEV__) {
+    seen = seen || new Map()
+  }
+
+  flushPreFlushCbs(seen)
+
+  queue.sort((a, b) => getId(a) - getId(b))
+
+  const check = __DEV__
+    ? (job: SchedulerJob) => checkRecursiveUpdates(seen!, job)
+    : NOOP
+
+  try {
+    for (flushIndex = 0; flushIndex < queue.length; flushIndex++) {
+      // queue 队列当中保存了 render effect
+      const job = queue[flushIndex]
+      if (job && job.active !== false) {
+        if (__DEV__ && check(job)) {
+          continue
+        }
+        // console.log(`running:`, job.id)
+        callWithErrorHandling(job, null, ErrorCodes.SCHEDULER)
+      }
+    }
+  } finally {
+    flushIndex = 0
+    queue.length = 0
+
+    flushPostFlushCbs(seen)
+
+    isFlushing = false
+    currentFlushPromise = null
+    // some postFlushCb queued jobs!
+    // keep flushing until it drains.
+    if (
+      queue.length ||
+      pendingPreFlushCbs.length ||
+      pendingPostFlushCbs.length
+    ) {
+      flushJobs(seen)
+    }
+  }
+}
 ```
 
 对于 watch effect 而言根据用法的不同也决定了 effect 函数的执行时机的差异：
@@ -144,10 +229,21 @@ v2 都是基于 watcher 来实现，v3 基于 ReactiveEffect 来实现。
 * watch -> queueCb（异步） -> queueFlush
 * watchPostEffect
 * watchSyncEffect
-* watchEffect
+* watchEffect -> 立即执行 getter 函数完成响应式数据的收集（和 watch 不太一样的地方是 watch 可以明确指定监听的某个值或字段，而 watchEffect 可以在 getter 执行阶段对于所访问到的响应式数据都进行监听，一旦某一个值发生了变化，那么对应的 getter 函数就会执行）
 
-对于普通的 watch 函数（flush 默认为 `pre`）来说的
-首先需要主动执行一次完成收集工作
+对于普通的 watch api 调用来说（flush 默认为 `pre`）：
+
+watch 的回调首先是一个异步的操作，它的执行是在 render 函数执行之前；
+
+对于 `flush` 为 `sync` 来说：
+
+watch 的回调是一个同步的操作，也就是说当被监听的数据发生了变化之后，回调会被立即执行；
+
+而对于 `flush` 为 `post` 来说：
+
+watch 的回调也是一个异步的操作，它的执行是在 render 函数执行之后，这里和 `flush: pre` 的一个比较重要的区别就是在 render 函数执行前/后，如果要获取 DOM 元素相关的内容会有需要注意的地方，也就是说这2种配置可以满足不同情况下获取 DOM 更新之前与之后的不同状态；
+
+在 scheduler 设计当中针对任务的类型也做了区分，对于 watch effect 而言都是通过 `queueCb` 将需要被异步执行的任务使用队列保存起来，而对于 render effect 而言都是通过 `queueJob` 将需要执行的 render function 使用 `queue` 来保存起来。当主线程的同步函数/任务都被执行完之后，进入到下一帧就开始调用 `flushJobs` 来消费 effect。
 
 
 renderer -> queueJob（异步） -> queueFlush
