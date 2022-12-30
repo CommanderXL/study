@@ -4,3 +4,6 @@ typescript/*.[jt]s
 typescript/demo
 demo
 WebComponents
+.vscode
+a.js
+a.out
