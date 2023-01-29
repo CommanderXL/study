@@ -13,12 +13,17 @@ export function createPinia(): Pinia {
 }
 ```
 
-`defineStore` 是一个高阶函数，它返回一个函数 `useStore`，只有当这个函数执行的时候，才会完成这个 store 实例的创建。
+`defineStore` 是一个高阶函数，它返回一个函数 `useStore`，**只有当这个函数执行的时候，才会完成这个 store 实例的创建即初始化**。
 
 
 ```javascript
 export function defineStore() {
+  ...
+  function useStore() {}
 
+  userStore.$id = id
+
+  return useStore
 }
 ```
 
@@ -26,9 +31,14 @@ export function defineStore() {
 function createOptionStore(id, options, pinia, hot) {
   const { state, actions, getters } = options
 
+  // pinia.state 是一个 ref 类型的数据，所以通过 value 获取对应数据
   const initialState = pinia.state.value[id]
 
   // 依据 id 值在 Pinia 实例上挂载对应的值
+  /**
+   * pinia.state: Record<string, Ref<string, unknow>>
+   */
+  // 初始化 state 的值
   function setup() {
     if (isVue2) {
       set(pinia.state.value, id, state ? state() : {})
@@ -36,9 +46,10 @@ function createOptionStore(id, options, pinia, hot) {
       pinia.state.value[id] = state ? state() ? {}
     }
 
+    // 将 state 上的数据转化为 ref 数据
     const localState = toRefs(pinia.state.value[id])
 
-    // 返回这个 store 上定义的数据
+    // 返回处理过后的 store 数据：state/getters/actions
     return assign(
       localState,
       actions,
@@ -55,9 +66,15 @@ function createOptionStore(id, options, pinia, hot) {
     )
   }
 
+  // 在 pinia 内部最终都统一通过 createSetupStore 来创建 store 实例
   store = createSetupStore(id, setup, options, pinia, hot)
 
-  store.$reset = function $reset() {}
+  store.$reset = function $reset() {
+    const newState = state ? state() : {}
+    this.$patch(($state) => {
+      assign($state, newState)
+    })
+  }
 
   return store as any
 }
@@ -78,7 +95,7 @@ function createSetupStore($id: Id, setup: () => SS, options, pinia, hot) {
 
   // 依据 partialStore 初始化 store，这个时候 store 实例仅包括内部的一些方法
   const store: Store<Id, S, G, A> = reactive(
-    assing(
+    assign(
       ...,
       partialStore
     )
@@ -135,13 +152,40 @@ function createSetupStore($id: Id, setup: () => SS, options, pinia, hot) {
 }
 ```
 
-简答总结下这里面的流程就是：在 createSetupStore 里面首先初始化 store 实例 `_partialStore`（包含了 store 实例所暴露出的 `$patch`，`$dispost`，`$subscribe` 等方法），然后执行 setup 操作完成对于 `defineStore` 所接受的 `state`、`getters`、`actions` 进行初始化的操作：
+简答总结下 `createSetupStore` 的流程就是：
 
-* state 转化为响应式数据
-* getters 转化为 computed 
-* actions 被做了一层代理用以支持 `$subscribe` 等 api
+1. 首先初始化 store 实例 `_partialStore`（内置了每个 store 实例都需要暴露的 API： `$patch`（类似于 mutation 的效果，只不过比 mutation 更加灵活），`$dispose`，`$subscribe`，`$onAction` 等）；
+2. 执行 setup 初始化函数，完成对于 `defineStore` 所接受的 `state`、`getters`、`actions` 进行初始化的操作：
 
-最终遍历 `setupStore` 合并至 `_partialStore` 上。
+* state 转化为响应式数据；
+* getters 转化为 computed；
+* actions 通过一层代理函数(wrapAction)用以支持 `$onAction` 等 api；
+
+3. 遍历 `setupStore` （用户定义的 store 数据）合并至 `_partialStore` （内置的初始化 store 实例）上，最终返回 store 实例。
+
+可以看到通过 `defineStore` 去定义一个 `store` 并执行 `useStore` 获取到最终的 store 实例，对于这个 store 实例本身而言，用户定义的 state/getters/actions 都被扁平化的挂载到了 store 实例上了。因此在使用 composition-api 的代码组织方式下，可以直接通过 store 去访问这些数据/方法：
+
+```javascript
+const useStore = defineStore('storeId', {
+  state: () => {
+    return {
+      count: 0,
+      hasChanged: true
+    }
+  },
+  actions: {
+    increment() {
+      this.count++
+    }
+  }
+})
+
+const store = useStore()
+store.count++ // 直接操作 state 数据
+
+store.increment() // 通过 action 操作 state 数据
+```
+
 
 在 Pinia 中还提供了 `mapHelpers` 辅助函数用以支持不使用 composition api 的场景下使用：
 
