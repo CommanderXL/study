@@ -186,6 +186,99 @@ store.count++ // 直接操作 state 数据
 store.increment() // 通过 action 操作 state 数据
 ```
 
+**和 `vuex` 当中不一样的地方是 vuex 约定更新 state 的值都需要通过 mutation 的操作来更改。在 `pinia` 当中可以直接操作 state 数据。**
+
+
+接下来看下 store 实例上提供的内置的方法都有哪些以及是如何去工作的：
+
+
+```javascript
+// $subscribe
+const subscriptions: SubscriptionsCallback<S>[] = markRaw([])
+
+const partialStore = {
+  $subscribe(callback, options = {}) {
+    const removeSubscription = addSubscription(
+      subscriptions,
+      callback,
+      options.detached,
+      () => stopWatcher
+    )
+
+    const stopWatcher = scope.run(() => {
+      watch(
+        () => pinia.state.value[$id],
+        (state) => {
+          if (options.flush === 'sync' ? isSyncListening : isListening) {
+            callback(
+              {
+                storeId: $id,
+                type: MutationType.direct, // 'direct'
+                events: debuggerEvents
+              },
+              state
+            )
+          }
+        },
+        assign({}, $subscribeOptions, options)
+      )
+    })!
+
+    return removeSubscription
+  }
+}
+```
+
+`$subscribe` 方法主要是提供了订阅 state 数据发生变化的处理机制，`subscriptions` 数组保存了所有的订阅函数。可以看到在这个方法内部是通过 `watch` 函数去监听 `state` 数据，如果 `state` 数据发生变化即触发订阅函数（`direct` 类型，和下面的 `$patch` 方法的类型不一样）`options` 配置可以控制 `watch` 方法的执行机制。
+
+在 `watch` 的回调当中注意到有对 `flush` 类型以及2个开关的判断，这主要也是为了区别于 state 发生变化触发订阅函数回调的不同方式。
+
+
+```javascript
+// $patch
+function $patch(partialStateOrMutator) {
+  // 注意这2个开关的设置，会影响到在 $patch 执行过程中对于 state 进行操作时是否会触发 $subscribe 的回调函数
+  isListening = isSyncListening = false
+  // $patch 既可接受函数也可接受 plain object 的形式
+  if (typeof partialStateOrMutator === 'function') {
+    partialStateOrMutator(pinia.state.value[$id])
+    subscriptionMutation = {
+      type: MutationType.patchFunction, // 'patch function'
+      storeId: $id,
+      events: debuggerEvents
+    }
+  } else {
+    mergeReativeObjects(pinia.state.value[$id], partialStateOrMutator)
+    subscriptionMutation = {
+      type: MutationType.patchObject, // 'patch object'
+      payload: partialStateOrMutator,
+      storeId: $id,
+      events: debuggerEvents
+    }
+  }
+  const myListenerId = (activeListener = Symbol())
+  nextTick().then(() => {
+    if (activeListener === myListenerId) {
+      isListening = true
+    }
+  })
+  isSyncListening = true
+  // because we paused the watcher, we need to manually call the subscriptions
+  triggerSubscriptions(
+    subscriptions,
+    subscriptionMutation,
+    pinia.state.value[$id] as UnwrapRef<S>
+  )
+}
+// $dispose
+
+// $onAction
+```
+
+pinia 提供了一个比较灵活的 api：$patch 进行批量数据的更新，和 vuex 当中的 mutation 有点类似，都不允许进行异步的操作， vuex 提供的 mutation 规范有更强的约束性，不过最终所达到的效果来看 $patch 可以看做是对于 vuex mutation 语义上的一层抽象。
+
+在 $patch 内部的实现当中，pinia.state.value[$id] 根据 $id 值保存了不同 store 实例的 state 的数据，且为响应式，在方法执行一开始就将 `isListening` 和 `isSyncListening` 置为 `false`。**这样做的目的主要是为了避免在 $patch 过程当中更新 state 数据的时候会触发 $subscribe 保存的订阅函数。而将订阅函数的触发改为在 $patch 方法内部调用 `triggerSubscriptions` 方法来出发订阅函数的执行。**这也是通过 $patch 方法去更新数据和直接更新数据两种方式在 pinia 内部的触发订阅函数的差异点。因为如果是通过直接更新数据的方式会直接交由 watch callback 去触发，而非在 $patch 内部手动调用订阅函数。
+
 
 在 Pinia 中还提供了 `mapHelpers` 辅助函数用以支持不使用 composition api 的场景下使用：
 
