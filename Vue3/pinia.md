@@ -10,8 +10,32 @@ export function createPinia(): Pinia {
   const scope = effectScope(true)
 
   const state = scope.run<Ref<Record<string, StateTree>>>(() => ref<Recorld<string, StateTree>>())!
+
+  // 通过 createPinia 创建全局唯一 pinia 实例
+  // 通过 install 方法将唯一 pinia 实例挂载到所有的 component 实例上，同时通过 provide 方法注入到 component 内部，可通过 inject 方法获取 pinia 唯一实例
+  const pinia: Pinia = markRaw({
+    install(app: App) {
+      setActivePinia(pinia)
+      if (!isVue2) {
+        pinia._a = app
+        app.provide(piniaSymbol, pinia)
+        app.config.globalProperties.$pinia = pinia
+      }
+    },
+    use(plugin) {},
+    _p,
+    _a: null,
+    _e: scope,
+    // 每个 store 实例都挂载到 pinia._s 上，通过 store id 可以从 pinia 实例上获取对应的实例
+    _s: new Map<string, StoreGeneric>(), 
+    state
+  })
+
+  return pinia
 }
 ```
+
+**pinia 实例管理所有的 store 实例**，通过 store id 作为 map key 挂载到 pinia._s 属性上。
 
 `defineStore` 是一个高阶函数，它返回一个函数 `useStore`，**只有当这个函数执行的时候，才会完成这个 store 实例的创建即初始化**。
 
@@ -101,7 +125,7 @@ function createSetupStore($id: Id, setup: () => SS, options, pinia, hot) {
     )
   ) as unknown as Store<Id, S, G, A>
 
-  // 通过 id 注册 store 实例至 pinia 上
+  // 通过 id 注册 store 实例至 pinia 上 （_s 为一个 map 数据）
   pinia._s.set($id, store)
 
   // 执行 setup 方法完成对于 defineStore 接受到的 options 初始化后的值
