@@ -270,9 +270,7 @@ function $patch(partialStateOrMutator) {
     pinia.state.value[$id] as UnwrapRef<S>
   )
 }
-// $dispose
-
-// $onAction
+// todo: $dispose
 ```
 
 pinia 提供了一个比较灵活的 api：$patch 进行批量数据的更新，和 vuex 当中的 mutation 有点类似，都不允许进行异步的操作， vuex 提供的 mutation 规范有更强的约束性，不过最终所达到的效果来看 $patch 可以看做是对于 vuex mutation 语义上的一层抽象。
@@ -285,11 +283,89 @@ pinia 提供了一个比较灵活的 api：$patch 进行批量数据的更新，
 
 let actionSubscriptions: StoreOnActionListener<Id, S, G, A>[] = markRaw([])
 
+function wrapAction(name: string, action: _Method) {
+  return function (this: any) {
+    setActivePinia(pinia)
+   const args = Array.from(arguments)
+
+   const afterCallbackList: Array<(resolvedReturn: any) => any> = []
+   const onErrorCallbackList: Array<(error: unknown) => unknown> = []
+   function after(callback: _ArrayType<typeof afterCallbackList>) {
+     afterCallbackList.push(callback)
+   }
+   function onError(callback: _ArrayType<typeof onErrorCallbackList>) {
+     onErrorCallbackList.push(callback)
+   }
+
+   /**
+    * 触发通过 $onAction 加入的回调缓存，需要注意的是这个时候实际的 action 动作还没有被触发，即 state 发生变更之前；
+    * 在回调缓存里面可以通过 after(保存到 afterCallbackList 函数当中)函数来添加对于 state 发生变化后的回调处理函数 
+    */
+   // @ts-expect-error
+   triggerSubscriptions(actionSubscriptions, {
+     args,
+     name,
+     store,
+     after,
+     onError,
+   })
+
+   let ret: any
+   try {
+     // 触发实际的 action 动作
+     ret = action.apply(this && this.$id === $id ? this : store, args)
+     // handle sync errors
+   } catch (error) {
+     triggerSubscriptions(onErrorCallbackList, error)
+     throw error
+   }
+
+   // 如果 action 是个异步的操作
+   if (ret instanceof Promise) {
+     return ret
+       .then((value) => {
+         // 触发 after 回调（state 已经发生了改变）
+         triggerSubscriptions(afterCallbackList, value)
+         return value
+       })
+       .catch((error) => {
+         triggerSubscriptions(onErrorCallbackList, error)
+         return Promise.reject(error)
+       })
+   }
+
+   // allow the afterCallback to override the return value
+   triggerSubscriptions(afterCallbackList, ret)
+   return ret
+  }
+}
+
 const partialStore = {
   ...
   $onAction: addSubscription.bind(null, actionSubscriptions)
 }
+
+const setupStore = pinia._e.run(() => {
+  scope = effectScope()
+  return scope.run(() => setup())
+})!
+
+for (const key in setupStore) {
+  const prop = setupStore[key]
+  ...
+  if (typeof prop === 'function') {
+    const actionValue = __DEV__ && hot ? prop : wrapAction(key, prop)
+
+    setupStore[key] = actionValue
+  }
+}
 ```
+
+对于 $onAction 而言，调用过程中所接受的回调函数最终会通过 addSubscription 方法加入到 actionSubscriptions 缓存队列当中，这个缓存队列最终会在触发 action 的过程中被消费掉。
+
+此外就是在我们使用 pinia 定义 action 方法后，在 store 内部实例化的过程中会对传入的 action 方法做一层代理用以劫持(wrapAction) action 方法的调用，这样在用户实际调用 action 方法时是调用的经过代理后的方法，这样做的目的就是为了支持 action 调用过程当中 Hooks 的功能来感知 state 的变化前后的状态：
+
+输入（plain object） -> store 实例化（代理劫持、加工）-> 输出（返回）store 实例
 
 
 在 Pinia 中还提供了 `mapHelpers` 辅助函数用以支持不使用 composition api 的场景下使用：
