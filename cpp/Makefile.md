@@ -1,0 +1,1 @@
+* [跟我一些写 Makefile](https://seisman.github.io/how-to-write-makefile/overview.html)
