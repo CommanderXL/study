@@ -1,9 +1,11 @@
 * [跟我一些写 Makefile](https://seisman.github.io/how-to-write-makefile/overview.html)
 
-* `.so`: shared libray (linux) | `dylib` (mac) | `dll` (windows)
-* `.o`: object file
+* `.so`: 动态链接共享库 shared libray (linux) | `dylib` (mac) | `dll` (windows)
+* `.a`: 静态库，其实就是把若干个 o 目标文件打包 (linux) | `.lib` (mac)
+* `.o`: object file（编译的目标文件）
 * `.bt`: bitecode file
-* `.a`
+* `lo`: 使用libtool编译出的目标文件，其实就是在 o 目标文件中添加了一些信息
+* `la`: 使用libtool编译出的库文件，其实是个文本文件，记录同名动态库和静态库的相关信息
 
 Q：autoconf+automake 和 cmake 之间的区别？
 

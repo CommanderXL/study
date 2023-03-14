@@ -45,3 +45,11 @@ int main()
 
   return 0;
 }
+
+// auto_ptr definetion
+// template <class X>
+// class auto_ptr
+// {
+//   public:
+//     explicit auto_ptr(X* p = 0) throw()
+// };
