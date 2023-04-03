@@ -1,0 +1,1 @@
+在模板定义中， (typename)[https://learn.microsoft.com/zh-cn/cpp/cpp/typename?view=msvc-170] 向编译器提供一个提示，指出未知标识符是一种类型。 在模板参数列表中，它用于指定类型参数。
