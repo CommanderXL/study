@@ -7,6 +7,7 @@ ReactiveEffect 实际上包含了2层意思：其一是指 reactive 响应式的
 * computed effect
 * watch effect
 * render effect
+* custom effect
 
 也就是说只有以上 effect 进入到工作流程之后才会开启响应式数据依赖的收集工作（开启的控制节点也就是对于 `shouldTrack`、`activeEffect` 全局变量的管控，effect.run 先开启开关，然后实际访问数据的时候即会完成依赖收集，所有都是围绕着 ReactiveEffect 实例来进行管理的）。响应式数据和它们之间的关系就是：响应式数据有多个 effect 依赖。那么以上这些 effect 何时会进入到工作流程呢？
 
@@ -79,7 +80,11 @@ export class ReactiveEffect {
 }
 ```
 
-### 依赖收集阶段：
+## TrackRefValue/TriggerRefValue
+
+针对 `ref`、`computed` (computed 数据类型其实也是一种 ref 数据，computed 数据也定义了 `__v_isRef = true`)，computed 数据在使用过程中会产生依赖的依赖（常规的就是 render effect 当中使用了 computed 数据，computed 数据本身也有依赖 computed effect）
+
+## 依赖收集阶段：
 
 在 v2 版本当中在创建响应式数据的过程中，针对每个响应式的 Key 创建了对于 `Dep` 的闭包用来收集所有依赖。
 而在 v3 版本当中比较核心的一个点就是对于想要变成响应式的数据而言都是通过相应的 api 来转化为响应式数据，例如 `reactive`、`ref`、`computed`，对于它们而言一个非常重要的工作就是数据代理。就拿 `ref` 来说可以将 primitive value 转化为响应式的数据，实际上在内部就是创建了一个新的代理对象 `RefImpl`，`computed` 数据实际返回了一个新的代理对象 `ComputedRefImpl`，`reative` 则是返回了一个 `Proxy` 对象。
@@ -126,7 +131,12 @@ export function trackEffects(dep: Dep, debuggerEventExtraInfo?: DebuggerEventExt
 }
 ```
 
-### 响应式数据发生变更，触发依赖更新阶段：
+### 依赖收集策略
+
+性能优化有关
+
+
+## 响应式数据发生变更，触发依赖更新阶段：
 
 针对 `ref` 和 `computed` 数据一样都是单值，所以对于这两者而言，如果数据发生了变化，其实就是需要获取数据上绑定的 `dep`，然后触发依赖当中保存的所有 `effect` 执行，这里在触发依赖更新的流程当中两种数据类型都是调用的同样的 `triggerRefValue` 方法（所以在 vue3 当中可以将 ref 以及 computed 数据类型联系起来看，它们都是提供了对于某个数据类型的代理，这个代理提供了 `get Value`、`set Value` 的方法用来收集依赖以及触发依赖的更新）：
 
@@ -248,3 +258,35 @@ watch 的回调也是一个异步的操作，它的执行是在 render 函数执
 
 renderer -> queueJob（异步） -> queueFlush
 computed
+
+------
+
+定义好 响应式数据 和 effect 之间的关系。
+
+Render effect
+Computed effect
+Watch effect
+Custom effect
+
+数据与数据之间的响应式联系
+
+通过 computed、ref 来建立数据与数据之间的关系
+
+Watch 是长期变化的场景，例如 cityChange、stateChange 等，对于一次性变化的数据来说，是否需要一个 watch effect 来监听？
+
+数据处理（callback 形式，还是直接把 data 抛出，data 为数据的引用）
+
+状态转移&控制权（把状态抛出，控制权抛出）
+
+副作用的清除(side-effect clean up)
+
+
+响应式数据可以单独去使用，在 composition-api 之前，你需要一个响应式数据的载体，例如 vuex，vue 实例 等等
+有了 reactive api 之后，数据和挂载对象进行了解耦，引入 effect 的机制。
+
+关注点就是数据本身，建立起数据和 effect 之间的关系
+
+
+shallowRef 的使用，这个值本身会变，内部的数据没有单独更新的述求，
+
+后端数据（一般不需要响应式数据） ->  摘取数据（） ->  组合数据
