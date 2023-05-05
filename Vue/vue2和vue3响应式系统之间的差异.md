@@ -272,21 +272,29 @@ Custom effect
 
 通过 computed、ref 来建立数据与数据之间的关系
 
-Watch 是长期变化的场景，例如 cityChange、stateChange 等，对于一次性变化的数据来说，是否需要一个 watch effect 来监听？
+Watch 是长期变化的场景，例如 cityChange、stateChange 等，对于一次性变化的数据来说，是否需要一个 watch effect 来监听？-> watchOnce api
 
 数据处理（callback 形式，还是直接把 data 抛出，data 为数据的引用）
 
+异步场景处理形式
+
 状态转移&控制权（把状态抛出，控制权抛出）
+
+options api（从形式上来说提供了一种编码的规范格式，状态，方法，生命周期等） -> composition api（通过 api 去获取、使用、声明 组件的状态、方法、生命周期等）
 
 副作用的清除(side-effect clean up)
 
 
-响应式数据可以单独去使用，在 composition-api 之前，你需要一个响应式数据的载体，例如 vuex，vue 实例 等等
+响应式数据可以单独去使用，在 composition-api 之前，你需要一个响应式数据的载体，例如 vuex，vue component实例 等等
 有了 reactive api 之后，数据和挂载对象进行了解耦，引入 effect 的机制。
 
 关注点就是数据本身，建立起数据和 effect 之间的关系
 
 
-shallowRef 的使用，这个值本身会变，内部的数据没有单独更新的述求，
+shallowRef 的使用，一般是这个值本身会变，嵌套的数据没有单独更新的述求，常见于纯列表渲染（城市选择筛选数据），嵌套数据不会变化，只是顶层的数据有筛选变化；
 
-后端数据（一般不需要响应式数据） ->  摘取数据（） ->  组合数据
+对于小程序的场景来说，因为没法使用 createApi，因此在组件的调用上强依赖 ref 
+
+
+后端数据（一般不需要响应式数据） ->  摘取数据（） ->  组合/转换数据
+
