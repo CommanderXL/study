@@ -20,6 +20,33 @@ webpack 当中的 module 的概念(可以理解为一个文件对应一个 modul
 
 6. dependencies (只有这个 module 经过 parse 后才完成依赖的收集工作)
 
+7. buildInfo 记录了有关 module 编译过程中收集的信息（依赖关系、也会往 buildInfo 上挂载需要输出的 assets 文件内容，具体见 emitFile 方法），一般对于一个 module 来说除了本身处理为一个 js 资源外，如果想输出一些其他的文本资源都是可以通过 emitFile api 来往 buildInfo 上挂载相关的数据。
+
+```javascript
+// lib/NormalModule.js
+
+emitFile(name, content, sourceMap, assetInfo) {
+  // buildInfo.assets 保存了需要被输出的静态资源的内容
+  // buildInfo.assetsInfo 保存了需要被输出内容的额外的信息，也意味着可以挂载不同的自定义信息
+  if (!this.buildInfo.assets) {
+    this.buildInfo.assets = Object.create(null)
+    this.buildInfo.assetsInfo = new Map()
+  }
+
+  this.buildInfo.assets[name] = this.createSourceForAsset(
+    options.context,
+    name,
+    content,
+    sourceMap,
+    compilation.compiler.root
+  )
+  
+  this.buildInfo.assetsInfo.set(name, assetInfo)
+}
+```
+
+
+
 等相关 api 的集合。这些基础的属性定义在 `NormalModule.js` 类当中，不过 `NormalModule` 也继承了其他的类，这些基类同时也提供了一些额外的属性定义，例如继承的 `Module` 类，`DependenciesBlock` 类，其中 `DependenciesBlock` 提供了一些关键的依赖相关的属性：
 
 ```javascript
@@ -254,6 +281,16 @@ build(options, compilation, resolver, fs, callback) {
 }
 ```
 
+
+### createModuleAssets 
+
+生成需要通过这个 module 产出的额外的 asset 资源内容； 
+
+emitFile 保存文件内容
+createAssets 输出文件内容
+
+
+emitAsset
 ---
 
 ## Resolver
