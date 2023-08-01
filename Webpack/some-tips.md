@@ -290,7 +290,7 @@ emitFile 保存文件内容
 createAssets 输出文件内容
 
 
-emitAsset
+emitAsset 产出文件文本内容，这些文本内容都是通过 emitFile api 在 buildInfo 上挂载的内容；
 ---
 
 ## Resolver
@@ -343,6 +343,7 @@ handleModuleCreation()
 // 通过 ModuleFactory 创建 module 实例
 factorizeModule()
 
+// 将创建好的 module 加入到建立 moduleGrouph 的流程当中
 addModule()
 
 // 建立起 module 和 dependency 之间的联系
@@ -351,5 +352,6 @@ moduleGraph.setResolvedModule()
 // 开始 buildModule，完成后在回调里面开始处理对应的依赖
 _handleModuleBuildAndDependencies()
 
+// 处理模块依赖，用以创建新的模块
 processModuleDependencies(module)
 ```
