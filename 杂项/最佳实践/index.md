@@ -6,7 +6,11 @@
 
 3. [什么是业务，什么是业务架构](https://mp.weixin.qq.com/s/2dUYEYvlizLPiou792HVKA)
 
-4. [如何理解 Facebook 的 flux 应用架构？](https://www.zhihu.com/question/33864532)
+### 状态管理
+
+1. [如何理解 Facebook 的 flux 应用架构？](https://www.zhihu.com/question/33864532)
+
+2. [Redux状态管理之痛点、分析与改良](https://zhuanlan.zhihu.com/p/27093191)
 
 ### 代码书写
 
