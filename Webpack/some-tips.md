@@ -20,10 +20,20 @@ webpack 当中的 module 的概念(可以理解为一个文件对应一个 modul
 
 6. dependencies (只有这个 module 经过 parse 后才完成依赖的收集工作)
 
-7. buildInfo 记录了有关 module 编译过程中收集的信息（依赖关系、也会往 buildInfo 上挂载需要输出的 assets 文件内容，具体见 emitFile 方法），一般对于一个 module 来说除了本身处理为一个 js 资源外，如果想输出一些其他的文本资源都是可以通过 emitFile api 来往 buildInfo 上挂载相关的数据。
+7. buildInfo 记录了有关 module 编译过程中收集的信息（依赖关系（用以持久化缓存的判断）、也会往 buildInfo 上挂载需要输出的 assets 文件内容，具体见 emitFile 方法），一般对于一个 module 来说除了本身处理为一个 js 资源外，如果想输出一些其他的文本资源都是可以通过 emitFile api 来往 buildInfo 上挂载相关的数据。
 
 ```javascript
 // lib/NormalModule.js
+
+build(options, compilation, resolver, fs, callback) {
+  this.buildInfo = {
+    cacheable: false,
+    parsed: true,
+    fileDependencies: undefined
+    contextDependencies: undefined,
+    missingDependencies: undefined, // 不需要关注的依赖
+  }
+}
 
 emitFile(name, content, sourceMap, assetInfo) {
   // buildInfo.assets 保存了需要被输出的静态资源的内容
