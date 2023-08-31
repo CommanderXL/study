@@ -12,6 +12,11 @@
 
 2. [Redux状态管理之痛点、分析与改良](https://zhuanlan.zhihu.com/p/27093191)
 
+### 工程化
+
+* [美团前端研发框架Rome实践和演进趋势](https://mp.weixin.qq.com/s/fRbIVadr_VYQ1yOXA9jDcQ)
+
+
 ### 代码书写
 
 1. [杂谈代码整洁](https://mp.weixin.qq.com/s/s_2dfOnMqND1qKjTfnmg5A?from=10B9093010&launchid=10000365--x&WBAPIAnalysisOriUICodes=10000001&v_p=89&aid=01A6KIz-KXGucKBHskOBOMMRfsDUFDplH-wv4f4yVsY2SjS78.&wm=3333_2001&theme=dark)
