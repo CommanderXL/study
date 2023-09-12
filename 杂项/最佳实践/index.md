@@ -16,6 +16,12 @@
 
 * [美团前端研发框架Rome实践和演进趋势](https://mp.weixin.qq.com/s/fRbIVadr_VYQ1yOXA9jDcQ)
 
+* [字节跳动的前端工程化实践](https://mp.weixin.qq.com/s/EPToiEJX687BLKNLM4oWmQ)
+
+
+### 跨端
+
+* [一文揭秘饿了么跨端技术的演进、实践与落地](https://mp.weixin.qq.com/s/h8HDtYLj0skRsPSkmEtShg)
 
 ### 代码书写
 
