@@ -18,6 +18,13 @@
 
 * [字节跳动的前端工程化实践](https://mp.weixin.qq.com/s/EPToiEJX687BLKNLM4oWmQ)
 
+* [Bundler设计的取舍 - 字节 web-infra-dev 团队](https://github.com/web-infra-dev/wg/discussions/4)
+
+### 框架
+
+
+* React
+  *  [Making Sense of React Server Components](https://www.joshwcomeau.com/react/server-components/)
 
 ### 跨端
 
