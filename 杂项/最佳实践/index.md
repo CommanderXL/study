@@ -1,3 +1,7 @@
+### 趋势
+
+1. [周爱民：告前端同学书](https://zhuanlan.zhihu.com/p/661629653)
+
 ### 架构设计
 
 1. [插件式可拓展架构设计心得](https://zhuanlan.zhihu.com/p/372381276)
@@ -25,6 +29,7 @@
 
 * React
   *  [Making Sense of React Server Components](https://www.joshwcomeau.com/react/server-components/)
+  *  [Learn React](https://react.dev/learn/escape-hatches)
 
 ### 跨端
 
