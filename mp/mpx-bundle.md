@@ -19,17 +19,49 @@
 ```javascript
 // webpack-plugin/lib/index.js
 
+const getPackageCacheGroup = packageName => {
+  if (packageName === 'main') {
+    // ...
+  } else {
+    return {
+      test: (module, { chunkGraph }) => { // webpack: Controls which modules are selected by this cache group
+        const chunks = chunkGraph.getModuleChunksIterable(module) // 和这个 module 产生引用关系的所有 chunk
+        return chunks.size && every(chunks, chunk => { // 是否属于这个 package
+          return isChunkInPackage(chunk.name, packageName)
+        })
+      },
+      name: `${packageName}/bundle`,
+      minChunks: 2,
+      minSize: 1000,
+      priority: 100,
+      chunks: 'all'
+    }
+  }
+}
+
 compilation.hooks.finishModules.tap('MpxWebpackPlugin', () => {
   // 自动跟进分包配置修改 splitChunksPlugin 配置策略
   if (splitChunksPlugin) {
     let needInit = false
+    // 每个 packageName 下的 components 映射关系都已经生成
     Object.keys(mpx.componentsMap).forEach((packageName) => {
-
+      if (!hasOwn(splitChunksOptions.cacheGroups, packageName)) {
+        needInit = true
+        // 依据 packageName 动态添加 cacheGroups 配置信息
+        splitChunksOptions.cacheGroups[packageName] = getPackageCacheGroup(packageName)
+      }
     })
+    // 更新 SplitChunksPlugin options 的配置
+    if (needInit) {
+      splitChunksPlugin.options = new SplitChunksPlugin(splitChunksOptions).options
+    }
   }
 })
 ```
 
+todo: 可以画个图，module 和 chunk 之间的关系
+
+chunkGroup 和 chunks 之间的关系
 
 ```javascript
 compilation.hooks.processAssets.tap({
