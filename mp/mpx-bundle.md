@@ -142,8 +142,7 @@ compilation.hooks.processAssets.tap({
 
 那么在这里也就出现了2种 `bundle.js`，一种是存在于主包当中的所有 js module 的集合，另外一种只在分包当中被复用的所有 js module 集合。不过对于主包的 bundle.js 而言比较特殊的是包含了整个 mpx 运行时框架的代码（当然这也是因为所有的模块基本都引用了 mpx 运行时代码，最终被输出到主包的 bundle.js 当中）。那么对于分包代码而言，要想正常的运行也必须建立起主包 bundle.js 和分包代码的关系。
 
-
-
+接下来就看下不同 chunk 之间是如何建立联系来保障代码的正常执行的。
 
 在 mpx 内部是基于 json 配置来动态创建入口文件的，这个过程不同于 webpack 处理 js module 及其依赖的过程。每个页面/组件都是一个独立的入口文件，通过调用 webpack 内置的 EntryPlugin 提供的相关方法来动态创建入口加入到编译流程当中：
 
@@ -160,7 +159,18 @@ mpx = compilation.__mpx__ = {
 }
 ```
 
-此外在 webpack 内部实现当中，每一个 EntryPoint（可以理解为入口文件）都是一个 chunkGroup（EntryPoint 继承于 chunkGroup），这也意味着在 mpx 工程项目当中，假如有 N 个页面/组件，那么就有 N+1 个 chunkGroup（多出来的一个为 app.mpx）
+对于一个 `.mpx` 单文件而言，里面的 js block 最终都会被输出到一个单独的 js chunk 当中。按照原生小程序的规范，一个小程序必须包含 app.js 小程序主入口 js 文件，此外每个页面/组件目录下都有自己的 js 文件 index.js。按照这样的规范：
+
+* app.mpx -> app.js
+* pages/a.mpx -> pages/a/index.js
+* components/b.mpx -> components/b/index.js
+
+那么这些不同的 js chunk 和通过 splitChunkPlugin 配置生成的 bundle.js 之间的关系是怎么样的呢？
+
+todo: 补个图
+
+
+此外在 webpack 内部实现当中，每一个 EntryPoint（可以理解为入口文件）都是一个 chunkGroup（EntryPoint 继承于 chunkGroup），这也意味着在 mpx 工程项目当中，假如有 N 个页面/组件，那么就有 N+1 个 chunkGroup（多出来的一个为 app.mpx 主入口逻辑）
 
 
 
