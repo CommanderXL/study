@@ -2,7 +2,7 @@
 
 对于 mpx 项目而言，每一个 mpx sfc 最终都会处理为 js/wxml/wxss/json 四部分的内容。
 
-对于产出的非 js block 的文件类型而言，在 webpack 的概念当中，它们不属于 js chunk 而是 asset 静态文件，因此这些 block 的编译构建流程和 js 也有很大的不同。例如对于 wxml block 而言...
+对于产出的非 js block 的文件类型而言，在 webpack 的概念当中，它们不属于 js chunk 而是 asset 静态文件，因此这些 block 的编译构建流程和 js 也有很大的不同。例如对于 wxml block 而言，经过编译转换后是通过 `emitAsset` 来输出最终的文件。
 
 对于 js block 而言那就是走正常的编译构建流程：babel -> parse -> processDependencies 等流程。
 
@@ -85,7 +85,7 @@ chunkGroup 和 chunks 之间的关系 -->
 
 那么在这里也就出现了2种 `bundle.js`，一种是存在于主包当中的所有 js module 的集合，另外一种只在分包当中被复用的所有 js module 集合。不过对于主包的 bundle.js 而言比较特殊的是包含了整个 mpx 运行时框架的代码（当然这也是因为所有的模块基本都引用了 mpx 运行时代码，最终被输出到主包的 bundle.js 当中）。那么对于分包代码而言，要想正常的运行也必须建立起主包 bundle.js 和分包代码的关系。
 
-#### 主包 bundle.js 和主包/分包 js chunk 如何建立引用联系
+### 主包 bundle.js 和主包/分包 js chunk 如何建立引用联系
 
 接下来就看下不同 chunk 之间是如何建立联系来保障代码的正常执行的。
 
