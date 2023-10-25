@@ -4,9 +4,9 @@
 
 对于产出的非 js block 的文件类型而言，在 webpack 的概念当中，它们不属于 js chunk 而是 asset 静态文件，因此这些 block 的编译构建流程和 js 也有很大的不同。例如对于 wxml block 而言...
 
-而对于 js block 而言那就是走正常的编译构建流程：babel -> parse -> processDependencies 等流程。
+对于 js block 而言那就是走正常的编译构建流程：babel -> parse -> processDependencies 等流程。
 
-和原生的小程序应用不同的是：使用原生小程序开发的应用，每个页面/组件写的 js 源码实际上就是一个 chunk，app.js 实际上就相当于一个 bootstrap 启动代码。同时原生小程序提供了 js 的模块化能力，这也意味着开发者需要自行去。
+和原生的小程序应用不同的是：使用原生小程序开发的应用，每个页面/组件写的 js 源码实际上就是一个 chunk，app.js 实际上就相当于一个 bootstrap 启动代码。同时原生小程序提供了 js 的模块化能力，这也意味着开发者需要自行去管理不同模块代码之间的依赖关系。
 
 对于基于 webpack 作为构建工具的 Mpx 而言，编译构建输出的目标需要满足原生小程序的代码规范，因此每个 mpx sfc 最终都会产出一个 js chunk。而在 webpack 生态当中内置了 `splitChunksPlugin` 去精细化的控制**模块的拆分和复用策略**。这也是 mpx 基于 webpack 能更好的去支持分包产物输出、异步分包等小程序特性前提。
 
@@ -73,12 +73,9 @@ compilation.hooks.finishModules.tap('MpxWebpackPlugin', () => {
   }
 })
 ```
+<!-- todo: 可以画个图，module 和 chunk 之间的关系
 
-todo: 可以画个图，module 和 chunk 之间的关系
-
-chunkGroup 和 chunks 之间的关系
-
-
+chunkGroup 和 chunks 之间的关系 -->
 
 对于每个 chunkGroup 而言，根据 splitChunkPlugin 的配置都会按需生产所需要的 chunk 内容，对于主包 `main` 而言会单独生成一个 js chunk 为 bundle.js，通过配置也可以看到一个 js module 只要被引用的次数 >= 2次，它都会被输出到 bundle.js 当中，主包当中的代码不用说，如果一个 js module 即被主包的代码引用了，也被分包的代码引用了，最终代码会输出到主包的 bundle.js 当中。
 
@@ -113,7 +110,7 @@ mpx = compilation.__mpx__ = {
 
 <!-- 对于每个入口 EntryPoint（chunkGroup）而言，依据配置至少有2个 chunk -->
 
-todo: 补个图
+<!-- todo: 补个图 -->
 
 
 在 webpack 内部实现当中，每一个 EntryPoint（可以理解为入口文件）都是一个 chunkGroup（EntryPoint 继承于 chunkGroup），这也意味着在 mpx 工程项目当中，假如有 N 个页面/组件，那么就有 N 个 chunkGroup（另外一个比较特殊的 chunkGroup 为 app.mpx 对应的主入口逻辑）
@@ -163,6 +160,7 @@ compilation.hooks.processAssets.tap({
 
   function processChunk (chunk, isRuntime, relativeChunks) {
     const chunkFile = chunk.files.values().next().value
+    ...
   }
 
   compilation.chunkGroups.forEach((chunkGroup) => {
