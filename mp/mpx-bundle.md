@@ -205,6 +205,6 @@ compilation.hooks.processAssets.tap({
 
 在 processChunk 方法当中主要就是依据不同 chunk 之间的依赖关系来输出最终的代码确保程序能正常执行。他们之间的依赖关系是：
 
-[mpx-bundle](../images/mp/mpx-bundle.png)
+![mpx-bundle](../images/mp/mpx-bundle.png)
 
 这里就不再详细描述这个方法内部的逻辑了。
