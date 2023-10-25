@@ -16,6 +16,8 @@
 
 第二个问题：主包 bundle.js 和主包/分包 js chunk 如何建立引用联系；
 
+### 分包的 bundle.js 输出策略
+
 ```javascript
 // webpack-plugin/lib/index.js
 const getPackageCacheGroup = packageName => {
@@ -83,6 +85,8 @@ chunkGroup 和 chunks 之间的关系 -->
 
 那么在这里也就出现了2种 `bundle.js`，一种是存在于主包当中的所有 js module 的集合，另外一种只在分包当中被复用的所有 js module 集合。不过对于主包的 bundle.js 而言比较特殊的是包含了整个 mpx 运行时框架的代码（当然这也是因为所有的模块基本都引用了 mpx 运行时代码，最终被输出到主包的 bundle.js 当中）。那么对于分包代码而言，要想正常的运行也必须建立起主包 bundle.js 和分包代码的关系。
 
+#### 主包 bundle.js 和主包/分包 js chunk 如何建立引用联系
+
 接下来就看下不同 chunk 之间是如何建立联系来保障代码的正常执行的。
 
 在 mpx 内部是基于 json 配置来动态创建入口文件的，这个过程不同于 webpack 处理 js module 及其依赖的过程。每个页面/组件都是一个独立的入口文件，通过调用 webpack 内置的 EntryPlugin 提供的相关方法来动态创建入口加入到编译流程当中：
@@ -138,8 +142,6 @@ if (this.options.mode !== 'web') {
   }
 }
 ```
-
-分包的 js 代码如何和分包/主包 bundle 建立起关系的？
 
 当然 webpack 将所有的 assets 准备完成后触发 processAssets hook：
 
@@ -203,6 +205,6 @@ compilation.hooks.processAssets.tap({
 
 在 processChunk 方法当中主要就是依据不同 chunk 之间的依赖关系来输出最终的代码确保程序能正常执行。他们之间的依赖关系是：
 
-runtimeChunk -> middleChunk -> entryChunk（todo: 可以画个图，runtimeChunk 到 entryChunk）
+[mpx-bundle](../images/mp/mpx-bundle.png)
 
 这里就不再详细描述这个方法内部的逻辑了。
