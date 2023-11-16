@@ -314,7 +314,13 @@ Dependency 依赖
 
 `class EntryDependency extends ModuleDependency` 模板依赖包含了一个 module 的 request 路径
 
-Dependency 和 Module 之间的区别？
+**Dependency 和 Module 之间的区别？**
+
+Module -> Dependency <-> DependencyFactory -> Module
+
+在处理 Module 的过程中，Dependency 是相对于 Module 而言的，也就是对于这个 Module 而言所产生依赖关系抽象为 Dependency，其实也就是一个**索引**用来标记被依赖的 module。
+
+既然 Dependency 是一个索引指向了实际对应的模块。那么在 webpack 的编译构建流程当中进入到处理这个 Dependency 的过程后实际也就是处理 Module
 
 Dependency 记录了依赖的路径和它的 parentModule(即哪个模块对它的依赖)。
 
@@ -354,9 +360,10 @@ handleModuleCreation()
 factorizeModule()
 
 // 将创建好的 module 加入到建立 moduleGrouph 的流程当中
+// 在这个过程当中会根据 module identifier 来判断是从缓存当中获取 module 实例
 addModule()
 
-// 建立起 module 和 dependency 之间的联系
+// 建立起 module 和 dependency 之间的联系，建立部分 moduleGraph
 moduleGraph.setResolvedModule()
 
 // 开始 buildModule，完成后在回调里面开始处理对应的依赖
@@ -365,3 +372,13 @@ _handleModuleBuildAndDependencies()
 // 处理模块依赖，用以创建新的模块
 processModuleDependencies(module)
 ```
+
+## moduleGraph、chunk、chunkGraph、chunkGroup
+
+moduleGraph 实际是用来管理 module 与相关 dependency 之间的依赖的抽象
+
+```javascript
+this._moduleMap = new Map() // Map<module, ModuleGroupModules>
+```
+
+moduleGraphModule 是对于 module 相关信息的封装，用来记录 module 的一些依赖关系
