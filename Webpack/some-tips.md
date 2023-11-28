@@ -316,11 +316,13 @@ Dependency 依赖
 
 **Dependency 和 Module 之间的区别？**
 
-Module -> Dependency <-> DependencyFactory -> Module
+Module -> Dependency <-> DependencyFactory <-> ModuleFactory -> Module
 
-在处理 Module 的过程中，Dependency 是相对于 Module 而言的，也就是对于这个 Module 而言所产生依赖关系抽象为 Dependency，其实也就是一个**索引**用来标记被依赖的 module。
+在处理 Module 的过程中，Dependency 是相对于 Module 而言的，也就是对于这个 Module 而言所产生依赖关系抽象为 Dependency 这个数据类型，其实也就是一个**索引**用来标记被依赖的 module。
 
 既然 Dependency 是一个索引指向了实际对应的模块。那么在 webpack 的编译构建流程当中进入到处理这个 Dependency 的过程后实际也就是处理 Module
+
+在实际的编译构建流程当中，每个模块的 Dependency 和其对应的 Module 之间是一一对应的关系。也就意味着可以通过 Dependency 这个索引找到其对应真实的 Module
 
 Dependency 记录了依赖的路径和它的 parentModule(即哪个模块对它的依赖)。
 
