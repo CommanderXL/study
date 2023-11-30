@@ -1,6 +1,6 @@
 ## ModuleGraph
 
-moduleGraph 实际是用来管理 module 与相关 dependency 之间的依赖的抽象，核心是要解决 module 和其 dependency 及对应的 module 之间的依赖关系。在整个编译构建流程当中都可以通过 moduleGraph 来获取 module/dependency-module 之间的依赖关系。
+moduleGraph 实际是用来管理 module 与相关 dependency 之间的依赖的抽象，核心是要解决 module 和其 dependency 及这个 dependency 所对应的 module 之间的依赖关系。在整个编译构建流程当中都可以通过 moduleGraph 来获取 module/dependency-module 之间的依赖关系。
 
 针对 moduleGraph 生成引入了另外的数据结构用以管理他们之间的依赖关系：
 
@@ -64,7 +64,7 @@ class ModuleGraph {
 而通过 module 是可以找到 incomingConnections（这个模块自身被依赖的关系）/outgoingConnections（这个模块所依赖的）（conntection），也就是所有的依赖关系。 todo：这里使用一个图会更加清晰
 
 
-其中的 `ModuleGraphConnection` 数据结构用以记录当前的 module、dependency 和其父 module 之间的依赖关系。
+其中的 `ModuleGraphConnection` 数据结构用以记录当前的 module、dependency 和其父 module 之间的依赖关系，connection 实例是整个 moduleGraph 记录依赖关系的最小单元：
 
 ```javascript
 class ModuleGraphConnection {
@@ -78,3 +78,6 @@ class ModuleGraphConnection {
 
 * incommingConnections （可以通过 incommingConnections 找到父模块）
 * outgoingConnections（记录了当前模块所引用的 dependency-module）
+
+
+### module issuer 的使用场景
