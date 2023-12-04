@@ -96,4 +96,8 @@ class ModuleGraphConnection {
 
 `setIssuerInUnset`
 
-这个 module 初次被引入的模块（初次产生的依赖关系，并被加入到构建流程当中）。已经构建完成的 module 后续就不参加构建了。 
+这个 module 初次被引入的模块（初次产生的依赖关系，并被加入到构建流程当中）。已经构建完成的 module 后续就不参加构建了。
+
+一般可以通过 `module.issuer` 来寻找当前这个 module **最开始被引入到编译构建流程当中的父模块**。
+
+和其他找寻模块的方法不一样的地方主要对应的使用场景。
