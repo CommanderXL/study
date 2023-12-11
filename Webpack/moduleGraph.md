@@ -101,3 +101,10 @@ class ModuleGraphConnection {
 一般可以通过 `module.issuer` 来寻找当前这个 module **最开始被引入到编译构建流程当中的父模块**。
 
 和其他找寻模块的方法不一样的地方主要对应的使用场景。
+
+
+
+
+
+
+<!-- https://mp.weixin.qq.com/s?__biz=Mzg3OTYwMjcxMA==&mid=2247483956&idx=1&sn=a2066fcc76cd97de88a6d6cb397e6c2a&chksm=cf00bf4df877365b95fe685507294ef8df12351daca9abb1864d37d4d9903a76e1bbb3a663c1&cur_album_id=1856066636768722949&scene=190#rd -->

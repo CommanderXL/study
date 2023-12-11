@@ -2,9 +2,9 @@ webpack 相关的一些个人总结
 
 ## module
 
-通过一个 request 路径去构造一个 module
+通过一个 request 路径（索引）去构造一个 module
 
-webpack 当中的 module 的概念(可以理解为一个文件对应一个 module)：
+webpack 当中的 module 的概念(一个抽象概念 module)：
 
 是一个包含了这个文件的
 
