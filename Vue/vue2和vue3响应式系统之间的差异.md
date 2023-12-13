@@ -2,7 +2,23 @@
 
 ## ReactiveEffect
 
-ReactiveEffect 实际上包含了2层意思：其一是指 reactive 响应式的数据，其二是指在使用响应式数据构建应用的过程中数据发生变化所引用的副作用函数的执行，简单总结就是对于数据&变化的抽象。可以理解提供了一种管理响应式数据变化的机制：**何时访问响应式数据的时候进行依赖收集（时机很关键）**，当响应式数据发生变化所引起的相关依赖的变化。响应式数据的依赖分为以下几种类型：
+ReactiveEffect 实际上包含了2层意思：其一是指 reactive 响应式的数据，其二是指在使用响应式数据构建应用的过程中数据发生变化所引用的副作用函数的执行，简单总结就是对于**数据&数据变化所产生的动作**的抽象。
+
+可以从 ReactiveEffect 的定义上就能看出来：
+
+```javascript
+export class ReactiveEffect<T = any> {
+  constructor(
+    public fn: () => T, // effect 副作用函数
+    public scheduler: EffectScheduler | null = null, // 自定义调度器，当响应式数据发生变化之后是执行 effect 副作用函数本身，还是执行调度器（在 computed 数据类型当中有使用）
+    scope?: EffectScope
+  ) {
+    recordEffectScope(this, scope)
+  }
+}
+```
+
+可以理解提供了一种管理响应式数据变化的机制：**何时访问响应式数据的时候进行依赖收集（时机很关键）**，当响应式数据发生变化需触发相关依赖的变化。响应式数据的依赖分为以下几种类型：
 
 * computed effect
 * watch effect
@@ -159,6 +175,30 @@ export function triggerRefValue(ref: RefBase<any>, newVal?: any) {
 }
 ```
 
+在 effect 函数触发的过程当中，会优先触发 `effect.computed` 为 `true` 的 effect，然后再触发其他的 effect，核心是因为 computed 数据特点是惰性的，需要提前将 computed 数据标记为 `dirty`，这样去访问 computed 数据的时候才可以拿到最新的值。
+
+一个例子：一个组件当中数据依赖关系 `reactive` -> `computed` -> `Template`。如果 reactive 数据发生了变化，首先会触发 effect.computed，即 effect.scheduler 自定义的调度器将 computed.dirty 标记为 true，这样在 template 重新渲染访问到的 computed 的数据才是最新的：
+
+```javascript
+export function triggerEffects(
+  dep: Dep | ReactiveEffect[],
+  debuggerEventExtraInfo: DebuggerEventExtraInfo
+) {
+  // spread into array for stabilization
+  const effects = isArray(dep) ? dep : [...dep]
+  for (const effect of effects) {
+    if (effect.computed) {
+      triggerEffect(effect, debuggerEventExtraInfo)
+    }
+  }
+  for (const effect of effects) {
+    if (!effect.computed) {
+      triggerEffect(effect, debuggerEventExtraInfo)
+    }
+  }
+}
+```
+
 而针对 `reactive` 数据类型，当某个 `key` 的值发生变化后，也就是进入到 `proxy` 数据的 `set` 方法，首先需要根据对应的 `key` 找到对应的 `dep` 收集的所有 `reactiveEffect` 实例，然后再进入到后续的 `triggerEffects` 流程当中。
 
 所以对于这个方面，v3 相较于 v2 的抽象程度更高。
@@ -270,9 +310,11 @@ Custom effect
 
 数据与数据之间的响应式联系
 
-通过 computed、ref 来建立数据与数据之间的关系
+通过 computed、ref 来建立数据与数据之间的关系（他们之间的关系如何进行表述？）
 
 Watch 是长期变化的场景，例如 cityChange、stateChange 等，对于一次性变化的数据来说，是否需要一个 watch effect 来监听？-> watchOnce api
+
+~~watch 之后更新了某个数据，命令式的代码组织形式。useToggle -> 通过状态去驱动视图的更新；~~
 
 数据处理（callback 形式，还是直接把 data 抛出，data 为数据的引用）
 
@@ -296,5 +338,8 @@ shallowRef 的使用，一般是这个值本身会变，嵌套的数据没有单
 对于小程序的场景来说，因为没法使用 createApi，因此在组件的调用上强依赖 ref 
 
 
+case 1:
+
 后端数据（一般不需要响应式数据） ->  摘取数据（） ->  组合/转换数据
 
+case 2:
