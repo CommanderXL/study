@@ -2,7 +2,7 @@
 
 ## ReactiveEffect
 
-ReactiveEffect 实际上包含了2层意思：其一是指 reactive 响应式的数据，其二是指在使用响应式数据构建应用的过程中数据发生变化所引用的副作用函数的执行，简单总结就是对于**数据&数据变化所产生的动作**的抽象。
+ReactiveEffect 实际上包含了2层意思：其一是指 reactive 响应式的数据，其二是指在使用响应式数据构建应用的过程中数据发生变化所引用的副作用函数的执行，简单总结就是对于**数据&数据变化所产生的变化（副作用）**的抽象。
 
 可以从 ReactiveEffect 的定义上就能看出来：
 
@@ -23,7 +23,7 @@ export class ReactiveEffect<T = any> {
 * computed effect
 * watch effect
 * render effect
-* custom effect
+* custom effect（基于 ReactiveEffect 的 custom effect，可以提供哪些更加上层的 api 去解决什么问题？）
 
 也就是说只有以上 effect 进入到工作流程之后才会开启响应式数据依赖的收集工作（开启的控制节点也就是对于 `shouldTrack`、`activeEffect` 全局变量的管控，effect.run 先开启开关，然后实际访问数据的时候即会完成依赖收集，所有都是围绕着 ReactiveEffect 实例来进行管理的）。响应式数据和它们之间的关系就是：响应式数据有多个 effect 依赖。那么以上这些 effect 何时会进入到工作流程呢？
 
@@ -96,11 +96,19 @@ export class ReactiveEffect {
 }
 ```
 
+ReactiveEffect 也加入了脏值检测的机制（effect dirty 检测）
+
+effect.trigger 和 effect.scheduler 之间的区别？
+
 ## TrackRefValue/TriggerRefValue
 
 针对 `ref`、`computed` (computed 数据类型其实也是一种 ref 数据，computed 数据也定义了 `__v_isRef = true`)，computed 数据在使用过程中会产生依赖的依赖（常规的就是 render effect 当中使用了 computed 数据，computed 数据本身也有依赖 computed effect）
 
+TrackRefValue 底层调用的仍然是 trackEffect，用以建立响应式数据与 effect 之间的依赖关系。
+
 ## 依赖收集阶段：
+
+`effect.run` 方法会将当前 effect 置为 activeEffect，用以被其他响应式数据在访问环节完成数据依赖收集的过程。
 
 在 v2 版本当中在创建响应式数据的过程中，针对每个响应式的 Key 创建了对于 `Dep` 的闭包用来收集所有依赖。
 而在 v3 版本当中比较核心的一个点就是对于想要变成响应式的数据而言都是通过相应的 api 来转化为响应式数据，例如 `reactive`、`ref`、`computed`，对于它们而言一个非常重要的工作就是数据代理。就拿 `ref` 来说可以将 primitive value 转化为响应式的数据，实际上在内部就是创建了一个新的代理对象 `RefImpl`，`computed` 数据实际返回了一个新的代理对象 `ComputedRefImpl`，`reative` 则是返回了一个 `Proxy` 对象。
