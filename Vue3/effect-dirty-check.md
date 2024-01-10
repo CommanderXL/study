@@ -1,10 +1,13 @@
 ## Vue3.4 effect-drity-check 机制
 
+
+### 框架现状
+
 在最近刚发布的 Vue3.4 版本当中重构了部分响应式系统的功能。博客当中举了一个例子：
 
 todo：补充一张图
 
-在之前的版本当中，`count.value` 发生变化的话肯定会再次触发 `watchEffect` 的执行。主要的原因还是在于之前的 computed effect 的设计，computed 依赖的响应式数据发生了变化之后，scheduler 会立即触发对其产生依赖的 effect。所以在这个例子当中，count.value 发生了变化，触发 computed effect 进而也就触发了 watch effect 的执行。
+在之前的版本当中，`count.value` 发生变化的话肯定会再次触发 `watchEffect` 的执行。主要的原因还是在于之前的 computed effect 的[设计](https://github.com/vuejs/core/pull/5912/files#diff-95734490ac7bb277f876f1c6e635a2718f5f8ac75615d0d72403df5a8903e652L44)，computed 依赖的响应式数据发生了变化之后，scheduler 会立即触发对其产生依赖的 effect。所以在这个例子当中，count.value 发生了变化，触发 computed effect 进而也就触发了 watch effect 的执行。
 
 由这个简单的例子可以继续推导下，在 Vue 框架内部基于 ReactiveEffect 还提供了包括，依赖 computed 数据的 effect 还会有其他的类型：
 
@@ -19,10 +22,19 @@ todo: 补充一个图 不同 effect 和 computed 数据之间的关系
 
 那么为了优化这种场景，Vue3.4 引入了 effect dirty check 机制：
 
+### ReactiveEffect 重构
+
 首先来看下 ReactiveEffect 的设计，几个大的变化：
 
-* 内部新增了一个属性 `_dirtyLevel` 用以标记目前 effect 的 dirty 状态
-* 对于使用方而言第二个参数改为必传的 `trigger` 函数
+对外：
+
+* 对于使用方而言第二个参数改为必传的 `trigger` 函数（trigger 和 scheduler 之间的区别：trigger 要比 scheduler 先执行，提前派发一些信号，主要是用以 computed 数据的处理？）
+
+对内：
+
+* 内部新增了一个属性 `_dirtyLevel` 用以标记当前 effect 实例的 dirty [状态](https://github.com/vuejs/core/pull/5912/files#diff-f7360f435e9d5bfecbdfc36d9dbd7625cc99b76e6350f6522c2473d7441440c2R25)（区分了 computed 数据和普通的 reactive/ref 数据）
+* dirty getter 用以判断当前 effect 是否真的需要重新触发
+
 
 ```javascript
 export class ReactiveEffect {
@@ -57,6 +69,71 @@ export class ReactiveEffect {
     }
     return this._dirtyLevel >= DirtyLevels.ComputedValueDirty
   }
+}
+```
+
+### computed 重构
+
+* trigger event，更新 effect dirty 为 ComputedValueMayBeDirty（仍然保持了 computed 的 lazy 特性）
+* value 访问会判断 effect dirty 的状态，为 true 才会去重新执行 effect 并得到最新的数据，同时会对比新旧数据，如果发生了变化，那么就会 triggerEffects
+
+```javascript
+export class ComputedRefImpl<T> {
+  ...
+  constructor() {
+    this.effect = new ReactiveEffect(
+      () => getter(this._value),
+      () => triggerRefValue(this, DirtyLevels.ComputedValueMaybeDirty)
+    )
+  }
+  get value() {
+    const self = toRaw(this)
+    trackRefValue(self)
+    if (!self._cacheable || self.effect.dirty) {
+      if (hasChanged(self._value, (self._value = self.effect.run()!))) {
+        triggerRefValue(self, DirtyLevels.ComputedValueDirty)
+      }
+    }
+    return self._value
+  }
+  ...
+}
+```
+
+### triggerEffects 重构
+
+```javascript
+export function triggerEffects(
+  dep: Dep,
+  dirtyLevel: DirtyLevels
+  ...
+) {
+  pauseScheduling() // 只能保证在当前 triggerEffects 的嵌套 triggerEffects 当中不会触发 effect scheduler 函数
+  for (const effect of dep.keys()) {
+    if (!effect.allowRecurse && effect._runnings) {
+      continue
+    }
+    if (
+      effect._dirtyLevel < dirtyLevel &&
+      (!effect._runnings || dirtyLevel !== DirtyLevels.ComputedValueDirty) // runnings 当前 effect 是否正在执行
+    ) {
+      const lastDirtyLevel = effect._dirtyLevel
+      effect._dirtyLevel = dirtyLevel
+      if (
+        lastDirtyLevel === DirtyLevels.NotDirty &&
+        (!effect._queryings || dirtyLevel !== DirtyLevels.ComputedValueDirty)
+      ) {
+        if (__DEV__) {
+          effect.onTrigger?.(extend({ effect }, debuggerEventExtraInfo))
+        }
+        effect.trigger() // 确保 computed trigger 先执行
+        if (effect.scheduler) {
+          queueEffectSchedulers.push(effect.scheduler)
+        }
+      }
+    }
+  }
+  resetScheduling()
 }
 ```
 
