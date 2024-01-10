@@ -5,20 +5,24 @@
 
 在最近刚发布的 Vue3.4 版本当中重构了部分响应式系统的功能。博客当中举了一个例子：
 
-todo：补充一张图
+![vue3.4-blog](./images/vue3.4-blog.png)
 
-在之前的版本当中，`count.value` 发生变化的话肯定会再次触发 `watchEffect` 的执行。主要的原因还是在于之前的 computed effect 的[设计](https://github.com/vuejs/core/pull/5912/files#diff-95734490ac7bb277f876f1c6e635a2718f5f8ac75615d0d72403df5a8903e652L44)，computed 依赖的响应式数据发生了变化之后，scheduler 会立即触发对其产生依赖的 effect。所以在这个例子当中，count.value 发生了变化，触发 computed effect 进而也就触发了 watch effect 的执行。
+在之前的版本当中，`count.value` 发生变化的话肯定会再次触发 `watchEffect` 的执行。主要的原因还是在于之前的 computed effect 的[设计](https://github.com/vuejs/core/pull/5912/files#diff-95734490ac7bb277f876f1c6e635a2718f5f8ac75615d0d72403df5a8903e652L44)，computed 依赖的响应式数据发生了变化之后，computed effect scheduler 会立即触发对其产生依赖的 effect。所以在这个例子当中，count.value 发生了变化，触发 computed effect 进而也就触发了 watch effect 的执行。
 
-由这个简单的例子可以继续推导下，在 Vue 框架内部基于 ReactiveEffect 还提供了包括，依赖 computed 数据的 effect 还会有其他的类型：
+由这个简单的例子可以继续推导下，在 Vue 框架内部基于 ReactiveEffect 封装了更加上层的响应式 api，包括：
 
 * computed effect
-* render effect
 * watch effect
 * effect api
+* render effect（组件渲染使用）
+
+在不同的使用场景下，这些 effect 都可以和 computed 数据建立起依赖关系。
+
+![computed-value-effects](./images/computed-value-effects.png)
 
 todo: 补充一个图 不同 effect 和 computed 数据之间的关系
 
-所以针对以上这些 effect 如何依赖了 computed 数据，那么在 re-computed 的过程当中都是可能会出现上述例子当中 effect 重新执行的情况。
+那么在 computed 数据在 re-computed 的过程当中都是可能会出现上述例子当中，computed 数据实际没有变化，但是 effect 会重新执行的情况。
 
 那么为了优化这种场景，Vue3.4 引入了 effect dirty check 机制：
 
