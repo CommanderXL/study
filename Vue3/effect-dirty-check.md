@@ -143,18 +143,19 @@ export function triggerEffects(
 
 再回到 Blog 当中的例子
 
+### 基于 ReactiveEffect 的上层封装
 
-如果要基于 ReactiveEffect 去提供上层的 api 有两点需要注意：
+ReactiveEffect 是 `@vue/reactivity` 所暴露出**最重要最底层的用以搭建整个响应式系统的 api**，那么如果要基于 3.4 版本后的 ReactiveEffect 去封装上层的 api 有两点需要注意：
 
 1. ReactiveEffect 接受的 trigger 函数为必传；
 2. 可以在 effect scheduler 函数当中可以进行 effect dirty check 来决定 effect 是否需要执行用以提升性能；
 
 
 
-1. 具体的场景举例（和之前的工作流程的对比）；
+<!-- 1. 具体的场景举例（和之前的工作流程的对比）；
    1. 具体会出现这种 case 的原因
 2. 引入了 effect-dirty-check；
 3. 如何去做的；
    1. ReactiveEffect API 的变化； trigger/scheduler 之间的区别（trigger 只是触发一些信号，即 computed 触发相关依赖的执行，scheduler 好理解，是交给用户来决定怎么去触发 effect）
    2. dity-check 机制；
-4. 对于基于 ReactiveEffect 做上层 API 的一些改造工作。
+4. 对于基于 ReactiveEffect 做上层 API 的一些改造工作。 -->
