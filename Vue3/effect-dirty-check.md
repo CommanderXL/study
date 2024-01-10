@@ -33,7 +33,7 @@ todo: 补充一个图 不同 effect 和 computed 数据之间的关系
 对内：
 
 * 内部新增了一个属性 `_dirtyLevel` 用以标记当前 effect 实例的 dirty [状态](https://github.com/vuejs/core/pull/5912/files#diff-f7360f435e9d5bfecbdfc36d9dbd7625cc99b76e6350f6522c2473d7441440c2R25)（区分了 computed 数据和普通的 reactive/ref 数据）
-* dirty getter 用以判断当前 effect 是否真的需要重新触发
+* dirty getter 用以判断当前 effect scheduler 是否真的需要重新触发
 
 
 ```javascript
@@ -101,6 +101,10 @@ export class ComputedRefImpl<T> {
 ```
 
 ### triggerEffects 重构
+
+* 更新 effect dirty 状态
+* 触发 trigger
+* 收集 effect scheduler（若有），在适当的时机会触发所有收集的 effect scheduler（一个数据发生变化后，确保整个数据依赖链路（包括effect ）都被遍历过）
 
 ```javascript
 export function triggerEffects(
