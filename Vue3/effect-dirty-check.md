@@ -141,6 +141,14 @@ export function triggerEffects(
 }
 ```
 
+再回到 Blog 当中的例子
+
+
+如果要基于 ReactiveEffect 去提供上层的 api 有两点需要注意：
+
+1. ReactiveEffect 接受的 trigger 函数为必传；
+2. 可以在 effect scheduler 函数当中可以进行 effect dirty check 来决定 effect 是否需要执行用以提升性能；
+
 
 
 1. 具体的场景举例（和之前的工作流程的对比）；
