@@ -147,7 +147,7 @@ export function triggerEffects(
 
 在优化后的流程当中依据依赖关系触发 effect 的流程没太大变化，不过在触发 effect 的过程当中新增了对于 effect dirty 状态的更新，尤其是 computed 触发其依赖 effect 会将对应的 dirty 状态更新为 `ComputedValueMaybeDirty`，进入到 effect scheduler 调用的流程当中通过对 effect dirty check 来看是否进行后续的流程，也就是 effect scheduler 后续的调用。
 
-effect dirty check 的流程实际也就是看和当前 effect 有依赖关系的 computed 数据是否真的发生了变化（computed value getter 的流程），一旦有一个 computed 数据发生了变化也就会更新 effect dirty 的状态为 `ComputedValueDirty`。
+effect dirty check 的流程实际也就是看和当前 effect 有依赖关系的 computed 数据是否真的发生了变化（computed value getter 的过程），一旦有一个 computed 数据发生了变化也就会更新 effect dirty 的状态为 `ComputedValueDirty`。
 
 ### 基于 ReactiveEffect 的上层封装
 
