@@ -96,11 +96,84 @@ exports.createResolver = function(options) {
 * @param {ResolveCallback} callback callback function
 * @returns {void}
 */
-resolve(context, path, request, resolveContext, callback)
+resolve(context, path, request, resolveContext, callback) {
+  ...
+
+  const finishResolved = result => {
+    return callback(
+      null,
+      result.path === false
+        ? false
+        : ...,
+      result
+    )
+  }
+
+  return this.doResolve(
+    this.hooks.resolve,
+    obj,
+    message,
+    {
+      ...
+    },
+    (err, result) => {
+      ...
+      if (result) return finishResolved(result)
+
+      return finishWithoutResolve(log)
+    }
+  )
+}
 ```
 
 ### 插件设计
 
+对于每次的寻址过程来说，基本的调度流程节点是一致的（pipeline hooks），但是具体的调度时机是由插件来决定的。
+
+插件一般至少会接受2个参数，一个是初始监听的 source hook，另外一个是接下来触发的 target hook。
+
+
+对于 source hook 而言，在插件初始化的过程中就完成了监听，**这也意味着你可以通过插件去 hook 到调度流程的各个节点当中，同时还可以基于现有的调度的流程去拓展新的流程**。
+
+target hook 的触发也就是进入到下一个调度流程的 hook 当中，也就是由其他插件监听的 target hook 进行触发。
+
+在这两者之间你可以按需去改变 resolve 相关的信息。
+
+不过对于每个 hook 而言，不管是 source hook 还是 target hook 的类型都是预设好的，统一都是 `AsyncSeriesBailHook`：
+
+```javascript
+class Resolver {
+  ...
+  ensureHook(name) {
+    name = toCamelCase(name)
+    if (/^before/.test(name)) {
+      return this.ensureHook(name[6].toLowerCase() + name.slice(7)).withOptions({
+        stage: -10
+      })
+    }
+
+    if (/^after/.test(name)) {
+      return this.ensureHook(name[5].toLowerCase() + name.slice(6)).withOptions({
+        stage: -10
+      })
+    }
+
+    const hook = this.hooks[name]
+    if (!hook) {
+      this.hooks[name] = new AsyncSeriesBailHook(
+        ['request', 'resolveContext'],
+        name
+      )
+
+      return this.hooks[name]
+    }
+
+    return hook
+  }
+}
+```
+
+注：`withOptions` 方法接受 options 配置参数是 tapable hook 提供了用以改变当前 hook 一些行为的高阶方法。这里 resolver 也提供了针对同一个 hook 通过 `before-xx`/`after-xx` 来约定针对同一个 hook 不同回调函数触发的时机。
 
 ### 流程设计
 
