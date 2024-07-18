@@ -173,11 +173,15 @@ class Resolver {
 }
 ```
 
-注：`withOptions` 方法接受 options 配置参数是 tapable hook 提供了用以改变当前 hook 一些行为的高阶方法。这里 resolver 也提供了针对同一个 hook 通过 `before-xx`/`after-xx` 来约定针对同一个 hook 不同回调函数触发的时机。
+注：`withOptions` 方法接受 options 配置参数是 tapable hook 提供了用以改变当前 hook 一些行为的高阶方法。这里 resolver 也提供了针对同一个 hook 通过 `before-xx`/`after-xx` 来约定针对同一个 hook 不同回调函数触发的时机（stage）。
 
 ### 流程设计
 
-先后优先顺序的调度规则
+对于一个 resolver 来说由 `resolver.resolve` 方法来启动整个解析路径的流程。其实也就对应到内部的 resolve hook 的触发，接下来也就交由一系列的插件来接管整个流程控制。
 
-before-xxx hook
-after-xxx hook
+上图示意了整个插件调度的大致流程：
+
+![Resolver](../images/webpack/resolver.png)
+
+1. resolve hook 的启动会触发 A1 plugin 监听这个 hook 的回调函数，那么 resolve hook callback 会在下一个 hook 的回调当中来决策后续的流程应该怎么执行：例如 A1 plugin 对应的 target hook 是 parse-resolve hook，这个 hook 触发后的回调也就决定了上一个 hook callback 的执行动作。一旦在某个插件的 callback 里面获取到了结果，可以将参数传入到 hook callback 当中，整个的 callback 也就会逆向的执行（图中红色的流程线），最终回到 resolve hook 的 callback 当中，业务代码当中也就获取到了正确的结果。
+2. 在上面也提到了所有的 hook 类型都是 AsyncSeriesBailHook，对于一个 hook 来说可以有多个监听函数，例如上图中，针对 file Hook 有3个插件都监听了，当 B1 插件触发 file Hook 时，优先响应 c1 插件的监听函数(stage 更小)，如果 c1 插件没有获取到正确的结果，直接调用 `callback()` 也就意味着执行下一个监听函数（对应到 c2 plugin），在 c2 plugin 当中获取到正确的结果后 `callback(null, result)` 也就意味着 file Hook 的回调函数会被触发，也就不会执行 c3 plugin 的监听函数了，然后也就逆向的执行相关 hook callback。
