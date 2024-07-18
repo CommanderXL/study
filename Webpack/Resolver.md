@@ -173,7 +173,7 @@ class Resolver {
 }
 ```
 
-注：`withOptions` 方法接受 options 配置参数是 tapable hook 提供了用以改变当前 hook 一些行为的高阶方法。这里 resolver 也提供了针对同一个 hook 通过 `before-xx`/`after-xx` 来约定针对同一个 hook 不同回调函数触发的时机（stage）。
+注：[`withOptions`](https://github.com/webpack/tapable/blob/master/lib/Hook.js#L101) 方法接受 options 配置参数是 tapable hook 提供了用以改变当前 hook 一些行为的高阶方法。这里 resolver 也提供了针对同一个 hook 通过 `before-xx`/`after-xx` 来约定针对同一个 hook 不同回调函数触发的时机（stage）。
 
 ### 流程设计
 
