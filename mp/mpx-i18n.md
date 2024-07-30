@@ -81,3 +81,99 @@ exp = exp.replace(funcNameREG, `${i18nModuleName}.$1(null, _l, _fl, `)
 ```
 
 这样在模版编译生成 render 函数的过程中也就能扫描到模版当中访问了 `_l`、`_fl`，最终这两个字段的访问也会被注入到 render 函数当中，从而建立起语言类型 `locale` 和模版更新之间的联系：当在运行时阶段动态更新语言字段，也就会重新触发 render 函数的执行，也就意味着重新访问计算对应语言下的文本内容，在这个阶段完成最终渲染数据的收集工作后即可调用 setData 完成最终的视图更新。
+
+当然另外还有一种场景，就是在运行时环节对于语言集 `messages` 的更新同样需要重新渲染视图。
+
+### 翻译函数在两种模式下的复用
+
+默认情况下翻译函数是通过 wxs 模块的形式注入的，但是如果使用 computed 模式的话，翻译函数需要被注入到逻辑线程当中。那么在这种场景当中：一个独立的模块如何被注入到 mpx 运行时当中。
+
+在这部分的实现当中，翻译函数的导出最终会被挂载至全局对象 `global.i18n` 当中：
+
+```javascript
+// webpack-plugin/lib/runtime/i18n.wxs
+module.exports = {
+  t: function() {},
+  tc: function() {},
+  te: function() {},
+  tm: function() {}
+}
+
+if (!__mpx_wxs__) {
+  if (!global.i18n) {
+    global.i18n = {
+      locale: getLocale(),
+      fallbackLocale: getFallbackLocale(),
+      messages: getMessages(),
+      methods: module.exports // i18n.wxs 模块的翻译函数的导出最终会在运行时阶段挂载到每个组件实例上
+    }
+  }
+}
+```
+
+那么在 mpx 框架初始化的阶段，如果发现 `global.i18n` 存在，那么也就会初始化 i18n 相关的模块内容，将 `global.i18n` 上挂载的翻译函数方法注入到每个组件实例当中。
+
+```javascript
+// core/src/index.js
+if (__mpx_mode__ !== 'web') {
+  if (global.i18n) {
+    Mpx.i18n = createI18n(global.i18n)
+  }
+}
+```
+
+```javascript
+// core/src/platform/builtMixins/i18nMixin.js
+export function createI18n (options) {
+  ...
+}
+
+function createComposer (options) {
+  ...
+  // 响应式数据 locale
+  const locale = ref(
+    __root && inheritLocale
+     ? __root.locale.value
+     : (options.locale || DefaultLocale) 
+  )
+
+  // 响应式数据 fallbackLocale
+  const fallbackLocale = ref(
+    __root && inheritLocale
+      ? __root.fallbackLocale.value
+      : (options.fallbackLocale || DefaultLocale)
+  )
+
+  const messages = shallowRef(
+    isPlainObject(options.messages)
+      ? options.messages
+      : { [locale]: {} }
+  )
+
+  ...
+}
+
+export default function i18nMixin () {
+  if (i18n) {
+    return {
+      computed: {
+        _l() {
+          return i18n.global.locale.value || DefaultLocale
+        },
+        _fl() {
+          return i18n.global.fallbackLocale.value || DefaultLocale
+        }
+      },
+      [BEFORECREATE] () {
+        ...
+        Object.keys(i18nMethods).forEach(methodName => {
+          this['$' + methodName] = (...args) => {
+            if (methodName === 'tc') methodName = 't'
+            return i18n.global[methodName](...args)
+          }
+        })
+      }
+    }
+  }
+}
+```
