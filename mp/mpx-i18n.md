@@ -82,7 +82,40 @@ exp = exp.replace(funcNameREG, `${i18nModuleName}.$1(null, _l, _fl, `)
 
 这样在模版编译生成 render 函数的过程中也就能扫描到模版当中访问了 `_l`、`_fl`，最终这两个字段的访问也会被注入到 render 函数当中，从而建立起语言类型 `locale` 和模版更新之间的联系：当在运行时阶段动态更新语言字段，也就会重新触发 render 函数的执行，也就意味着重新访问计算对应语言下的文本内容，在这个阶段完成最终渲染数据的收集工作后即可调用 setData 完成最终的视图更新。
 
-当然另外还有一种场景，就是在运行时环节对于语言集 `messages` 的更新同样需要重新渲染视图。
+当然另外还有一种场景，就是在运行时环节对于语言集 `messages` ({ 'en-US': {}, 'zh-CN': {} })的更新同样需要重新渲染视图。首先对于框架而言，接受到的数据是纯静态的，在框架内部会将这些纯静态的语言集合转化为 `shallowRef` 数据类型（见下方 createComposer 实现），当在运行时代码需要更新语言集：`setLocaleMessage`：
+
+```javascript
+// core/src/platform/builtMixins/i18nMixin.js
+
+const setLocaleMessage = (local, message) => {
+  messages.value[local] = message
+  triggerRef(messages) // 设置语言集，会调用 triggerRef 方法来触发对应的翻译字段更新，进而触发 render 函数的执行和视图的渲染
+}
+```
+
+
+
+一个实际的例子：
+
+```javascript
+<view>this {{$t('message.hello', { message: { hello: '你好' } })}}</view>
+
+
+// 编译环节动态注入的 computed 数据
+__webpack_require__.g.currentInject.injectComputed = {
+  _i1() { // 最终编译产出的模版上访问的数据字段
+    return this.$t('message.hello', {
+      message: {
+        hello: '你好'
+      }
+    });
+  }
+};
+```
+
+实际上在访问 computed 字段 `_i1` 过程中，也就建立起了 `_i1` 和响应式数据 `messages` 之间的联系。因此当语言集发生更新的时候，也就进而触发视图的更新。
+
+视图更新流程：setLocalMessage -> _i1 -> render Fn -> 视图重新渲染
 
 ### 翻译函数在两种模式下的复用
 
