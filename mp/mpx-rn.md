@@ -1,3 +1,5 @@
+* 构建流程
+  * compiler 
 * 模版编译
   * 指令
   * render function 生成
@@ -17,5 +19,7 @@
   * createApp
   * createPage
   * createComponent
+* 平台能力
+  * 以微信平台为标准的能力对齐
 * 原生组件&第三方组件引入使用
   * @ios 
