@@ -83,6 +83,19 @@ module.exports = function() {
 }
 ```
 
+经过 processMainScript 的处理也就将 app.mpx 转化为一个 rn 项目当中入口文件的 js 代码，进而进入到后续的 js 代码的编译构建流程当中。
+
+当然这里代码的编译转换并没有对于 app.mpx 文件内的不同 blocks（例如 json/style）等做处理，这里的处理流程仅仅是完成注入 rn 项目的启动代码，同时将 app.mpx 的代码路径也一并注入，接下来也就进入到 webpack 处理这段 js 代码的逻辑当中，进而也就分析到 require 了这个 app.mpx 入口文件，这样也就会进入到对于 app.mpx 文件本身的处理流程：从流程上来说这个 app.mpx 会重新进入到主 loader 的处理流程当中，但是这次处理过程不一样的地方是去处理这个文件本身当中不同 block 的逻辑（和一个普通的 .mpx 页面/组件服用一套处理流程）。
+
+那么对于一个普通的 .mpx 页面/组件来说，首先是并行的处理 `template/style/json`：
+
+对于 template 来说：
+
+
+对于 style 来说：
+
+对于 json 来说：
+
 
 
 ### 模版指令
