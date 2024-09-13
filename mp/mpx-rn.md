@@ -91,6 +91,54 @@ module.exports = function() {
 
 对于 template 来说：
 
+从源代码来说 template 是小程序的模版语法（类 vue），但是我们在开发 rn 或者 react 的项目时一般都使用 jsx 的语法来描述页面/组件的结构。所以对于 template 核心要解决的问题就是**如何将小程序的模版语法转换为 react 项目当中能产出页面/组件结构的语法**。
+
+不过对于 react 来说，jsx 本身也就是一套描述组件结构的 dsl，它的实际功效和 template 模版一样，那也意味着我们将源码当中的 template 直接转化为 jsx 的写法也就能保证最终渲染出来的组件结构一致。如果是按照这个思路来解决模版渲染的问题，那么也就意味着我们需要写一个 template -> jsx 的转换器，同时还需要接入 react 编译构建套件才能保障 jsx 能正常的工作。不过在 react 当中也提供了 `createElement` 这样编程式的方式去创建我们的组件结构，它的功效和 jsx 等价。熟悉 Vue 技术体系的应该都清楚，对于一个 vue sfc 的 template block 来说最终都会经过编译构建转换为 render function，在 mpx2web 的技术架构当中，针对 template 的处理实际上也只是在 mpx 初次处理后转换符合 vue 的编译构建处理的模版，然后交由 vue 的编译构建套件去处理。因此这里对于 template 的处理也就是最终转化为 render function，这样也不需要单独借助 react 相关的工具来参与整个编译构建流程了。
+
+那么在 template 的处理过程当中，首先经过 template-compiler：
+
+```javascript
+// webpack-plugin/lib/react/processTemplate.js
+// 产出描述模版的 vnode tree
+const { meta, root } = templateCompiler.parse(template.content, {
+  ...
+})
+```
+
+```javascript
+// webpack-plugin/lib/template-compiler/compiler.js
+function processElement(el, root, options, meta) {
+  ...
+  if (isReact(mode)) {
+    // 收集内建组件
+    processBuiltInComponents(el, meta)
+    // 预处理代码维度条件编译
+    processIf(el)
+    processFor(el)
+    processRefReact(el, meta)
+    processStyleReact(el, options)
+    processEventReact(el)
+    processComponentIs(el, options)
+    processSlotReact(el)
+    processAttrs(el, options)
+    return
+  }
+}
+
+function closeElement(el, meta, options) {
+  ...
+  if (isReact(mode)) {
+    postProcessWxs(el, meta)
+    postProcessForReact(el)
+    postProcessIfReact(el)
+    return
+  }
+  ...
+}
+```
+
+那么对于 template 的节点&属性处理过程当中，核心也就是将微信模版语法转化为...。
+对于一些增强的指令、语法的转换...。
 
 对于 style 来说：
 
