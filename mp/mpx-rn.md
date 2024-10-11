@@ -93,7 +93,7 @@ module.exports = function() {
 
 从源代码来说 template 是小程序的模版语法（类 vue），但是我们在开发 rn 或者 react 的项目时一般都使用 jsx 的语法来描述页面/组件的结构。所以对于 template 核心要解决的问题就是**如何将小程序的模版语法转换为 react 项目当中能产出页面/组件结构的语法**。
 
-不过对于 react 来说，jsx 本身也就是一套描述组件结构的 dsl，它的实际功效和 template 模版一样，那也意味着我们将源码当中的 template 直接转化为 jsx 的写法也就能保证最终渲染出来的组件结构一致。如果是按照这个思路来解决模版渲染的问题，那么也就意味着我们需要写一个 template -> jsx 的转换器，同时还需要接入 react 编译构建套件才能保障 jsx 能正常的工作。不过在 react 当中也提供了 `createElement` 这样编程式的方式去创建我们的组件结构，它的功效和 jsx 等价。熟悉 Vue 技术体系的应该都清楚，对于一个 vue sfc 的 template block 来说最终都会经过编译构建转换为 render function，在 mpx2web 的技术架构当中，针对 template 的处理实际上也只是在 mpx 初次处理后转换符合 vue 的编译构建处理的模版，然后交由 vue 的编译构建套件去处理。因此这里对于 template 的处理也就是最终转化为 render function，这样也不需要单独借助 react 相关的工具来参与整个编译构建流程了。
+不过对于 react 来说，jsx 本身也就是一套描述组件结构的 dsl，它的实际功效和 template 模版一样，那也意味着我们将源码当中的 template 直接转化为 jsx 的写法也就能保证最终渲染出来的组件结构一致。如果是按照这个思路来解决模版渲染的问题，那么也就意味着我们需要写一个 template -> jsx 的转换器，同时还需要接入 jsx 相关的编译构建套件才能保障 jsx 正常的工作。不过在 react 当中也提供了 `createElement` 这样编程式的方式去创建我们的组件结构，它的功效和 jsx 等价。熟悉 Vue 技术体系的应该都清楚，对于一个 vue sfc 的 template block 来说最终都会经过编译构建转换为 render function，在 mpx2web 的技术架构当中，针对 template 的处理实际上也只是在 mpx 初次处理后转换符合 vue 的编译构建处理的模版，然后交由 vue 的编译构建套件去处理。因此这里对于 template 的处理也就是最终转化为 render function，这样也不需要单独借助 react 相关的工具来参与整个编译构建流程了。
 
 那么在 template 的处理过程当中，首先经过 template-compiler：
 
@@ -137,8 +137,7 @@ function closeElement(el, meta, options) {
 }
 ```
 
-那么对于 template 的节点&属性处理过程当中，核心也就是将微信模版语法转化为...。
-对于一些增强的指令、语法的转换...。
+那么对于 template 的节点&属性处理，核心也就是在编译阶段将微信模版语法转化为 react 的 render function 代码。如果你对 vue 的技术体系比较熟悉，大概就清楚模版到 render function 的生成过程。例如遇到了 `wx:for` 处理循环的指令，就会针对这个指令单独注入一个辅助函数 `_i`，`wx:if` 处理条件判断的指令，就会生成三元表达式等。
 
 对于 style 来说：
 
@@ -151,6 +150,61 @@ function closeElement(el, meta, options) {
 ## 运行时
 
 ### 组件系统
+
+在更为现代的 web 开发当中，每个框架都会有自己的一套组件系统，在不同的小程序平台一样也提供了组件开发的能力。在 mpx 的渐进增强的设计思路下，对于每个小程序的组件来说都会绑定一个**与平台无关的抽象的 mpxProxy 实例**，这个抽象的 mpxProxy 统一接管组件的生命周期，引入响应式系统，组件更新等等工作。另外一方面 mpxProxy 实例可以更好的做跨平台工作。
+
+这里可以想象下，我们使用 mpx 作为上层的 dsl，将微信小程序平台作为基准能力，最终产出的代码一方面要在 rn 环境下正常运行，另外就是代码执行的结果要和微信小程序平台对齐。举个例子：
+
+```javascript
+// template
+<template>
+  <view>{{name}}</view>
+</template>
+
+// script
+import { createComponent } from '@mpxjs/core'
+
+createComponent({
+  data: {
+    name: 'John'
+  },
+  created() {
+    // do something
+  },
+  ready() {
+    this.name = 'David'
+  }
+})
+```
+
+在小程序平台下，组件实例在刚创建时会调用 `created` 生命周期，完成布局后会将 `name` 的值更新，之后组件的视图也会完成更新。
+
+如果使用 rn 来实现这样的一个功能：
+
+```javascript
+const component = () => {
+  const [name, setName] = useState('John')
+
+  useEffect(() => {
+    setName('David')
+  }, [])
+
+  return (
+    <View>
+      <Text>{name}</Text>
+    </View>
+  )
+}
+```
+
+咋一眼看上去两者的编码的范式有着非常大的差异：
+
+1. react 函数式组件没有生命周期的概念；
+2. 示例当中 react 组件内部状态的更新都是通过 hooks 来驱动，这也和 mpx 的响应式系统有非常大的差异；
+
+
+那么在 mpx2rn 的工作当中，react 本身也有自己的组件体系（这里说的都是函数式组件）设计，
+同时 react 和 vue 在编码范式上也有非常大的区别。
 
 ### 组件渲染
 
