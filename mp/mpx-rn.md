@@ -137,7 +137,7 @@ function closeElement(el, meta, options) {
 }
 ```
 
-那么对于 template 的节点&属性处理，核心也就是在编译阶段将微信模版语法转化为 react 的 render function 代码。如果你对 vue 的技术体系比较熟悉，大概就清楚模版到 render function 的生成过程。例如遇到了 `wx:for` 处理循环的指令，就会针对这个指令单独注入一个辅助函数 `_i`，`wx:if` 处理条件判断的指令，就会生成三元表达式等。
+那么对于 template 的节点&属性处理，核心也就是在编译阶段将微信模版语法转化为 react 的 render function 代码。如果你对 vue 的技术体系比较熟悉，大概就清楚模版到 render function 的生成过程。例如遇到了 `wx:for` 处理循环的指令，就会针对这个指令单独注入一个辅助函数 `_i`，`wx:if` 处理条件判断的指令，就会生成三元表达式等（具体可以参见[代码](https://github.com/didi/mpx/blob/master/packages/webpack-plugin/lib/template-compiler/gen-node-react.js)）。
 
 对于 style 来说：
 
@@ -197,18 +197,47 @@ const component = () => {
 }
 ```
 
-咋一眼看上去两者的编码的范式有着非常大的差异：
+咋一眼看上去两者编码范式有着非常大的差异：
 
 1. react 函数式组件没有生命周期的概念；
 2. 示例当中 react 组件内部状态的更新都是通过 hooks 来驱动，这也和 mpx 的响应式系统有非常大的差异；
 
+和使用 mpx 去做小程序跨平台和输出 web（输出 web 是由 vue 去接管组件的渲染等工作）类似，在 mpx2rn 的工作当中，核心也就是要解决：
 
-那么在 mpx2rn 的工作当中，react 本身也有自己的组件体系（这里说的都是函数式组件）设计，
-同时 react 和 vue 在编码范式上也有非常大的区别。
+1. 平台差异的一致性；
+2. **如何将 mpx 做的上层能力增强融入到底层框架（react）当中；**
+
+
+对于平台差异性来说。。。对于能力的融入来说。。。
+
 
 ### 组件渲染
 
-### 事件
+#### 组件封装
+
+从编码范式上来看，mpx 单文件的逻辑组织类似于 options api，最终转为 react 的组件代码是使用函数组件，编码范式？。
+
+那么实际上对于一个 mpx 自定义组件来说，`createComponent` 最终也是会调用 react 的函数组件代码来执行。
+
+```javascript
+
+function createComponent(options) {
+  // do something to transfer options
+  return (props) { // react function component
+    return (JSX)
+  }
+}
+```
+
+#### 生命周期
+
+在微信小程序的组件体系设计当中，每个组件都会有自身的[生命周期配置](https://developers.weixin.qq.com/miniprogram/dev/framework/custom-component/lifetimes.html)。但是在 react 函数式组件当中没有生命周期的概念，那么只能通过 react 函数式组件的编码范式来模拟微信小程序组件的生命周期。
+
+平台生命周期映射到 proxy 生命周期，由 proxy 生命周期来驱动平台生命周期的调用。
+
+组件所在页面的生命周期，由页面去驱动生命周期的执行。
+
+### 事件系统
 
 ### 路由
 
