@@ -16,6 +16,8 @@
 
 也就是对应到 rn 的上层 js 代码。
 
+**编译环节核心要解决的是如何能让mpx编译后的代码可以在rn环境下正常的跑起来。**
+
 ### 整体编译
 
 对于一个 .mpx 文件来说，不管在哪种编译模式下首先都会经过 webpack-plugin/loader 处理，在这个 loader 当中来分发到底进入哪种平台的编译流程。
@@ -149,6 +151,10 @@ function closeElement(el, meta, options) {
 
 ## 运行时
 
+### 路由系统
+
+### 基础组件
+
 ### 组件系统
 
 在更为现代的 web 开发当中，每个框架都会有自己的一套组件系统，在不同的小程序平台一样也提供了组件开发的能力。在 mpx 的渐进增强的设计思路下，对于每个小程序的组件来说都会绑定一个**与平台无关的抽象的 mpxProxy 实例**，这个抽象的 mpxProxy 统一接管组件的生命周期，引入响应式系统，组件更新等等工作。另外一方面 mpxProxy 实例可以更好的做跨平台工作。
@@ -177,7 +183,7 @@ createComponent({
 })
 ```
 
-在小程序平台下，组件实例在刚创建时会调用 `created` 生命周期，完成布局后会将 `name` 的值更新，之后组件的视图也会完成更新。
+在小程序平台下，组件实例在刚创建时会调用 `created` 生命周期，组件完成布局后会将 `name` 的值更新，之后组件的视图也会完成更新。
 
 如果使用 rn 来实现这样的一个功能：
 
@@ -199,35 +205,58 @@ const component = () => {
 
 咋一眼看上去两者编码范式有着非常大的差异：
 
-1. react 函数式组件没有生命周期的概念；
-2. 示例当中 react 组件内部状态的更新都是通过 hooks 来驱动，这也和 mpx 的响应式系统有非常大的差异；
+1. 基于 options 的配置组件和函数式组件的编码方式；
+2. react 函数式组件没有生命周期的概念；
+3. 示例当中 react 组件内部状态的更新通过 hooks 来驱动，这也和 mpx 的响应式系统有非常大的差异；
+4. mpx 是基于静态模版的组织形式，react 使用的是 JSX；
 
-和使用 mpx 去做小程序跨平台和输出 web（输出 web 是由 vue 去接管组件的渲染等工作）类似，在 mpx2rn 的工作当中，核心也就是要解决：
+和使用 mpx 去做跨 web 能力输出类似（mpx 输出 web 最终是由 vue 去接管组件的渲染等工作），mpx2rn 首先要面对的就是 mpx 的代码如何能桥接到 react 这一渲染库上正常的工作。那么具体到一个 mpx sfc 组件，最终需要在 react 组件系统上能正常工作，也意味着一个 mpx sfc 组件和一个 react 组件等价。
 
-1. 平台差异的一致性；
-2. **如何将 mpx 做的上层能力增强融入到底层框架（react）当中；**
-
-
-对于平台差异性来说。。。对于能力的融入来说。。。
-
-
-### 组件渲染
-
-#### 组件封装
-
-从编码范式上来看，mpx 单文件的逻辑组织类似于 options api，最终转为 react 的组件代码是使用函数组件，编码范式？。
-
-那么实际上对于一个 mpx 自定义组件来说，`createComponent` 最终也是会调用 react 的函数组件代码来执行。
+mpx 是通过 createComponent 来创建组件，react 通过函数来创建组件，那么自然也就会联想到如何将 **createComponent(options) 转化为 (props) => { return (JSX) }**：
 
 ```javascript
-
+// 伪代码
 function createComponent(options) {
   // do something to transfer options
-  return (props) { // react function component
+  ...
+  const mpxProxy = createProxy(options)
+  ...
+  return (props) { // return react function component
+    // do something in react function component
     return (JSX)
   }
 }
 ```
+
+那么沿着这样一个大的方向，我们深入的去了解下组件本身各个功能是如何去实现的。
+
+
+-------
+在 mpx2rn 的工作当中，核心也就是要解决：
+
+1. 平台差异的一致性；
+2. **如何将 mpx 做的上层能力增强融入到底层框架（react）当中；**
+
+对于平台差异性来说：
+
+1. 组件渲染；
+2. 生命周期；
+3. 事件系统；
+4. 样式系统；
+
+对于能力的融入来说：
+
+1. 响应式系统和 react 间的融合；
+----
+
+#### 组件渲染
+
+对于一个 mpx sfc 的模版来说，如果是跨小程序的平台，最终的模版输出物就是满足各小程序平台的静态模版，这些静态模版会交由小程序底层的编译构建工具去处理为 render function，而在跨 web 平台的实现上，模版最终会交由 vue-loader 处理为 render function，这个过程实际上就是将静态的字符串转化为一段可执行代码的过程。那么在 react 当中你可以通过写 jsx 这样声明式的模版结构，同时也可以调用 `createElement` api 去动态的创建组件节点实例。
+
+那么对于 mpx2rn 来说，模版的最终渲染也就是将静态的模版字符串经过编译构建转化为基于 `createElement` api 的 render function。
+
+
+
 
 #### 生命周期
 
