@@ -249,12 +249,31 @@ function createComponent(options) {
 1. 响应式系统和 react 间的融合；
 ----
 
-#### 组件渲染
+#### 组件视图渲染
 
 对于一个 mpx sfc 的模版来说，如果是跨小程序的平台，最终的模版输出物就是满足各小程序平台的静态模版，这些静态模版会交由小程序底层的编译构建工具去处理为 render function，而在跨 web 平台的实现上，模版最终会交由 vue-loader 处理为 render function，这个过程实际上就是将静态的字符串转化为一段可执行代码的过程。那么在 react 当中你可以通过写 jsx 这样声明式的模版结构，同时也可以调用 `createElement` api 去动态的创建组件节点实例。
 
-那么对于 mpx2rn 来说，模版的最终渲染也就是将静态的模版字符串经过编译构建转化为基于 `createElement` api 的 render function。
+那么对于 mpx2rn 来说，**模版的最终渲染也就是将静态的模版字符串经过编译构建转化为基于 `createElement` api 的 render function**。
 
+对于模版转化来说，整体来看有2个层面的工作要做：
+
+1. 微信小程序的 wxml 的模版语法支持；
+2. mpx 增强的模版语法支持；
+
+对于第一点来说：
+
+1. 数据绑定；
+2. 循环渲染；
+3. 条件渲染；
+
+对于第二点来说：
+
+1. wx:style；
+2. wx:class；
+3. wx:ref；
+4. 等一些列的增强模版语法，详见[文档](https://www.mpxjs.cn/guide/basic/template.html#%E6%A8%A1%E6%9D%BF%E8%AF%AD%E6%B3%95)
+
+这里通过一个实际的例子来看下一个静态模版最终是如何转化成一个 render function：
 
 
 
