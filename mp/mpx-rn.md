@@ -277,9 +277,56 @@ function createComponent(options) {
 
 ```javascript
 <view wx:for="{{ list }}">
-  <view wx:if="{{ item.index > activeIndex }}">{{ item.text }}</view>
+  <view wx:if="{{ item.index > activeIndex }}" wx:class="{{ {active: item.index === activeIndex} }}">{{ item.text }}</view>
 </view>
 ```
+
+这个模版当中使用到了 `wx:for`，`wx:if` 这两个微信小程序的模版指令以及 `wx:class` 这一增强的模版指令。在上文的编译构建章节也提到了模版会经过 `template-compiler` 去构建一个 AstNode Tree，再经由 processTemplate 来对 AstNode Tree 进行处理和加工来产出最终的 render function。
+
+那么在这个加工处理的过程中，主要是 [`gen-node-react.js`]() 。
+
+```javascript
+function genIf (node) {
+  node.ifProcessed = true
+  return genIfConditions(node.ifConditions.slice())
+}
+
+function genIfConditions (conditions) {
+  if (!conditions.length) return 'null'
+  const condition = conditions.shift()
+  if (condition.exp) {
+    return `(${condition.exp})?${genNode(condition.block)}:${genIfConditions(conditions)}`
+  } else {
+    return genNode(condition.block)
+  }
+}
+
+function genFor (node) {
+  node.forProcessed = true
+  const index = node.for.index || 'index'
+  const item = node.for.item || 'item'
+  return `_i(${node.for.exp}, function(${item},${index}){return ${genNode(node)}})`
+}
+
+function genNode (node) {
+  if (node.type === 1) {
+    if (node.tag !== 'temp-node') {
+      exp += genFor(node)
+    } else if (node.if && !node.ifProcessed) {
+      exp += genIf(node)
+    } else {
+      ...
+      exp += `createElement(${`getComponent(${node.is || s(node.tag)})`})`
+      ...
+    }
+  }
+}
+```
+
+// todo 最终的 render function 产物
+
+
+
 
 #### 生命周期
 
