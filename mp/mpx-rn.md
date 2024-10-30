@@ -271,11 +271,15 @@ function createComponent(options) {
 1. wx:style；
 2. wx:class；
 3. wx:ref；
-4. 等一些列的增强模版语法，详见[文档](https://www.mpxjs.cn/guide/basic/template.html#%E6%A8%A1%E6%9D%BF%E8%AF%AD%E6%B3%95)
+4. 等一系列mpx提供的增强模版语法，详见[文档](https://www.mpxjs.cn/guide/basic/template.html#%E6%A8%A1%E6%9D%BF%E8%AF%AD%E6%B3%95)
 
-这里通过一个实际的例子来看下一个静态模版最终是如何转化成一个 render function：
+这里通过一个简单的例子来看下一个静态模版最终是如何转化成一个 render function：
 
-
+```javascript
+<view wx:for="{{ list }}">
+  <view wx:if="{{ item.index > activeIndex }}">{{ item.text }}</view>
+</view>
+```
 
 #### 生命周期
 
