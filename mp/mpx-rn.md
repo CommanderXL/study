@@ -228,7 +228,7 @@ function createComponent(options) {
 }
 ```
 
-那么沿着这样一个大的方向，我们深入的去了解下组件本身各个功能是如何去实现的。
+那么沿着这样一个方向，我们深入的去了解下组件本身各个功能是如何去实现的。
 
 
 -------
@@ -248,6 +248,16 @@ function createComponent(options) {
 
 1. 响应式系统和 react 间的融合；
 ----
+
+#### 组件实例
+
+先简单回归下 `createComponent` 在微信小程序当中的。  ->  options 的处理 -> `Component`
+
+那么在 mpx2rn 的场景当中，`() => {...}` // do something
+
+```javascript
+// core/src/platform/patch/react/getDefaultOptions.ios.js
+```
 
 #### 组件视图渲染
 
