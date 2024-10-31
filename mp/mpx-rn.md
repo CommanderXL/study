@@ -281,9 +281,9 @@ function createComponent(options) {
 </view>
 ```
 
-这个模版当中使用到了 `wx:for`，`wx:if` 这两个微信小程序的模版指令以及 `wx:class` 这一增强的模版指令。在上文的编译构建章节也提到了模版会经过 `template-compiler` 去构建一个 AstNode Tree，再经由 processTemplate 来对 AstNode Tree 进行处理和加工来产出最终的 render function。
+这个模版当中使用到了 `wx:for`，`wx:if` 这两个微信小程序的模版指令以及 `wx:class` 这一增强的模版指令。在上文的编译构建章节也提到了模版会经过 `template-compiler` 去构建一个 AstNode Tree，再经由 processTemplate 来对 AstNode Tree 进行处理来产出最终的 render function。
 
-那么在这个加工处理的过程中，主要是 [`gen-node-react.js`]() 。
+那么在这个加工处理的过程中，主要是经过 [`gen-node-react.js`](https://github.com/didi/mpx/blob/master/packages/webpack-plugin/lib/template-compiler/gen-node-react.js) 的转换处理流程：
 
 ```javascript
 function genIf (node) {
@@ -317,11 +317,23 @@ function genNode (node) {
     } else {
       ...
       exp += `createElement(${`getComponent(${node.is || s(node.tag)})`})`
+      if (node.attrsList.length) {
+        const attrs = []
+        node.attrsList && node.attrsList.forEach(({ name, value }) => {
+          const attrExp = attrExpMap[name] ? attrExpMap[name] : s(value)
+          attrs.push(`${mapAttrName(name)}: ${attrExp}`)
+        })
+        exp += `, { ${attrs.join(', ')} }`
+      }
       ...
     }
   }
 }
 ```
+
+对于 `wx:if` 指令的处理最终也就会转化为三元表达式，对于 `wx:for` 指令的处理是通过注入运行时的辅助函数 `_i` 来遍历指令数据完成节点的渲染。
+
+当然在这里并没有看到对于 `wx:class` 这类增强型指令的处理，那是因为 `wx:class` 是对于节点属性的处理，统一在 template-compiler 处理过程中去扩展 AstNode Tree 节点属性，最终在 `gen-node-react` 将需要输出的节点属性遍历输出。
 
 // todo 最终的 render function 产物
 
