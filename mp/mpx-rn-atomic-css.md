@@ -26,6 +26,12 @@
 
 todo :是否需要维护自己的 preset 规则（核心要考量的是上层的 css 规则，能否在跨平台的场景下android/ios 能保持统一） nativeWind?
 
+
+background-color: rgb(74 222 128 / var(--un-bg-opacity));  // 是个啥？
+
+
+// 禁用写法 preset: []
+
 1. theme
 
 ```javascript
