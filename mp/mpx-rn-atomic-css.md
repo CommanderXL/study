@@ -6,12 +6,13 @@
 1. __getAppClassMap() -> 全局样式类 -> （是）
 2. 样式隔离；（否）
 3. layer；（rn 当中没有 css 能力，因此在运行时过程中来处理 layer 的能力）
+   1. layer 本身是通过虚拟模块，写入 getLayerPlaceholder 文本内容，在编译构建结束后，匹配 getLayerPlaceholder 的站位内容，然后再做文本的替换过程
 4. 是否支持 chunk；（否）
 5. unocss-base：相关的配置能力；
 6. webOptions -> rnOptions；
 7. rpx 相关的单位（preset 相关的配置）-> 单位相关的确认，在 rn 场景下是没有 px 单位的；
 8. .container 命中了 shortcuts 的策略；
-9. 产物的注入；-> 全部收集完后才注入；
+9.  产物的注入；-> 全部收集完后才注入；
 10. 小程序的场景是在 processAssets 阶段进行收集和处理；（why?）  web 阶段是在 loader pre 阶段，对于源码进行处理；react 也需要在 pre 阶段；
 
 
