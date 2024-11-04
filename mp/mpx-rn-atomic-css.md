@@ -14,7 +14,7 @@
 8. .container 命中了 shortcuts 的策略；
 9.  产物的注入；-> 全部收集完后才注入；
 10. 小程序的场景是在 processAssets 阶段进行收集和处理；（why?）  web 阶段是在 loader pre 阶段，对于源码进行处理；react 也需要在 pre 阶段；
-
+11. 注入的 class string，需要映射成 class map；（编译阶段）
 
 ### 待学习
 
