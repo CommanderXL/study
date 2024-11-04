@@ -6,7 +6,10 @@
 1. __getAppClassMap() -> 全局样式类 -> （是）
 2. 样式隔离；（否）
 3. layer；（rn 当中没有 css 能力，因此在运行时过程中来处理 layer 的能力）
-   1. layer 本身是通过虚拟模块，写入 getLayerPlaceholder 文本内容，在编译构建结束后，匹配 getLayerPlaceholder 的站位内容，然后再做文本的替换过程
+   1. layer 本身是通过虚拟模块，先引入虚拟模块，匹配成功后创建虚拟模块，写入 getLayerPlaceholder 文本内容，在编译构建结束后，匹配 getLayerPlaceholder 的站位内容，然后再做文本的替换过程
+   2. web 场景下是基于 layer 来进行样式替换和注入的；
+   3. prefight、shortcuts、default
+   4. rn 本身是通过 map 去进行，那么是否还有优先级的问题？？？不是利用先后之间的权重关系；应该是利用先后匹配的优先级问题？
 4. 是否支持 chunk；（否）
 5. unocss-base：相关的配置能力；
 6. webOptions -> rnOptions；
@@ -15,6 +18,16 @@
 9.  产物的注入；-> 全部收集完后才注入；
 10. 小程序的场景是在 processAssets 阶段进行收集和处理；（why?）  web 阶段是在 loader pre 阶段，对于源码进行处理；react 也需要在 pre 阶段；
 11. 注入的 class string，需要映射成 class map；（编译阶段）
+12. 颜色系统，unocss 默认使用 css 变量的方案（opacity）来实现的？
+
+```javascript
+.bg-red {
+  --un-bg-opacity: 1;
+  background-color: rgba(248, 113, 113, var(--un-bg-opacity));
+}
+```
+
+13. MagicString 的使用？or escape 编码的处理；
 
 ### 待学习
 
@@ -59,3 +72,14 @@ module.exports = function presetMpx (options = {}) {
   }
 }
 ```
+
+
+
+mpx
+
+1. 工作流程方面
+   1. 编译构建相关（layer 相关）
+
+2. 运行时相关（匹配的流程）
+3. Rule 相关
+   1. 直接生成 rn 合法的的样式规则属性；
