@@ -1,5 +1,7 @@
 在 Mpx 转 rn 的整体方案中所遵循的方向还是开发者以微信小程序的开发范式来输出 rn。
 
+和 Taro 这种方案不一样的地方是哪些？
+
 和 mpx 跨小程序平台/web 平台之间不一样的地方：todo 补个图
 
 核心需要解决的问题有哪些？
@@ -251,13 +253,41 @@ function createComponent(options) {
 
 #### 组件实例
 
-先简单回归下 `createComponent` 在微信小程序当中的。  ->  options 的处理 -> `Component`
+首先回顾下 mpx 在小程序场景下的组件实例是如何去工作的：mpx 所暴露的 `createComponent` 接受声明的 options 配置 经过处理转换后底层还是调用各小程序平台所提供的组件实例 api `Component` 来完成组件实例的创建。
 
-那么在 mpx2rn 的场景当中，`() => {...}` // do something
+那么在 mpx2rn 的场景当中也就对应到最终是调用 react 的函数方法来创建组件实例。
 
 ```javascript
 // core/src/platform/patch/react/getDefaultOptions.ios.js
+export default getDefaultOptions({ type, rawOptions, currentInject }) {
+  ...
+  const defaultOptions = memo(forwardRef() { // component
+    // do something
+  })
+
+  ...
+  if (type === 'page') {
+    const Page = ({ navigate, route }) => { // page component
+      // do something
+    }
+
+    return Page
+  }
+
+  return defaultOptions
+}
 ```
+
+（todo: 小程序平台的组件实例，mpx 的组件实例，react 组件实例 三者之间的关系；）
+
+当然在小程序的场景下是有单独抽象一个叫 Page 页面的概念，但是在 react 当中是没有 Page 页面，因此针对 Page 场景本质上还是通过组件来模拟小程序当中 Page 的能力。
+
+不过对于组件实例来说，我们是**以小程序的组件实例的能力来作为参照，然后基于 react 的组件系统来对齐小程序的组件实例**。通过 mpx createComponent 创建的组件实例主要包含了：
+
+1. 各小程序平台的组件（页面）能力；（例如：组件（页面）的生命周期/实例方法/通用属性/组件间通讯等）
+2. mpx 所增强的组件（跨平台）的能力；（例如：基于响应式系统的组件视图更新能力/mixin 等）
+
+在 mpx2rn 的场景下对于每个组件实例来说，mpx 核心要解决的也就是利用 react 的组件系统的能力来对齐小程序平台的组件能力，来保证平台能力的一致性。
 
 #### 组件视图渲染
 
@@ -347,7 +377,9 @@ function genNode (node) {
 
 // todo 最终的 render function 产物
 
+#### 组件更新
 
+todo 响应式系统
 
 
 #### 生命周期
@@ -357,6 +389,12 @@ function genNode (node) {
 平台生命周期映射到 proxy 生命周期，由 proxy 生命周期来驱动平台生命周期的调用。
 
 组件所在页面的生命周期，由页面去驱动生命周期的执行。
+
+#### 样式系统
+
+#### 组件通讯
+
+todo: props/event，组件引用
 
 ### 事件系统
 
