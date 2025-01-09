@@ -9,9 +9,44 @@ function createRoot() {
 }
 
 
+const initailState: RootState = {
+  element: initialChildren
+  ...
+}
+
 initializeUpdateQueue
 
+ensureRootIsScheduled(root: FiberRoot)
+
 firstScheduledRoot = lastScheduledRoot = root
+
+didScheduleMicrotask = true
+
+scheduleImmediateTask(processRootScheduleInMicrotask)
+
+flushSyncWorkAcrossRoots_impl
+
+performWorkOnRoot(root: FiberRoot, lanes: Lanes, forceSynv: boolean)
+
+shouldTimeSlice: false -> renderRootSync(root, lanes, true)
+
+beginWork
+
+初次渲染根节点 updateHostRoot
+
+reconcileChildFibers
+
+reconcileChildFibersImpl 
+
+通过 ReactElement 来创建新的 Fiber 节点，并将节点标记为 workInProcess，然后开启下一轮的处理
+
+renderWithHooks -> 获取 ReactElement -> reconcileChildFibers
+
+ReactSharedInternals.H = 
+  current === null || current.memoizedState === null
+    ? HooksDispatcherOnMount
+    : HooksDispatcherOnUpdate
+
 
 ---
 function ReactDOMRoot(internalRoot: FiberRoot) {
@@ -23,6 +58,21 @@ ReactDOMRoot.prototype.render = function (children) {
   updateContainer(children, root, null, null)
 }
 
+```
+
+createUpdate
+
+```javascript
+function createUpdate (lane) {
+  const update = {
+    lane,
+    tag: UpdateState,
+    payload: null,
+    callback: null,
+    next: null
+  }
+  return update
+}
 ```
 
 1. createContainer
