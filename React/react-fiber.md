@@ -30,17 +30,19 @@ performWorkOnRoot(root: FiberRoot, lanes: Lanes, forceSynv: boolean)
 
 shouldTimeSlice: false -> renderRootSync(root, lanes, true)
 
-beginWork
+beginWork -> 开始渲染 Fiber 节点
 
 初次渲染根节点 updateHostRoot
 
 reconcileChildFibers
 
-reconcileChildFibersImpl 
+createFiberFromElement -> 创建 Fiber 节点（节点还没真正的执行渲染）
+
+reconcileChildFibersImpl
 
 通过 ReactElement 来创建新的 Fiber 节点，并将节点标记为 workInProcess，然后开启下一轮的处理
 
-renderWithHooks -> 获取 ReactElement -> reconcileChildFibers
+renderWithHooks() 开始执行函数组件 -> 获取 ReactElement -> reconcileChildFibers -> 创建 Fiber 节点
 
 ReactSharedInternals.H = 
   current === null || current.memoizedState === null
