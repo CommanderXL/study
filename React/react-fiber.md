@@ -42,12 +42,16 @@ reconcileChildFibersImpl
 
 通过 ReactElement 来创建新的 Fiber 节点，并将节点标记为 workInProcess，然后开启下一轮的处理
 
-renderWithHooks() 开始执行函数组件 -> 获取 ReactElement -> reconcileChildFibers -> 创建 Fiber 节点
+renderWithHooks() 开始执行函数组件 -> 获取子组件的 ReactElement -> reconcileChildFibers -> 创建子组件的 Fiber 节点
 
 ReactSharedInternals.H = 
   current === null || current.memoizedState === null
     ? HooksDispatcherOnMount
     : HooksDispatcherOnUpdate
+
+---
+
+**createElement 是创建 ReactElement 的方法，并不是节点真正执行渲染的时机**
 
 
 ---
