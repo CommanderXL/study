@@ -34,15 +34,25 @@ beginWork -> 开始渲染 Fiber 节点
 
 初次渲染根节点 updateHostRoot
 
-reconcileChildFibers
+createChildReconciler(true/false) -> reconcileChildFibers/mountChildFibers
 
-createFiberFromElement -> 创建 Fiber 节点（节点还没真正的执行渲染）
+createFiberFromElement -> 通过 ReactElement 来创建 Fiber 节点（节点还没真正的执行渲染）
 
 reconcileChildFibersImpl
 
 通过 ReactElement 来创建新的 Fiber 节点，并将节点标记为 workInProcess，然后开启下一轮的处理
 
-renderWithHooks() 开始执行函数组件 -> 获取子组件的 ReactElement -> reconcileChildFibers -> 创建子组件的 Fiber 节点
+nextChildren = renderWithHooks() 开始执行函数组件 -> 得到子组件的 ReactElement
+
+reconcileChildren(current, workInProgress, nextChildren, renderLanes)
+
+reconcileChildFibers -> 创建子组件的 Fiber 节点 -> 建立起 workInProgress 和子组件 Fiber 节点的父子关系 -> workInProgress.child = mountChildFibers/reconcileChildFibers
+
+每个 function component / host component 都有对应的一个 Fiber Node
+
+reconcileChildFibersImpl
+
+reconcileSingleElement
 
 ReactSharedInternals.H = 
   current === null || current.memoizedState === null
