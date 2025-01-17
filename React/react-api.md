@@ -80,3 +80,5 @@ function shallowEqual(objA, objB) {
   return true;
 }
 ```
+
+### React.useContext

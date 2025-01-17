@@ -62,15 +62,30 @@ function createContainer() {
     element: initialChildren
     ...
   }
-  uninitializedFiber.memoizedState = initialState
+  uninitializedFiber.memoizedState = initialState // FiberRoot 通过 memoizedState 去保存 state 状态
 
-  initializeUpdateQueue(uninitializedFiber)
+  /**
+   * const queue = {
+   *   baseState: fiber.memoizedState,
+   *   firstBaseUpdate: null,
+   *   lastBaseUpdate: null,
+   *   shared: {
+   *    pending: null,
+   *    lanes: Nolanes,
+   *    hiddenCallbacks: null
+   *   },
+   *   callback: null
+   * }
+   * 
+   * fiber.updateQueue = queue
+   */
+  initializeUpdateQueue(uninitializedFiber) // 初始化 Fiber 节点的 updateQueue
 
   return root
 }
 ```
 
-createRoot 最终返回一个 ReactDOMRoot 节点的实例，挂载了 render 方法**可以接受我们自定义的 react 组件，从而进入到后续的整个应用的渲染流程当中**。（我们通过 JSX 或者 createElement 书写的组件实际上是 react 当中的 ReactElement 类型）
+createRoot 最终返回一个 ReactDOMRoot 节点的实例，挂载了 render 方法**可以接受我们自定义的 react 组件，从而进入到后续的整个应用的渲染流程当中，也就是 react 组件的渲染流程**。（我们通过 JSX 或者 createElement 书写的组件实际上是 react 当中的 ReactElement 类型）
 
 初始化阶段实际上是将 ReactElement 和 Fiber 节点绑定的过程；
 
@@ -82,24 +97,59 @@ ReactDOMRoot.prototype.render = function(children) {
 ```
 
 ```javascript
-const initailState: RootState = {
-  element: initialChildren
+// react-reconciler/src/ReactFiberReconciler.js
+export function updateContainer(
+  element, // ReactElement
+  container,
+  parentComponent,
+  callback
+) {
+  const current = container.current // 获取 Fiber 节点
+  ...
+  updateContainerImpl(
+    current,
+    lance,
+    element,
+    container,
+    parentComponent,
+    callback
+  )
   ...
 }
 
-initializeUpdateQueue
 
-ensureRootIsScheduled(root: FiberRoot)
+function updateContainerImpl(
+  rootFiber: Fiber,
+  lane: Lane,
+  element,
+  ...
+) {
+  ...
+  const update = createUpdate(lane) // 新建一个 update 更新动作
+  update.payload = { element } // 关联需要渲染的 element 
+  ...
+  const root = enqueueUpdate(rootFiber, update, lane) // 根据 rootFiber 来获取 FiberRoot 节点
+  if (root !== null) {
+    ...
+    scheduleUpdateOnFiber(root, rootFiber, lane) // -----> ensureRootIsScheduled(root)  ----->  scheduleImmediateTask(processRootScheduleInMicrotask) -----> flushSyncWorkAcrossRoots_impl(syncTransitionLanes, false) -----> performSyncWorkOnRoot(root, nextLanes) ------>  performWorkOnRoot(root, lanes, forceSync)
+  }
+}
+```
 
-firstScheduledRoot = lastScheduledRoot = root
-
-didScheduleMicrotask = true
-
-scheduleImmediateTask(processRootScheduleInMicrotask)
-
-flushSyncWorkAcrossRoots_impl
-
-performWorkOnRoot(root: FiberRoot, lanes: Lanes, forceSynv: boolean)
+```javascript
+// react-reconciler/src/ReactFiberWorkLoop.js
+function performWorkOnRoot(
+  root: FiberRoot,
+  lanes,
+  forceSync
+) {
+  ...
+  let exitStatus = shouldTimeSlice
+    ? renderRootConcurrent(root, lanes)
+    : renderRootSync(root, lanes, true) // 进入到渲染流程
+  ...
+}
+```
 
 shouldTimeSlice: false -> renderRootSync(root, lanes, true)
 
@@ -120,6 +170,8 @@ nextChildren = renderWithHooks() 开始执行函数组件 -> 得到子组件的 
 reconcileChildren(current, workInProgress, nextChildren, renderLanes)
 
 reconcileChildFibers -> 创建子组件的 Fiber 节点 -> 建立起 workInProgress 和子组件 Fiber 节点的父子关系 -> workInProgress.child = mountChildFibers/reconcileChildFibers
+
+performUnitWork（深度优先） -> completeUnitWork（每个 Fiber 节点 render 结束后的执行函数，来开启 siblings Fiber 节点的执行）
 
 每个 function component / host component 都有对应的一个 Fiber Node
 
