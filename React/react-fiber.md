@@ -154,6 +154,51 @@ function performWorkOnRoot(
     : renderRootSync(root, lanes, true) // 进入到渲染流程
   ...
 }
+
+function renderRootSync(
+  root: FiberRoot,
+  lanes,
+  shouldYieldForPrerendering
+) {
+  ...
+  if (workInProgressRoot !== root || workInProgressRootRenderLanes !== lanes) {
+    ...
+    prepareFreshStack(root, lanes) // 根据 FiberRoot 来创建全局唯一处理的 Fiber 节点(workInProgress) 来开始递归处理
+  }
+}
+
+function prepareFreshStack(root: FiberRoot, lanes): Fiber {
+  ...
+  resetWorkInProgressStack()
+  workInProgressRoot = root // FiberRoot
+  const rootWorkInProgress = createWorkInProgress(root.current, null) // root.current 实际上就是根 Fiber 节点
+  workInProgress = rootWorkInProgress // Fiber 节点
+  ...
+  finishQueueingConcurrentUpdates() // 建立起 updateQueue 和 update 之间的联系 updateQueue.next = update
+  ...
+  return rootWorkInProgress
+}
+```
+
+```javascript
+// 创建当前需要被处理的 Fiber 节点
+function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
+  let workInProgress = current.alternate
+  if (workInProgress === null) {
+    workInProgress = createFiber(
+      current.tag,
+      pendingProps,
+      current.key,
+      current.mode
+    )
+    workInProgress.elementType = current.elementType
+    workInProgress.type = current.type
+    workInProgress.stateNode = current.stateNode
+    ...
+    workInProgress.alternate = current
+    current.alternate = workInProgress
+  }
+}
 ```
 
 shouldTimeSlice: false -> renderRootSync(root, lanes, true)
