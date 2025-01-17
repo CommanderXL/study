@@ -131,7 +131,12 @@ function updateContainerImpl(
   const root = enqueueUpdate(rootFiber, update, lane) // 根据 rootFiber 来获取 FiberRoot 节点
   if (root !== null) {
     ...
-    scheduleUpdateOnFiber(root, rootFiber, lane) // -----> ensureRootIsScheduled(root)  ----->  scheduleImmediateTask(processRootScheduleInMicrotask) -----> flushSyncWorkAcrossRoots_impl(syncTransitionLanes, false) -----> performSyncWorkOnRoot(root, nextLanes) ------>  performWorkOnRoot(root, lanes, forceSync)
+    scheduleUpdateOnFiber(root, rootFiber, lane) 
+    // -----> ensureRootIsScheduled(root) 
+    // -----> scheduleImmediateTask(processRootScheduleInMicrotask) 
+    // -----> flushSyncWorkAcrossRoots_impl(syncTransitionLanes, false)
+    // -----> performSyncWorkOnRoot(root, nextLanes)
+    // -----> performWorkOnRoot(root, lanes, forceSync)
   }
 }
 ```
