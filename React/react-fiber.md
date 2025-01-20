@@ -53,16 +53,16 @@ function createRoot(container, options) {
 function createContainer() {
   const root = new FiberRootNode(...)
   ...
-  const uninitializedFiber = createHostRootFiber(tag, isStrictMode)
-  root.current = uninitializedFiber // 创建第一个 Fiber 节点，并和 FiberRoot 节点建立起联系
+  const uninitializedFiber = createHostRootFiber(tag, isStrictMode) // 创建第一个 Fiber 节点，即 RootFiber，它的 tag 为 HostRoot，后续 beginWork 也是从这个 HostRoot 开始进行处理
+  root.current = uninitializedFiber // 和 FiberRoot 节点建立起联系
   uninitializedFiber.stateNode = root
 
   ...
-  const initialState = {
+  const initialState = { // RootFiber 的初始 state 状态
     element: initialChildren
     ...
   }
-  uninitializedFiber.memoizedState = initialState // FiberRoot 通过 memoizedState 去保存 state 状态
+  uninitializedFiber.memoizedState = initialState // RootFiber 通过 memoizedState 去保存 state 状态
 
   /**
    * const queue = {
@@ -163,8 +163,13 @@ function renderRootSync(
   ...
   if (workInProgressRoot !== root || workInProgressRootRenderLanes !== lanes) {
     ...
-    prepareFreshStack(root, lanes) // 根据 FiberRoot 来创建全局唯一处理的 Fiber 节点(workInProgress) 来开始递归处理
+    prepareFreshStack(root, lanes) // 根据 FiberRoot 来创建全局唯一处理的 Fiber 节点(workInProgress) 来进行递归处理
   }
+  ...
+  outer: do {
+    ...
+    workLoopSync() // 以 workInProgress 为全局唯一处理的 Fiber 节点来递归处理 Fiber 节点 
+  } while (true)
 }
 
 function prepareFreshStack(root: FiberRoot, lanes): Fiber {
@@ -172,18 +177,25 @@ function prepareFreshStack(root: FiberRoot, lanes): Fiber {
   resetWorkInProgressStack()
   workInProgressRoot = root // FiberRoot
   const rootWorkInProgress = createWorkInProgress(root.current, null) // root.current 实际上就是根 Fiber 节点
-  workInProgress = rootWorkInProgress // Fiber 节点
+  workInProgress = rootWorkInProgress // 目前正在被处理的 Fiber 节点
   ...
   finishQueueingConcurrentUpdates() // 建立起 updateQueue 和 update 之间的联系 updateQueue.next = update
   ...
   return rootWorkInProgress
 }
+
+function workLoopSync() {
+  while (workInProgress !== null) {
+    performUnitOfWork(workInProgress)
+  }
+}
 ```
 
 ```javascript
+// react-reconciler/src/ReactFiber.js
 // 创建当前需要被处理的 Fiber 节点
 function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
-  let workInProgress = current.alternate
+  let workInProgress = current.alternate // 是否有之前的 Fiber 节点
   if (workInProgress === null) {
     workInProgress = createFiber(
       current.tag,
@@ -197,6 +209,87 @@ function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
     ...
     workInProgress.alternate = current
     current.alternate = workInProgress
+  } else { // 如果之前已经创建过 Fiber 节点
+    workInProgress.pendingProps = pendingProps
+    workInProgress.type = current.type
+    ...
+  }
+  return workInProgress
+}
+```
+
+依据 FiberRoot 创建一个 RootWorkInProgress 的 Fiber 节点，接下来就由这个 RootFiber 节点来进入到后续的 Fiber 节点递归处理的阶段。
+
+```javascript
+function performUnitOfWork(unitOfWork) {
+  const current = unitOfWork.alternate
+  let next
+  if (enableProfilerTime && (unitOfWork.mode & ProfileMode) !== NoMode) {
+    startProfilerTimer(unitOfWork) // 记录这个 Fiber 节点开始处理的时间节点
+    next = beginWork(current, unitOfWork, entangledRenderLanes) // 依据这个 Fiber 节点开始处理
+    stopProfilerTimerIfRunningAndRecordDuration(unitOfWork) // 记录这个 Fiber 节点本身的处理时间（其实就是这个函数组件本身执行的时间）
+  } else {
+    ...
+  }
+
+  unitOfWork.memoizedProps = unitOfWork.pendingProps
+  if (next === null) {
+    completeUnitWork(unitOfWork)
+  } else {
+    workInProgress = next
+  }
+}
+```
+
+```javascript
+// react-reconciler/src/ReactFiberBeginWork.js
+function beginWork(current, workInProgress, renderLanes) {
+  ...
+  switch (workInProgress.tag) {
+    ...
+    case FunctionComponent: { // 处理 Function Component
+      ...
+    }
+    ...
+    case HostRoot: // 开始处理 HostRoot，即 RootFiber 节点
+      return updateHostRoot(current, workInProgress, renderLanes)
+    case HostComponent: 
+      return updateHostComponent(current, workInProgress, renderLanes)
+    case HostText:
+      return updateHostText(current, workInProgress)
+    case ForwardRef: {
+      ...
+    }
+  }
+}
+
+function updateHostRoot(current, workInProgress, renderLanes) {
+  ...
+  const nextState = workInProgress.memoziedState // RootFiber 初始化的 state
+  const root = workInProgress.stateNode
+  ...
+  const nextChildren = nextState.element // element 即保存的 ReactElement（ReactDOMRoot.render 所接受的 Function Component，ReactElement）
+  ...
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes)
+
+  return workInProgress.child
+}
+
+function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
+  if (current === null) {
+    workInProgress.child = mountChildFibers(
+      workInProgress,
+      null,
+      nextChildren,
+      renderLanes
+    )
+  } else {
+    workInProgress.child = reconcileChildFibers(
+      workInProgress,
+      current.child,
+      nextChildren,
+      renderLanes
+    )
   }
 }
 ```
