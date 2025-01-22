@@ -24,9 +24,9 @@ export default app
 // component-a.js
 function componentA(props) {
   return (
-    <>
+    <div>
       <p>{props.count}</p>
-    <>
+    <div>
   )
 }
 export default componentA
@@ -221,6 +221,7 @@ function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
 依据 FiberRoot 创建一个 RootWorkInProgress 的 Fiber 节点，接下来就由这个 RootFiber 节点来进入到后续的 Fiber 节点递归处理的阶段。
 
 ```javascript
+// react-reconciler/src/ReactFiberWorkLoop.js
 function performUnitOfWork(unitOfWork) {
   const current = unitOfWork.alternate
   let next
@@ -248,7 +249,15 @@ function beginWork(current, workInProgress, renderLanes) {
   switch (workInProgress.tag) {
     ...
     case FunctionComponent: { // 处理 Function Component
-      ...
+      const Component = workInProgress.type // 渲染函数
+      ....
+      return updateFunctionComponent(
+        current,
+        workInProgress,
+        Component,
+        resolvedProps,
+        renderLanes
+      )
     }
     ...
     case HostRoot: // 开始处理 HostRoot，即 RootFiber 节点
@@ -263,21 +272,62 @@ function beginWork(current, workInProgress, renderLanes) {
   }
 }
 
+/**
+ * 核心的工作：对于 RootFiber 来说，主要的功能还是将 render 方法所接受的 ReactElement 转化为一个 Fiber 节点，接下来就是以这个 Fiber 节点为处理入口来开启这个 Fiber 节点绑定的 ReactElement 的渲染流程，也就是整个应用的渲染流程
+ */
 function updateHostRoot(current, workInProgress, renderLanes) {
   ...
   const nextState = workInProgress.memoziedState // RootFiber 初始化的 state
   const root = workInProgress.stateNode
   ...
-  const nextChildren = nextState.element // element 即保存的 ReactElement（ReactDOMRoot.render 所接受的 Function Component，ReactElement）
+  const nextChildren = nextState.element // 对于 RootFiber 来说，第一次更新渲染，element 即保存的是 ReactElement（ReactDOMRoot.render 所接受的 Function Component，ReactElement）
   ...
   reconcileChildren(current, workInProgress, nextChildren, renderLanes)
 
   return workInProgress.child
 }
 
+function updateFunctionComponent(
+  current: null | Fiber,
+  workInProgress: Fiber,
+  Component: any,
+  nextProps: any,
+  renderLanes
+) {
+  ...
+  nextChildren = renderWithHooks( // 实际执行函数组件，获取组件返回的 ReactElement，进入到后续依据 ReactElement 来创建 Fiber 节点的过程
+    current,
+    workInProgress,
+    Component, // function component
+    nextProps,
+    context,
+    renderLanes
+  )
+  ...
+  workInProgress.flags |= PerformedWork
+  renconcileChild(current, workInProgress, nextChildren, renderLanes)
+  return workInProgress.child
+}
+
+function updateHostComponent(
+  current: Fiber | null,
+  workInProgress: Fiber,
+  renderLanes
+) {
+  ...
+  const type = workInProgress.type
+  const nextProps = workInProgress.pendingProps
+  const prevProps = current !== null ? current.memoizedProps : null
+
+  let nextChildren = nextProps.children // 这个节点的子元素 ReactElement
+  ...
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes) // 创建子的 Fiber 节点
+  return workInProgress.child
+}
+
 function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
   if (current === null) {
-    workInProgress.child = mountChildFibers(
+    workInProgress.child = mountChildFibers( // 如果目前的 Fiber 还没有创建，那么就通过 nextChildren（ReactElement）进行关联
       workInProgress,
       null,
       nextChildren,
@@ -293,6 +343,170 @@ function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
   }
 }
 ```
+
+```javascript
+// react-reconciler/src/ReactChildFiber.js
+// 创建子节点的 reconciler 
+function createChildReconciler(shouldTrackSideEffects) {
+  function reconcileChildFibers(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+    newChild: any,
+    lanes
+  ) {
+    ...
+    const firstChildFiber = reconcileChildFibersImpl(
+      returnFiber,
+      currentFirstChild,
+      newChild,
+      lanes
+    )
+    ...
+    return firstChildFiber
+  }
+}
+
+function reconcileChildFibersImpl(
+  returnFiber: Fiber,
+  currentFirstChild: Fiber | null,
+  newChild,
+  lanes
+) {
+  ...
+  if (typeof newChild === 'object' && newChild !== null) {
+    switch (newChild.$$typeof) {
+      case REACT_ELEMENT_TYPE: {
+        ...
+        const firstChild = placeSingleChild( // 记录 Fiber 节点 flags 副作用的标识
+          reconcileSingleElement(
+            returnFiber,
+            currentFirstChild,
+            newChild,
+            lanes
+          )
+        )
+        ...
+        return firstChild // 返回新建的 Fiber 节点
+      }
+    }
+  }
+
+  // 对于数组类型的 []<ReactElement> 的处理
+  /**
+   * <div>
+   *  <p>1</p>
+   *  <p>2</p>
+   * </div>
+   */
+  if (isArray(newChild)) {
+    ...
+    const firstChild = reconcileChildrenArray(
+      returnFiber,
+      currentFirstChild,
+      newChild,
+      lanes
+    )
+    ...
+    return firstChild
+  }
+}
+
+function reconcileSingleElement(
+  returnFiber: Fiber,
+  currentFirstChild: Fiber | null,
+  element: ReactElement,
+  lanes
+) {
+  const key = element.key
+  let child = currentFirstChild
+  while (child !== null) {
+
+  }
+  
+  if (element.type === REACT_FRAGMENT_TYPE) {
+    ...
+  } else {
+    const created = createFiberFromElement(element, returnFiber.mode, lanes) // 根据 ReactElement 来创建 Fiber 节点
+    coerceRef(created, element) // 建立 Fiber 节点和 ref 间的联系
+    created.return = returnFiber // 通过 return 来建立起新的 Fiber 节点和父 Fiber 节点之间的联系
+    return created
+  }
+}
+
+function reconcileChildrenArray(
+  returnFiber: Fiber,
+  currentFirstChild: Fiber | null,
+  newChildren: Array<any>,
+  lanes
+): Fiber | null {
+  ...
+  let resultingFirstChild: Fiber | null = null
+  let previousNewFiber: Fiber | null = null
+
+  let oldFiber = currentFirstChild
+  let lastPlacedIndex = 0
+  let newIdx = 0
+  let nextOldFiber = null
+
+  if (oldFiber === null) {
+    for (; newIdx < newChildren.length; newIdx++) {
+      const newFiber = createChild(returnFiber, newChildren[newIdx], lanes)
+      ...
+      lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx)
+      if (previousNewFiber === null) {
+        resultingFirstChild = newFiber
+      } else {
+        previousNewFiber.sibling = newFiber // 将 Array<ReactElement> 转化为 Fiber.sibling = Fiber 链表关系，当一个 Fiber 节点处理完，且没有子节点的话，就进入到了 sibling 兄弟节点的处理过程
+      }
+      previousNewFiber = newFiber
+    }
+    return resultingFirstChild
+  }
+}
+```
+
+```javascript
+// react-reconciler/src/ReactFiberHooks.js
+// 执行 function component，获取接下来要被渲染的 ReactElement
+function renderWithHooks(
+  current: Fiber | null,
+  workInProgress: Fiber,
+  Component: (p: Props, arg: SecondArg) => arg,
+  props: Props,
+  secondArg: SecondArg
+) {
+  ...
+  currentlyRenderingFiber = workInProgress // 将当前的 Fiber 节点标记为 currentlyRenderingFiber
+
+  workInProgress.memoizedState = null
+  workInProgress.updateQueue = null
+
+  ...
+  // 使用的 Hook 类型
+  ReactSharedInternals.H = 
+    current === null || current.memoizedState === null
+      ? HooksDispatcherOnMount
+      : HooksDispatcherOnUpdate
+  
+  let child = __DEV__
+    ? callComponentInDEV(Component, props, secondArg)
+    : Component(props, secondArg) // 执行 function component，得到返回的 ReactElement
+  
+  finishRenderingHooks(current, workInProgress, Component)
+
+  return children // 返回 ReactElement
+}
+```
+
+对于 FiberRoot 而言，通过 updateHostRoot 创建了**第一个自定义组件**所对应的 Fiber 节点，接下来也就是由这个 Fiber 节点来开启整个应用的渲染流程(`performUnitOfWork`)：
+
+Fiber -> renderWithHooks -> ReactElement -> Fiber -> renderWithHooks -> ReactElement -> Fiber -> ...
+
+这里以最开始的 app.js 当中的 function component 为例，它的最终执行结果就是返回了一个 `ReactElement`，子组件 `component-a`（同样也是 ReactElement，子组件还没执行 render）都挂载到了 `props.children` 属性上，接下里也就会为这个 ReactElement 创建对应的 Fiber 节点（和元素 `p` 标签对应），不过这个 Fiber 节点和其他 Function Component (`fiberTag = FunctionComponent`)特殊的地方在于 `fiberTag = HostComponent`，后续进入到这个 Fiber 节点处理的过程中，实际也就进入了 `updateHostComponent` 处理过程。
+
+
+
+Dispatcher -> 是什么作用？
 
 shouldTimeSlice: false -> renderRootSync(root, lanes, true)
 
@@ -314,7 +528,7 @@ reconcileChildren(current, workInProgress, nextChildren, renderLanes)
 
 reconcileChildFibers -> 创建子组件的 Fiber 节点 -> 建立起 workInProgress 和子组件 Fiber 节点的父子关系 -> workInProgress.child = mountChildFibers/reconcileChildFibers
 
-performUnitWork（深度优先） -> completeUnitWork（每个 Fiber 节点 render 结束后的执行函数，来开启 siblings Fiber 节点的执行）
+performUnitOfWork（深度优先） -> completeUnitWork（每个 Fiber 节点 render 结束后的执行函数，来开启 siblings Fiber 节点的执行）
 
 每个 function component / host component 都有对应的一个 Fiber Node
 
@@ -330,33 +544,3 @@ ReactSharedInternals.H =
 ---
 
 **createElement 是创建 ReactElement 的方法，并不是节点真正执行渲染的时机**
-
-
----
-function ReactDOMRoot(internalRoot: FiberRoot) {
-  this._internalRoot = internalRoot
-}
-
-ReactDOMRoot.prototype.render = function (children) {
-  const root = this._internalRoot
-  updateContainer(children, root, null, null)
-}
-
-```
-
-createUpdate
-
-```javascript
-function createUpdate (lane) {
-  const update = {
-    lane,
-    tag: UpdateState,
-    payload: null,
-    callback: null,
-    next: null
-  }
-  return update
-}
-```
-
-1. createContainer
