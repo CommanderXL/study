@@ -504,6 +504,89 @@ Fiber -> renderWithHooks -> ReactElement -> Fiber -> renderWithHooks -> ReactEle
 
 这里以最开始的 app.js 当中的 function component 为例，它的最终执行结果就是返回了一个 `ReactElement`，子组件 `component-a`（同样也是 ReactElement，子组件还没执行 render）都挂载到了 `props.children` 属性上，接下里也就会为这个 ReactElement 创建对应的 Fiber 节点（和元素 `p` 标签对应），不过这个 Fiber 节点和其他 Function Component (`fiberTag = FunctionComponent`)特殊的地方在于 `fiberTag = HostComponent`，后续进入到这个 Fiber 节点处理的过程中，实际也就进入了 `updateHostComponent` 处理过程。
 
+当所有的 Fiber 节点完成了 renderWithHooks 之后（`performUnitOfWork`），然后由下向上反向的再次遍历 Fiber 节点（`completeUnitOfWork`），当前 Fiber 节点遍历完成后，再遍历其 sibling 节点，和 renderWithHooks 节点（深度优先）的遍历流程不一致：
+
+```javascript
+function completeUnitOfWork(unitOfWork: Fiber): void {
+  let completedWork: Fiber = unitOfWork
+  do {
+    ...
+    const current = completedWork.alternate
+    const returnFiber = completedWork.return
+
+    let next
+    ...
+    next = completeWork(current, completedWork, ...)
+    if (next !== null) {
+      workInProgress = next
+      return
+    }
+
+    const siblingFiber = completedWork.sibling
+    if (siblingFiber !== null) {
+      workInProgress = siblingFiber
+      return
+    }
+
+    completedWork = returnFiber
+    workInProgress = completedWork
+  } while (completedWork !== null)
+
+  if (workInProgressRootExitStatus === RootInProgress) {
+    workInProgressRootExitStatus = RootCompleted
+  }
+}
+```
+
+那么在 compeleteUnitOfWork 的流程当中，主要完成的工作是依据 Fiber 节点去创建 HostComponent(真实的 dom 节点)，并将子 dom 节点挂载到父 dom 节点上，同时完成一系列的数据收集工作（例如 flags、组件的 render 时长 actualDuration 数据等）：
+
+```javascript
+// react-reconciler/src/ReactFiberCompleteWork.js
+function completeWork(
+  current: Fiber | null,
+  workInProgress: Fiber,
+  renderLanes: Lanes
+) {
+  const newProps = workInProgress.pendingProps // 接受到的所有的 props，包括 children
+  popTreeContext(workInProgress)
+  switch (workInProgress.tag) {
+    ...
+    case FunctionComponent:
+    case ForwardRef:
+    case Profiler:
+    case MemoComponent:
+      bubbleProperties(workInProgress)
+      return null
+    case HostRoot: {
+      const fiberRoot = workInProgress.stateNode
+      ...
+    }
+    case HostComponent: {
+      popHostContext(workInProgress)
+      const type = workInProgress.type
+      ...
+      const currentHostContext = getHostContext()
+      ...
+      const rootContainerInstance = getRootHostContainer()
+      const instance = createInstance( // createInstance 会直接创建真实 dom 节点
+        type,
+        newProps,
+        rootContainerInstance,
+        currentHostContext,
+        workInProgress
+      )
+      ...
+      appendAllChildren(instance, workInProgress, false, false) // 通过 Fiber 节点找到子 Fiber 节点上挂载的真实的 dom 节点，并通过 document.appendChild 将子的 dom 节点挂载到当前节点
+      workInProgress.stateNode = instance // 在这里建立 Fiber 节点和 HostComponent（即 dom element）的联系，web 场景下其实就是 dom 元素
+      ...
+      bubbleProperties(workInProgress) // 将子 Fiber 节点的一些数据进行冒泡，合并到当前的 Fiber 节点上，例如收集这个 Fiber 节点的 render 时长（actualDuration），这个数据是需要包含这个 Fiber 节点所有子 Fiber 节点的 render 时长的。
+      ...
+      return null
+    }
+  }
+}
+```
+
 
 
 Dispatcher -> 是什么作用？
@@ -544,3 +627,30 @@ ReactSharedInternals.H =
 ---
 
 **createElement 是创建 ReactElement 的方法，并不是节点真正执行渲染的时机**
+
+commitRootWhenReady
+
+commitRoot
+
+commitRootImpl
+
+// the next phase is the mutation phase, where we mutate the host tree
+commitMutationEffects
+
+commitMutationEffectsOnFiber
+
+commitReconciliationEffects
+
+flushPassiveEffects
+
+flushPassiveEffectsImpl
+
+commitPassiveMountEffects
+
+commitPassiveMountOnFiber
+
+commitHookEffectListMount
+
+---------
+
+
