@@ -12,7 +12,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(App)
 
 // app.js
-import { createElement, useState } from 'react'
+import { createElement, useState, useEffect } from 'react'
 import componentA from './component-a.js'
 function app() {
   const [count, setCount] = useState(1)
@@ -23,6 +23,9 @@ export default app
 
 // component-a.js
 function componentA(props) {
+  useEffect(() => {
+    // do something
+  }, [])
   return (
     <div>
       <p>{props.count}</p>
@@ -32,6 +35,7 @@ function componentA(props) {
 export default componentA
 ```
 
+## Render 阶段
 
 react-dom/client 对外暴露的 createRoot 方法用以创建宿主环境的真实根节点容器，实际上这个方法依赖的是 react-reconciler 当中暴露的 createContainer，最终会创建一个 FiberRoot 节点（这个节点和 Fiber 节点并不是同一种数据结构类型）。
 
@@ -46,6 +50,8 @@ function createRoot(container, options) {
 ```
 
 同时这里会创建第一个 Fiber 节点，并建立 FiberRoot 和 Fiber 节点的联系（FiberRoot.current = Fiber/Fiber.stateNode = FiberRoot），**初始化 Fiber 节点的内部状态（memorizedState）以及 `updateQueue`**
+
+这个 RootFiber(HostRootFiber) 完全是个虚拟的根 Fiber 节点，可以简单理解为一个 react 应用是由 RootFiber(HostRootFiber) 来构建整个 Fiber Tree，整个 Fiber Tree 的处理流程也是由这个虚拟的 RootFiber(HostRootFiber) 开始。RootFiber.render 方法所接受的 Function Component 所创建的 Fiber 节点实际上也就是这个 FiberRoot 的子节点(FiberRoot.child = Function Component(对应的 Fiber 节点))。
 
 ```javascript
 
@@ -207,7 +213,7 @@ function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
     workInProgress.type = current.type
     workInProgress.stateNode = current.stateNode
     ...
-    workInProgress.alternate = current
+    workInProgress.alternate = current // 建立起新久 Fiber 节点间的联系
     current.alternate = workInProgress
   } else { // 如果之前已经创建过 Fiber 节点
     workInProgress.pendingProps = pendingProps
@@ -346,7 +352,7 @@ function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
 
 ```javascript
 // react-reconciler/src/ReactChildFiber.js
-// 创建子节点的 reconciler 
+// 创建子节点的 reconciler，需要特别关注 shouldTrackSideEffects 这个参数，会决定在处理 Fiber 节点的过程中是否需要收集 effect 
 function createChildReconciler(shouldTrackSideEffects) {
   function reconcileChildFibers(
     returnFiber: Fiber,
@@ -498,9 +504,66 @@ function renderWithHooks(
 }
 ```
 
+事实上在 Function Component 的 render 阶段同步完成了 effect 的收集工作（例如在函数组件内部调用的 useEffect）。
+
+```javascript
+// react-reconciler/src/ReactFiberHooks.js
+function mountEffect(
+  create: () => (() => void) | void,
+  deps
+) {
+  mountEffectImpl(
+    PassiveEffect | PassiveStaticEffect, // 需要关注这里，通过 useEffect 方法注册的 effect 方法会给这个 Fiber 节点打上 PassiveEffect | PassiveStaticEffect 的标记，这个标记会在 commit 阶段来决定这个 Fiber 节点是否有 effect 函数需要执行
+    HookPassive,
+    create,
+    deps
+  )
+}
+
+function mountEffectImpl(
+  fiberFlags: Flags,
+  hookFlags: HookFlags,
+  create: () => (() => void) | void,
+  deps
+) {
+  const hook = mountWorkInProgressHook() // 新建一个 hook list，也是链表结构
+  const nextDeps = deps === undefined ? null : deps
+  currentlyRenderingFiber.flags |= fiberFlags // !!! 更新这个 Fiber 节点的 flags，用于后续 commit 阶段 effect 函数的执行
+  hook.memoizedState = pushSimpleEffect(
+    hookHasEffect | hookFlags,
+    createEffectInstance(),
+    create,
+    nextDeps
+  )
+}
+
+function pushSimpleEffect(
+  tag,
+  inst,
+  create,
+  deps
+) {
+  const effect = {
+    tag,
+    create,
+    deps,
+    inst,
+    next
+  }
+  return pushEffectImpl(effect)
+}
+
+// !!! effect function list 是一种单向闭合链表的数据结构
+function pushEffectImpl(effect) {
+  ...
+}
+```
+
 对于 FiberRoot 而言，通过 updateHostRoot 创建了**第一个自定义组件**所对应的 Fiber 节点，接下来也就是由这个 Fiber 节点来开启整个应用的渲染流程(`performUnitOfWork`)：
 
 Fiber -> renderWithHooks -> ReactElement -> Fiber -> renderWithHooks -> ReactElement -> Fiber -> ...
+
+简单解释下就是：一个 Function Component 对应一个 Fiber 节点，Function Component 执行返回的 ReactElement 是用来创建这个 Fiber 节点的子 Fiber 节点。（todo: 这里对于 Fiber 节点的理解，Fiber 节点和 Function Component 之间的关系）
 
 这里以最开始的 app.js 当中的 function component 为例，它的最终执行结果就是返回了一个 `ReactElement`，子组件 `component-a`（同样也是 ReactElement，子组件还没执行 render）都挂载到了 `props.children` 属性上，接下里也就会为这个 ReactElement 创建对应的 Fiber 节点（和元素 `p` 标签对应），不过这个 Fiber 节点和其他 Function Component (`fiberTag = FunctionComponent`)特殊的地方在于 `fiberTag = HostComponent`，后续进入到这个 Fiber 节点处理的过程中，实际也就进入了 `updateHostComponent` 处理过程。
 
@@ -555,7 +618,17 @@ function completeWork(
     case ForwardRef:
     case Profiler:
     case MemoComponent:
-      bubbleProperties(workInProgress)
+      /**
+       * 收集子节点的 effect 标记：
+       *  subtreeFlags |= child.subtreeFlags
+       *  subtreeFlags |= child.flags
+       * 
+       *  child.return = completedWork
+       *  child = child.sibling
+       * 
+       * completedWork.subtreeFlags |= subtreeFlags // 收集子节点的标记
+       */
+      bubbleProperties(workInProgress) 
       return null
     case HostRoot: {
       const fiberRoot = workInProgress.stateNode
@@ -565,23 +638,309 @@ function completeWork(
       popHostContext(workInProgress)
       const type = workInProgress.type
       ...
-      const currentHostContext = getHostContext()
-      ...
-      const rootContainerInstance = getRootHostContainer()
-      const instance = createInstance( // createInstance 会直接创建真实 dom 节点
-        type,
-        newProps,
-        rootContainerInstance,
-        currentHostContext,
-        workInProgress
-      )
-      ...
-      appendAllChildren(instance, workInProgress, false, false) // 通过 Fiber 节点找到子 Fiber 节点上挂载的真实的 dom 节点，并通过 document.appendChild 将子的 dom 节点挂载到当前节点
-      workInProgress.stateNode = instance // 在这里建立 Fiber 节点和 HostComponent（即 dom element）的联系，web 场景下其实就是 dom 元素
-      ...
+      
+      if (current !== null && workInProgress.stateNode != null) { // 对于二次更新的情况
+        updateHostComponent(
+          current,
+          workInProgress,
+          type,
+          newProps,
+          renderLanes
+        )
+      } else { // 对于 HostComponent 节点初次渲染的情况
+        const currentHostContext = getHostContext()
+        ...
+        const rootContainerInstance = getRootHostContainer()
+        const instance = createInstance( // createInstance 会直接创建真实 dom 节点
+          type,
+          newProps,
+          rootContainerInstance,
+          currentHostContext,
+          workInProgress
+        )
+
+        appendAllChildren(instance, workInProgress, false, false) // 对于初始化的应用来说，通过 Fiber 节点找到子 Fiber 节点上挂载的真实的 dom 节点，并通过 document.appendChild 将子的 dom 节点挂载到当前节点
+        workInProgress.stateNode = instance // 在这里建立 Fiber 节点和 HostComponent（即 dom element）的联系，web 场景下其实就是 dom 元素
+        ...
+      }
+
       bubbleProperties(workInProgress) // 将子 Fiber 节点的一些数据进行冒泡，合并到当前的 Fiber 节点上，例如收集这个 Fiber 节点的 render 时长（actualDuration），这个数据是需要包含这个 Fiber 节点所有子 Fiber 节点的 render 时长的。
       ...
       return null
+    }
+  }
+}
+
+function bubbleProperties(completedWork) {
+  const didBailout = 
+    completedWork.alternate !== null &&
+    completedWork.alternate.child === completedWork.child
+
+  if (!didBailout) { // 如果这个节点重新进行了 render（和之前的节点对比发现不一样）
+
+  } else {
+    ...
+  }
+  return didBailout
+}
+```
+
+## Commit 阶段
+
+那么经过2次遍历的操作（beginWork、completeWork），就可以将 Fiber 节点所对应的 DOM 节点创建并关联起来了（fiber.stateNode = domNode），最终整个 Fiber Tree 也有记录了每个 hostComponent 的需要变更的操作，接下来就回到 `performWorkOnRoot` 方法当中，进入到后续的 commit 阶段：
+
+```javascript
+function renderRootSync() {
+  ....
+
+  workInProgressRoot = null // 全局置空
+  workInProgressRootRenderLanes = Nolanes
+
+  // It's safe to process the queue now that the render phase is complete
+  finishQueueingConcurrentUpdates()
+}
+
+function performWorkOnRoot(root, lanes, forceSync) {
+  ...
+  finishConcurrentRender(
+    root,
+    exitStatus,
+    finishedWork,
+    lanes,
+    renderEndTime
+  )
+
+  // -> commitRootWhenReady
+  // -> commitRoot
+  // -> commitRootImpl
+}
+
+function commitRootImpl(...) {
+  ...
+  const finishedWork = root.finishedWork // 从 FiberRoot 获取 finishedWork(Fiber) 实际就是 FiberRoot 节点
+  ...
+  const subtreeHasEffects = // 当前节点是否记录了子节点的 effect 操作
+    (finishedWork.subtreeFlags &
+      (BeforeMutationMask | MutationMask | LayoutMask | PassiveMask)) !== NoFlag
+  const rootHasEffect = // 看当前节点本身是否需要执行一些 effect 操作
+    (finishedWork.flags &
+      (BeforeMutationMask | MutationMask | LayoutMask | PassiveMask)) !== NoFlag
+  
+  if (subtreeHasEffects || rootHasEffect) {
+    ...
+    commitMutationEffects(root, finishedWork, lanes) // 将 render 记录的 Fiber 节点操作开始进行 commit 操作
+    ...
+    root.current = finishedWork
+
+    ...
+    commitLayoutEffects(finishedWork, root, lanes)
+
+    ...
+    if (inlcudesSyncLane(pendingPassiveEffectsLanes) && 
+    (disableLegacyMode || root.tag !== LegacyRoot)) {
+      flushPassiveEffects() // 开始执行 passive effect
+    }
+
+    ...
+  }
+}
+
+function commitMutationEffects(root, finishedWork, commitedLanes) {
+  inProgressLanes = commitedLanes
+  inProgressRoot = root
+
+  commitMutationEffectsOnFiber(finishedWork, root, commitedLanes)
+
+  inProgressLanes = null
+  inProgressRoot = null
+}
+
+// 从 FiberRoot 根节点开始深度递归进行 commitMutationEffectsOnFiber，完成节点的删除、插入等一系列的操作 commit 操作
+function commitMutationEffectsOnFiber(finishedWork, root, lanes) { 
+  ...
+  const current = finishdWork.alternate
+  const flags = finishedWork.flags
+
+  switch (finishedWork.tag) {
+    case FunctionComponent:
+    case ForwardRef:
+    case MemoComponent:
+    case SimpleMemoComponent:
+      recursivelyTraverseMutationEffects(root, finishedWork, lanes)
+      commitReconciliationEffects(finishedWork)
+
+      if (flags & Update) {
+        // do something
+      }
+      break
+    case HostRoot: {
+      ...
+      recursivelyTraverseMutationEffects(root, finishedWork, lanes)
+      commitReconciliationEffects(finishedWork)
+    }
+    case HostComponent: {
+      recursivelyTraverseMutationEffects(root, finishedWork, lanes)
+      commitReconciliationEffects(finishedWork)
+      ...
+    }
+  }
+}
+
+function recursivelyTraverseMutationEffects(root, parentFiber, lanes) {
+  // 如果有节点删除的情况，先处理节点删除，这样就不需要再递归调用这个节点的子节点的 muationEffects
+  const deletions = parentFiber.deletions
+  if (deletions !== null) {
+    for (let i = 0; i < deletions.length; i++) {
+      const childToDelete = deletions[i]
+      commitDeletionEffects(root, parentFiber, childToDelete)
+    }
+  }
+
+  // 每个 Fiber 节点还保存了子节点的标记，用来判断是否需要进行 commitMutationEffects
+  if (parentFiber.subtreeFlags &
+    (enablePersistedModeClonedFlag ? MutationMask | Cloned : MutationMask)) {
+      let child = parentFiber.child
+      while (child !== null) {
+        commitMutationEffectsOnFiber(child, root, lanes)
+        child = child.sibling
+      }
+    }
+}
+
+// 节点的插入等操作
+function commitReconciliationEffects(finishedWork) {
+  const flags = finishedWork.flags // 如果 Fiber 节点上打了 Placement 标记，那么会在这个节点完成将 Fiber 节点关联的 HostComponent 挂载到父节点上，打标记的过程实际上是在 render 阶段完成的
+  // 对于 FiberRoot.render 接受到的一个Function Component对应的 Fiber 节点来说，在初次渲染的阶段就会打上 Placement 的标记（具体见 ReactChildFiber.js 当中的 placeSingleChild 方法）
+  if (flags & Placement) {
+    commitHostPlacement(finishedWork)
+    finishedWork.flags &= ~Placement // 清空标记
+  }
+}
+
+function commitHostPlacement(finishedWork) {
+  ...
+  commitPlacement(finishedWork)
+}
+
+function commitPlacement(finishedWork) {
+  // Recursively insert all host nodes into the parent.
+  const parentFiber = getHostParentFiber(finishedWork) // 获取父 Fiber 及对应的 stateNode，完成节点的插入
+  switch (parentFiber.tag) {
+    case HostComponent: {
+      ...
+    }
+    case HostRoot: {
+      const parent = parentFiber.stateNode.containerInfo // 获取 HostRoot 对应的容器元素，也就是需要绑定的根 DOM 节点
+      const before = getHostSibling(finishedWork) // 兄弟节点，方便后续的插入
+      insertOrAppendPlacementNodeIntoContainer(finishedWork, before, parent)
+      break
+    }
+  }
+}
+```
+
+至此一个 React 应用的 render + commit 阶段就完成了，也完成了试图最终的展示（即 dom 节点插入到 document 文档当中），那么在示例代码 component-a 当中调用的 `useEffect` 方法，我们都知道可以通过 `useEffect(() => { // do something }, [])` 去模拟组件的 mount 挂载的流程（只会执行一次）。那么 useEffect 接受到的第一个 effect function 是在什么时候执行的呢？还是回到 `commitRootImpl` 方法内部后续会调用 `flushPassiveEffects()` 方法：
+
+```javascript
+function flushPassiveEffects() {
+  ...
+  return flushPassiveEffectsImpl()
+  ...
+}
+
+function flushPassiveEffectsImpl() {
+  ...
+  commitPassiveUnmountEffects(root.current)
+  commitPassiveMountEffects(
+    root,
+    root.current,
+    lanes,
+    ...
+  )
+}
+
+function commitPassiveMountEffects(
+  root: FiberRoot,
+  finishedWork: Fiber,
+  ...
+) {
+  resetComponentEffectTimers()
+
+  commitPassiveMountOnFiber(
+    root,
+    finishedWork
+    ....
+  )
+}
+
+// 深度遍历子 Fiber 节点，如果 Fiber 节点记录的 passive 的标记，那么也就会执行 passive effects（例如在函数组件内部调用了 useEffect）
+function commitPassiveMountOnFiber(
+  finishedRoot: FiberRoot,
+  finishedWork: Fiber,
+  ...
+) {
+  const flags = finishedWork.flags // 获取当前 Fiber 节点的标记
+  switch (finishedWork.tag) {
+    case FunctionComponent:
+    case ForwardRef:
+    case SimpleMemoComponent: {
+      recursivelyTraversePassiveMountEffects(
+        finishedRoot,
+        finishedWork,
+        committedLanes,
+        committedTransitions,
+        endTime
+      )
+      if (flags & Passive) {
+        commitHookPassiveMountEffects(
+          finishedWork,
+          HookPassive | HookHasEffect // 需要触发的 hook 标记
+        )
+      }
+      break
+    }
+    case HootRoot: {
+      recursivelyTraversePassiveMountEffects(
+        finishedRoot,
+        finishedWork,
+        committedLanes,
+        committedTransitions,
+        endTime,
+      )
+      ...
+    }
+    case Profiler: {
+      // do something
+    }
+    ...
+  }
+}
+
+function commitHookPassiveMountEffects(finishedWork, hookFlags) {
+  ...
+  commitHookEffectListMount(hookFlags, finishedWork)
+}
+
+function commitHookEffectListMount(flags, finishedWork) {
+  try {
+    const updateQueue = finishedWork.updateQueue
+    const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null
+    if (lastEffect !== null) {
+      const firstEffect = lastEffect.next
+      let effect = firstEffect
+      do {
+        if ((effect.tag & flags) === flags) {
+          // Mount
+          let destroy
+
+          ...
+          const create = effect.create
+          const inst = effect.inst
+          destroy = create() // effect 函数执行
+          inst.destroy = destroy
+        }
+        effect = effect.next // 找到下一个 effect 函数依次执行
+      } while (effect !== firstEffect) // 直到这个 effect 函数和 firstEffect 相同就代表了所有的 effect 函数执行完成了（在上面的 useEffect 当中也说明了 Fiber 节点是通过单向闭合的链表来保存所有的 effect 函数，所以最后一个 effect 函数的 next 指向了第一个 effect 函数）
     }
   }
 }
@@ -591,11 +950,7 @@ function completeWork(
 
 Dispatcher -> 是什么作用？
 
-shouldTimeSlice: false -> renderRootSync(root, lanes, true)
-
 beginWork -> 开始渲染 Fiber 节点
-
-初次渲染根节点 updateHostRoot
 
 createChildReconciler(true/false) -> reconcileChildFibers/mountChildFibers
 
@@ -648,6 +1003,8 @@ flushPassiveEffectsImpl
 commitPassiveMountEffects
 
 commitPassiveMountOnFiber
+
+commitHookPassiveMountEffects
 
 commitHookEffectListMount
 

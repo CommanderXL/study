@@ -82,3 +82,50 @@ function shallowEqual(objA, objB) {
 ```
 
 ### React.useContext
+
+### React.useState
+
+```javascript
+function mountState(initialState) {
+  const hook = mountStateImpl(initialState)
+  const queue = hook.queue
+  const dispatch = dispatchSetState.bind(
+    null,
+    currentlyRenderingFiber,
+    queue
+  )
+  queue.dispatch = dispatch
+  return [hook.memoizedState, dispatch]
+}
+
+function mountStateImpl(initialState) {
+  const hook = mountWorkInProgressHook() // 创建下一个新的 hook
+  ...
+  hook.memoizedState = hook.baseState = initialState // 设置初始值
+  const queue = {
+    pending: null,
+    lanes: NoLanes,
+    dispatch: null,
+    lastRenderedReducer: basicStateReducer,
+    lastRenderedState: initialState
+  }
+  hook.queue = queue
+  return hook
+}
+
+function mountWorkInProgressHook() {
+  const hook = {
+    memoizedState: null,
+    baseState: null,
+    baseQueue: null,
+    queue: null,
+    next: null
+  }
+  if (workInProgressHook === null) {
+    currentliRenderingFiber.memoziedState = workInProgressHook = hook
+  } else {
+    workInProgressHook = workInProgressHook.next = hook
+  }
+  return workInProgressHook
+}
+```
