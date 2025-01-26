@@ -923,7 +923,7 @@ function commitHookPassiveMountEffects(finishedWork, hookFlags) {
 
 function commitHookEffectListMount(flags, finishedWork) {
   try {
-    const updateQueue = finishedWork.updateQueue
+    const updateQueue = finishedWork.updateQueue // 保存了所有的 effect 函数，单向闭合链表
     const lastEffect = updateQueue !== null ? updateQueue.lastEffect : null
     if (lastEffect !== null) {
       const firstEffect = lastEffect.next
