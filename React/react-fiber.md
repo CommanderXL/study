@@ -23,11 +23,16 @@ export default app
 
 // component-a.js
 function componentA(props) {
+  const [cls, setCls] = useState('normal')
   useEffect(() => {
     // do something
+    setTimeout(() => {
+      setCls('highlight')
+    }, 2000)
   }, [])
   return (
     <div>
+      <p class={cls}></p>
       <p>{props.count}</p>
     <div>
   )
@@ -59,7 +64,7 @@ function createRoot(container, options) {
 function createContainer() {
   const root = new FiberRootNode(...)
   ...
-  const uninitializedFiber = createHostRootFiber(tag, isStrictMode) // 创建第一个 Fiber 节点，即 RootFiber，它的 tag 为 HostRoot，后续 beginWork 也是从这个 HostRoot 开始进行处理
+  const uninitializedFiber = createHostRootFiber(tag, isStrictMode) // 创建第一个 Fiber 节点，即 RootFiber，它的 tag 为 HostRoot，后续 beginWork 也是从这个 HostRoot 开始进行处理 -> createFiber(HostRoot, null, null, mode)
   root.current = uninitializedFiber // 和 FiberRoot 节点建立起联系
   uninitializedFiber.stateNode = root
 
@@ -248,9 +253,15 @@ function performUnitOfWork(unitOfWork) {
 }
 ```
 
+beginWork 实际上就是即将进入到 Fiber 节点的处理阶段，首先会对 Fiber 节点所接受到的属性以及 context 做一次判断，如果发现不一样的话会初次记录 `didReceiveUpdate`，用以后续决定...
+
 ```javascript
 // react-reconciler/src/ReactFiberBeginWork.js
-function beginWork(current, workInProgress, renderLanes) {
+function beginWork(
+  current, // 当前被遍历的 Fiber 节点，这个节点实际上是上次被渲染的
+  workInProgress, // 当前处理的 Fiber 节点，即将要被渲染的
+  renderLanes
+) {
   ...
   switch (workInProgress.tag) {
     ...
@@ -283,11 +294,18 @@ function beginWork(current, workInProgress, renderLanes) {
  */
 function updateHostRoot(current, workInProgress, renderLanes) {
   ...
+  const nextProps = workInProgress.pendingProps
+  const prevState = workInProgress.memoizedProps
+  const prevChildren = prevState.element // 之前的 ReactElement（如果不是 render 函数重新接受一个 app 组件，prevChildren 和 nextChildren 实际还是一样的）
+  ...
   const nextState = workInProgress.memoziedState // RootFiber 初始化的 state
   const root = workInProgress.stateNode
   ...
   const nextChildren = nextState.element // 对于 RootFiber 来说，第一次更新渲染，element 即保存的是 ReactElement（ReactDOMRoot.render 所接受的 Function Component，ReactElement）
   ...
+  if (nextChildren === prevChildren) {
+    return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes)
+  }
   reconcileChildren(current, workInProgress, nextChildren, renderLanes)
 
   return workInProgress.child
@@ -354,6 +372,21 @@ function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
 // react-reconciler/src/ReactChildFiber.js
 // 创建子节点的 reconciler，需要特别关注 shouldTrackSideEffects 这个参数，会决定在处理 Fiber 节点的过程中是否需要收集 effect 
 function createChildReconciler(shouldTrackSideEffects) {
+  ...
+  function reconcileSingleTextNode(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+    textContext: string,
+    lanes: Lanes
+  ): Fiber {
+    ...
+    // 创建 text Fiber 节点
+    const created = createFiberFromText(textContent, returnFiber.mode, lanes)
+    created.return = returnFiber
+    ...
+    return created
+  }
+
   function reconcileChildFibers(
     returnFiber: Fiber,
     currentFirstChild: Fiber | null,
@@ -415,6 +448,22 @@ function reconcileChildFibersImpl(
     ...
     return firstChild
   }
+
+  // 处理文本内容节点 <p>texttext</p>
+  if (
+    (typeof newChild === 'string' && newChild !== '') ||
+    typeof newChild === 'number' ||
+    typeof newChild === 'bigint'
+  ) {
+    return placeSingleChild(
+      reconcileSingleTextNode(
+        returnFiber,
+        currentFirstChild,
+        '' + newChild,
+        lanes
+      )
+    )
+  }
 }
 
 function reconcileSingleElement(
@@ -437,6 +486,14 @@ function reconcileSingleElement(
     created.return = returnFiber // 通过 return 来建立起新的 Fiber 节点和父 Fiber 节点之间的联系
     return created
   }
+}
+
+function createFiberFromElement() {
+
+}
+
+function createFiberFromText() {
+
 }
 
 function reconcileChildrenArray(
@@ -484,6 +541,7 @@ function renderWithHooks(
   ...
   currentlyRenderingFiber = workInProgress // 将当前的 Fiber 节点标记为 currentlyRenderingFiber
 
+  // 重置当前组件的部分属性
   workInProgress.memoizedState = null
   workInProgress.updateQueue = null
 
@@ -682,6 +740,26 @@ function bubbleProperties(completedWork) {
     ...
   }
   return didBailout
+}
+
+function updateHostComponent(
+  current: Fiber,
+  workInProgress: Fiber,
+  type: Type,
+  newProps
+) {
+  if (supportsMutations) {
+    const oldProps = current.memoizedProps
+    if (oldProps === newProps) {
+      return
+    }
+    markUpdate(workInProgress)
+  }
+  ...
+}
+
+function markUpdate(workInProgress) {
+
 }
 ```
 
@@ -947,22 +1025,26 @@ function commitHookEffectListMount(flags, finishedWork) {
 ```
 
 
+-----
+
+在上面的 demo 示例当中，`component-a` 过 2s 后会调用 `setCls` 方法来重新设置值，开启组件更新及视图更新的操作。
+
+
+```javascript
+// react-reconciler/src/ReactChildFiber.js
+function cloneChildFibers(current, workInProgress) {
+  ...
+}
+```
+
+一个 Function Component 和 Fiber 节点间的关系是什么？
+
+一一对应关系，一个 Function Component 返回的内容(ReactElement)，就是一个 Fiber 节点。
+
+**每个 ReactElement 都和一个 Fiber 节点对应；**
+
 
 Dispatcher -> 是什么作用？
-
-beginWork -> 开始渲染 Fiber 节点
-
-createChildReconciler(true/false) -> reconcileChildFibers/mountChildFibers
-
-createFiberFromElement -> 通过 ReactElement 来创建 Fiber 节点（节点还没真正的执行渲染）
-
-reconcileChildFibersImpl
-
-通过 ReactElement 来创建新的 Fiber 节点，并将节点标记为 workInProcess，然后开启下一轮的处理
-
-nextChildren = renderWithHooks() 开始执行函数组件 -> 得到子组件的 ReactElement
-
-reconcileChildren(current, workInProgress, nextChildren, renderLanes)
 
 reconcileChildFibers -> 创建子组件的 Fiber 节点 -> 建立起 workInProgress 和子组件 Fiber 节点的父子关系 -> workInProgress.child = mountChildFibers/reconcileChildFibers
 
