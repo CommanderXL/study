@@ -1025,15 +1025,212 @@ function commitHookEffectListMount(flags, finishedWork) {
 ```
 
 
------
+## 二次更新
 
-在上面的 demo 示例当中，`component-a` 过 2s 后会调用 `setCls` 方法来重新设置值，开启组件更新及视图更新的操作。
+在上面的 demo 示例当中，`component-a` 过 2s 后会调用 `setCls` 方法来重新设置值（有关 `useState` 触发更新的操作见 react-api 相关的内容），开启组件更新及视图更新的操作。
+
+在触发 `setState` 的过程当中有个很关键的地方就是会创建一个 lane 值（对于 lane 值的比较也会决定组件是否需要更新的操作）：
+
+```javascript
+// react-reconciler/src/ReactFiberHooks.js
+function dispatchSetState(
+  fiber,
+  queue,
+  action
+) {
+  ...
+  const lane = requestUpdateLane(fiber) // lane = 1 这个新创建的 lane 值会伴随这次的更新操作
+  ...
+  // -> dispatchSetStateInternal
+  // -> enqueueConcurrentHookUpdate
+  // -> getRootForUpdatedFiber -> 依据这个 Fiber 节点向上遍历找到 FiberRoot
+  // -> scheduleUpdateOnFiber
+  // -> ensureRootIsScheduled(root)
+  // -> processRootScheduleInMicrotask
+  // -> flushSyncWorkAcrossRoots_impl
+  // -> performSyncWorkOnRoot
+  // -> renderRootSync
+}
+```
+
+setState 是在 component-a 组件当中触发，接下来会通过这个 Fiber 节点向上遍历去找到整个 Fiber Tree 的根节点 FiberRoot，由 FiberRoot 节点作为新一轮更新操作的起始节点。
+
+由于是一次新的更新操作，会通过 `prepareFreshStack(root, lanes)` 来新建 `workInProgress` 节点，同时在这个方法内部有一个非常重要的操作：**给当前 Fiber 节点设置 lanes 值，此外从当前的 Fiber 节点向上依次遍历，来给父 Fiber 节点设置 childLanes 的值。**
+
+```javascript
+function prepareFreshStack() {
+  ...
+  finishQueueingConcurrentUpdates()
+  ...
+}
+
+// react-reconciler/src/ReactFiberConcurrentUpdates.js
+function finishQueueingConcurrentUpdates() {
+  // 一方面是完成 hook queue 和 update 之间的联系，在遍历到触发更新的 Fiber 节点的时候就可以知道这次 update 是进行的什么样的操作了
+  ...
+  if (lane !== NoLane) { // 本次更新的 lane 为 1
+    markUpdateLaneFromFiberToRoot(fiber, update, lane)
+  }
+  ...
+}
+
+function markUpdateLaneFromFiberToRoot(sourceFiber, update, lane) {
+  sourceFiber.lanes = mergeLanes(sourceFiber.lanes, lane) // 更新发生更新的 Fiber 节点的 lanes 值
+  let alternate = sourceFiber.alternate
+  if (alternate !== null) {
+    alternate.lanes = mergeLanes(alternate.lanes, lane)
+  }
+
+  ...
+  // 从这个节点向上遍历，依次找到父 Fiber 节点，并设置 childLanes 的值（如果有值，就说明其子节点可能存在更新操作，那么在 Fiber 节点需要进行遍历的操作）；
+  let parent = sourceFiber.return
+  let node = sourceFiber
+  while (parent !== null) {
+    parent.childLanes = mergeLanes(parent.childLanes, lane)
+    alternate = parent.alternate
+    if (alternate !== null) {
+      alternate.childLanes = mergeLanes(alternate.childLanes, lane)
+    }
+    ...
+
+    node = parent
+    parent = parent.return
+  }
+  ...
+}
+```
+
+接下来进入 `workLoopSync -> performUnitOfWork -> beginWork` 方法，在上文当中也说了这个方法内部会进入到真实的 Fiber 节点的处理阶段，但是在方法内部的**前置阶段会进行 Fiber 节点是否需要更新的方法判断**。
+
+```javascript
+function beginWork(
+  current,
+  workInProgress,
+  renderLanes
+) {
+  if (current !== null) { // 当前需要被操作的 Fiber 节点
+    const oldProps = current.memoizedProps // 上一次的 props
+    const newProps = workInProgress.pendingProps // 这一次的 props
+
+    if (
+      oldProps !== newProps || // 判断 props 是否发生了变化，如果发生了变化，那么这个组件会重新触发 render（函数组件）
+      hasLegacyContextChanged() 
+    ) {
+      didReceiveUpdate = true
+    } else {
+      // Neither props nor legacy context changes. Check if there's a pending
+      // update or context change.
+      // 如果 props 没有发生变化，那么会检查是否有 update 操作或者是 context 发生了变化
+      // 例如调用 setState 方法的组件内部就会新建一个 update 操作，这不过这个方法内部是通过 lanes 来进行标识判断的
+      const hasScheduledUpdateOrContext = checkScheduledUpdateOrContext(
+        current,
+        renderLanes
+      )
+
+      if (
+        !hasScheduledUpdateOrContext &&
+        (workInProgress.flags & DidCapture) === NoFlags
+      ) {
+        didReceiveUpdate = false
+        // 如果这个节点 props, context 都没有变化且没有 update 操作，那么也就会 bail out 跳过这个节点的处理，其子节点也都会跳过（也就是说不会完成遍历和 render 等操作）
+        return attemptEarlyBailoutIfNotScheduledUpdate(
+          current,
+          workInProgress,
+          renderLanes
+        )
+      }
+
+      if ((current.flags & ForceUpdateForLegacySuspense) !== NoFlags) {
+        didReceiveUpdate = true
+      } else {
+        didReceiveUpdate = false
+      }
+    }
+  } else {
+    didReceiveUpdate = false
+  }
+}
+
+function checkScheduledUpdateOrContext(current, renderLanes) {
+  const updateLanes = current.lanes
+  if (includesSomeLane(updateLanes, renderLanes)) { // 如果当前 Fiber 节点的 lanes 为 renderLanes，就代表这个 Fiber 节点有 update 操作
+    return true
+  }
+
+  // 判断 context 是否发生了变化
+  if (enableLazyContextPropagation) {
+    const dependencies = current.dependencies
+    if (dependencies !== null && checkIfContextChanged(dependencies)) {
+      return true
+    }
+  }
+  return false
+}
+
+function attemptEarlyBailoutIfNoScheduledUpdate(
+  current,
+  workInProgress,
+  renderLanes
+) {
+  ...
+  // 在实际进行 bailout 操作前，还需要判断子 Fiber 节点需要进行遍历的操作
+  return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes)
+}
+
+function bailoutOnAlreadyFinishedWork(
+  current,
+  workInProgress,
+  renderLanes
+) {
+  if (current !== null) {
+    workInProgress.dependencies = current.dependencies
+  }
+  ...
+  // 判断 childLanes 来看子节点是否有 update 操作，如果没有的话，会看子节点是否存在 context 的变化，如果没有也就代表子节点不需要做相关的操作
+  // Check if the children have any pending work.
+  if (!includesSomeLanes(renderLanes, workInProgress.childLanes)) {
+    // The children don't have any work either. We can skip them.
+    // TODO: Once we add back resuming, we should check if the children are
+    // a work-in-progress set. If so, we need to transfer their effects.
+
+    if (enableLazyContextPropagation && current !== null) {
+      // Before bailing out, check if there are any context changes in
+      // the children.
+      lazilyPropagateParentContextChanges(current, workInProgress, renderLanes);
+      if (!includesSomeLane(renderLanes, workInProgress.childLanes)) {
+        return null; // 子节点也不存在 context 的变化，那么也就意味着子 Fiber 节点没有任何的更新，那么进行到这里也就说明当前的 Fiber 节点可以 bail out
+      }
+    } else {
+      return null;
+    }
+  }
+
+  // 如果发现子节点有更新的操作，那么直接返回 child 子节点进入后续的处理流程当中，而当前的节点不需要进行 render 等操作来获取子 ReactElement 及对应的 Fiber 节点
+  // This fiber doesn't have work, but its subtree does. Clone the child
+  // fibers and continue.
+  cloneChildFibers(current, workInProgress);
+  return workInProgress.child;
+}
+```
 
 
 ```javascript
 // react-reconciler/src/ReactChildFiber.js
 function cloneChildFibers(current, workInProgress) {
-  ...
+  let currentChild = workInProgress.child
+  let newChild = createWorkInProgress(currentChild, currentChild.pendingProps)
+  workInProgress.child = newChild
+
+  newChild.return = workInProgress
+  while (currentChild.sibling !== null) {
+    currentChild = currentChild.sibling
+    newChild = newChild.sibling = createWorkInProgress(
+      currentChild,
+      currentChild.pendingProps
+    )
+    newChild.return = workInProgress
+  }
+  newChild.sibling = null
 }
 ```
 
