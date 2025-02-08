@@ -806,6 +806,7 @@ function commitRootImpl(...) {
   
   if (subtreeHasEffects || rootHasEffect) {
     ...
+    // The next phase is the mutation phase, where we mutate the host tree.
     commitMutationEffects(root, finishedWork, lanes) // 将 render 记录的 Fiber 节点操作开始进行 commit 操作
     ...
     root.current = finishedWork
@@ -917,7 +918,7 @@ function commitPlacement(finishedWork) {
 }
 ```
 
-至此一个 React 应用的 render + commit 阶段就完成了，也完成了试图最终的展示（即 dom 节点插入到 document 文档当中），那么在示例代码 component-a 当中调用的 `useEffect` 方法，我们都知道可以通过 `useEffect(() => { // do something }, [])` 去模拟组件的 mount 挂载的流程（只会执行一次）。那么 useEffect 接受到的第一个 effect function 是在什么时候执行的呢？还是回到 `commitRootImpl` 方法内部后续会调用 `flushPassiveEffects()` 方法：
+至此一个 React 应用的 render + commit （host tree mutation 阶段）阶段就完成了，也完成了试图最终的展示（即 dom 节点插入到 document 文档当中），那么在示例代码 component-a 当中调用的 `useEffect` 方法，我们都知道可以通过 `useEffect(() => { // do something }, [])` 去模拟组件的 mount 挂载的流程（只会执行一次）。那么 useEffect 接受到的第一个 effect function 是在什么时候执行的呢？还是回到 `commitRootImpl` 方法内部后续会调用 `flushPassiveEffects()` 方法：
 
 ```javascript
 function flushPassiveEffects() {
@@ -1234,11 +1235,169 @@ function cloneChildFibers(current, workInProgress) {
 }
 ```
 
+而在我们一开始的示例 demo 当中，我们通过调用 `setCls` 方法来更新 `p` 节点上的 class 属性，那么 Fiber 节点的操作如何最终反应到真实的 dom 节点上呢？
+
+上文也提到了 `component-a` 通过 `setCls` 派发了一次 update 操作，整个 Fiber Tree 遍历到这个节点的时候会进入 `updateFunctionComponent` 阶段重新对这个 function component 进行 render 生成新的 ReactElement 子节点并进入到 `reconcileChilden`
+
+```javascript
+function updateFunctionComponent(
+  current,
+  workInProgress,
+  Component,
+  nextProps,
+  renderLanes
+) {
+  ...
+  nextChildren = renderWithHooks(
+    current,
+    workInProgress,
+    Component,
+    nextProps,
+    context,
+    renderLanes
+  )
+  ...
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes)
+  return workInProgress.child
+}
+```
+
+```javascript
+// react-reconciler/src/ReactChildFiber.js
+function createChildReconciler(shouldTrackSideEffects) {
+  ...
+  function useFiber(fiber, pendingProps) {
+    const clone = createWorkInProgress(fiber, pendingProps)
+    clone.index = 0
+    clone.sibling = null
+    return clone
+  }
+  ...
+  function reconcileSingleElement(
+    returnFiber,
+    currentFirstChild,
+    element,
+    lanes
+  ) {
+    const key = element.key
+    let child = currentFirstChild
+    while (child !== null) {
+      if (child.key === key) {
+        const elementType = element.type
+        ...
+        if (child.elementType === elementType || ...) {
+          deleteRemainingChildren(returnFiber, child.sibling)
+          const exitsing = useFiber(child, element.props) // 之前的 Fiber 节点存在，那么直接复用之前的 Fiber 节点，只不过会传入最新的 props 的值，因为进入到 reconcileChildren 阶段也就是组件重新进行了 render 获取到了最新的 ReactElement，因此传入到子组件的 props 也都是最新的
+          coerceRef(existing, element)
+          existing.return = returnFiber
+          ...
+          return existing
+        }
+    }
+  }
+}
+```
+
+那么对于 `p` 节点所对应的 Fiber 节点来说，遍历到这个节点的时候，在 beginWork 初期就判断 `oldProps !== newProps`，因此就进入到了 `updateHostComponent` 阶段，正好这个节点没有子 Fiber 节点需要处理，那么进入到 `completeUnitOfWork(unitOfWork) -> completeWork` 阶段，
+
+```javascript
+function completeWork(
+  current,
+  workInProgress,
+  renderLanes
+) {
+  const newProps = workInProgress.pendingProps
+  ...
+  switch (workInProgress.tag) {
+    ...
+    case HostComponent: {
+      const type = workInProgress.type
+      // 如果当前的 Fiber 节点和 dom 节点都存在
+      if (current !== null && workInProgress.stateNode != null) {
+        updateHostComponent(
+          current,
+          workInProgress,
+          type,
+          newProps,
+          renderLanes
+        )
+      } else {
+        ... // 生成新的 host component（dom）节点
+      }
+    }
+  }
+}
+
+function updateHostComponent(
+  current,
+  workInProgress,
+  type,
+  newProps,
+  renderLanes
+) {
+  if (supportsMutation) {
+    const oldProps = current.memoziedProps
+    if (oldProps === newProps) {
+      return
+    }
+
+    // 如果新旧2个 Fiber 节点（Host Component 类型）的 props 不一致，那么就会打一个 update 标记
+    markUpdate(workInProgress)
+  }
+}
+
+// 给这个 Fiber 节点打一个 Update flag 标记
+function markUpdate(workInProgress) {
+  workInProgress.flags |= Update
+}
+```
+
+当 Fiber Tree 遍历完后，对应的 Fiber 节点也打上了 flags 标记（mutation effect），接下来进入到 commit 阶段来完成节点的 mutation 操作：
+
+```javascript
+function commitMutationEffectsOnFiber(
+  finishedWork,
+  root,
+  lanes
+) {
+  ...
+  switch (finishedWork.tag) {
+    ...
+    case HostComponent: {
+      ...
+      if (supportsMutation) {
+        ...
+        if (flags & Update) { // 如果有 update flag
+          const instance = finishedWork.stateNode
+          if (instance != null) {
+            const newProps = finishedWork.memorizedProps
+            const oldProps = current !== null ? current.memoizedProps: newProps
+            commitHostUpdate(finishedWork, newProps, oldProps) // 通过调用 host config 当中提供的 commitHostUpdate 方法来完成 dom 节点的更新操作
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+---------
+
 一个 Function Component 和 Fiber 节点间的关系是什么？
 
-一一对应关系，一个 Function Component 返回的内容(ReactElement)，就是一个 Fiber 节点。
+一一对应关系，一个 Function Component 会对应生成一个 Fiber 节点。
+
+一个 Function Component 返回的内容(ReactElement)，最终也会生成一个 Fiber 节点，那么 Function Component 所对应的 Fiber 节点和返回的 ReactElement 创建的 Fiber 节点是父子关系。
 
 **每个 ReactElement 都和一个 Fiber 节点对应；**
+
+
+beginWork 阶段主要就是：
+
+1. 遍历操作 Fiber 节点；
+2. Function Component 是否需要重新 render；
+3. Fiber 节点的复用；
+
 
 
 Dispatcher -> 是什么作用？
