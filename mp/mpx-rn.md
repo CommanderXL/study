@@ -209,12 +209,12 @@ const component = () => {
 
 1. 基于 options 的配置组件和函数式组件的编码方式；
 2. react 函数式组件没有生命周期的概念；
-3. 示例当中 react 组件内部状态的更新通过 hooks 来驱动，这也和 mpx 的响应式系统有非常大的差异；
+3. 示例当中 react 组件内部状态的更新通过 hook api 来驱动，和 mpx 的响应式系统有非常大的差异；
 4. mpx 是基于静态模版的组织形式，react 使用的是 JSX；
 
 和使用 mpx 去做跨 web 能力输出类似（mpx 输出 web 最终是由 vue 去接管组件的渲染等工作），mpx2rn 首先要面对的就是 mpx 的代码如何能桥接到 react 这一渲染库上正常的工作。那么具体到一个 mpx sfc 组件，最终需要在 react 组件系统上能正常工作，也意味着一个 mpx sfc 组件和一个 react 组件等价。
 
-mpx 是通过 createComponent 来创建组件，react 通过函数来创建组件，那么自然也就会联想到如何将 **createComponent(options) 转化为 (props) => { return (JSX) }**：
+mpx 通过 createComponent 来创建组件，react 通过函数来创建组件，那么自然也就会联想到如何将 **createComponent(options) 桥接到 function (props) => { return (JSX) }**：
 
 ```javascript
 // 伪代码
@@ -378,6 +378,13 @@ function genNode (node) {
 // todo 最终的 render function 产物
 
 #### 组件更新
+
+todo：核心关键就是响应式系统和 React 如何结合的？
+
+对于一个普通的 React Function Component 来说，组件的二次更新一般来自于 props、state 或者 context 的变化。
+
+
+不过 `React` 还提供了一个 `useSyncExternalStore` 的 hook api，这个 api 的主要功能就是可以订阅外部的状态，将 React 组件触发更新渲染的控制权交给外部。
 
 todo 响应式系统
 
