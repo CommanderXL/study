@@ -1,3 +1,18 @@
+对于每个 hook api 都会创建一个 hook 对象，一个 Fiber 节点通过 memoizedState 保存了第一个 hook，所有的 hook 都是以 hook link list 的形式保存，在 Fiber 节点的 render 阶段：
+
+1. 初次 render：构建 hook link list；
+2. 再次 render：通过 hook link list 可以访问到当前正在执行的 hook；
+
+```javascript
+const hook = {
+  memoziedState: null, // hook 的初始状态，为任意类型。例如对 useEffect 来说，这个 hook 初始状态就是保存的一个 effect，对于 useState 来说，初始态就是 useState 接受到的一个数据，因此每个 hook api 初始态都有不一样的数据类型
+  baseState: null,
+  baseQueue: null,
+  queue: null, // useState 有使用到，在二次更新的时候会和 update 建立联系，用以触发组件的二次更新
+  next: null // 下一个 hook
+}
+```
+
 ### React.memo
 
 ```javascript
@@ -172,10 +187,10 @@ function mountStateImpl(initialState) {
 function mountWorkInProgressHook() {
   // 每个函数组件调用 hook api 都会对应的新建一个内部 hook 类型记录
   const hook = {
-    memoizedState: null,
+    memoizedState: null, // 上一次的 state 值
     baseState: null,
     baseQueue: null,
-    queue: null,
+    queue: null, // useState 当中和下一次的更新 update 建立联系
     next: null
   }
   if (workInProgressHook === null) {
@@ -242,6 +257,65 @@ function updateReducerImpl(hook, currentHook, reducer) {
 
 ### React.useEffect
 
+### React.useSyncExternalStore
+
+这个 api 内部会给这个 Fiber 节点的 hook list 上添加2个 hook，同时也会给这个 Fiber 节点添加2个 effect。
+
+和 useEffect 不一样的地方是，这个 api 内部会构造一个 effect 函数：`subscribeToStore` 并挂载到 Fiber.updateQueue 上，这样当这个 Fiber 节点进入到 commit 阶段后执行这个 effect 函数。
+
+对于这个 effect 函数来说，主要的工作就是执行传入的 subscribe 方法，并将内部的方法 `handleStoreChange` 传入到函数内部，这样在**业务代码侧也就可以拿到决定是否可以重新触发组件渲染的回调函数。业务代码侧也就可以在 store 发生变化后主动调用这个回调函数来开启组件的重新渲染**
+
+**Fiber.updateQueue 上保存了需要被执行的 effect link list。**
+
+```javascript
+// react-reconciler/src/ReactFiberHooks.js
+function mountSyncExternalStore(
+  subscribe: (() => void) => () => void,
+  getSnapshot: () => T,
+  getServerSnapshot?: () => T
+): T {
+  const fiber = currentlyRenderingFiber
+  const hook = mountWorkInProgressHook() // mount 阶段创建一个新的 hook，并添加到 hook list）
+
+  let nextSnapshot
+  ...
+  nextSnapshot = getSnapShot()
+  ...
+  hook.memoizedState = nextSnapshot
+  const inst = {
+    value: nextSnapshot,
+    getSnapshot
+  }
+  hook.queue = inst
+
+  // schedule an effect to subscribe to the store
+  // 创建一个新的 hook，同时把 effect 挂载到 Fiber.updateQueue 上
+  mountEffect(subscribeToStore.bind(null, fiber, inst, subscribe), [subscribe]) // 添加另外一个 hook 至 hook list）
+  fiber.flags |= PassiveEffect
+  pushSimpleEffect( // 这个 hook 的上一次状态保存的是 snapshot
+    HookHasEffect | HookPassive,
+    createEffectInstance(),
+    updateStoreInstance.bind(null, fiber, inst, nextSnapshot, getSnapshot),
+    null
+  )
+
+  return nextSnapshot
+}
+
+function subscribeToStore(
+  fiber,
+  inst,
+  subscribe
+) {
+  const handleStoreChange = () => {
+    if (checkIfSnapshotChanged(inst)) {
+      forceStoreRerender(fiber)
+    }
+  }
+
+  return subscribe(handleStoreChange)
+}
+```
 
 ### 位运算
 
