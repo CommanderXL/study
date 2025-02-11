@@ -1,4 +1,10 @@
-对于每个 hook api 都会创建一个 hook 对象，一个 Fiber 节点通过 memoizedState 保存了第一个 hook，所有的 hook 都是以 hook link list 的形式保存，在 Fiber 节点的 render 阶段：
+每个 Function Component 在每次 render 开始之前（不管是初次还是二次 render）(`renderWithHooks` 内部)，都会将：
+
+* workInProgress.memoizedState = null -> hook link list 置为 null
+* workInProgress.updateQueue = null -> effect link list 置为 null
+* workInProgress.lanes = NoLanes -> lanes 置为 0，用以下次的更新渲染
+
+对于每个 hook api 执行都会创建一个 hook 对象，一个 Fiber 节点通过 memoizedState 保存了第一个 hook，所有的 hook 都是以 hook link list 的形式保存，在 Fiber 节点的 render 阶段：
 
 1. 初次 render：构建 hook link list；
 2. 再次 render：通过 hook link list 可以访问到当前正在执行的 hook；
@@ -257,13 +263,82 @@ function updateReducerImpl(hook, currentHook, reducer) {
 
 ### React.useEffect
 
+组件初次 render，创建一个新的 hook，挂载到 Fiber 节点的 hook list 上，同时新建一个对应的 effect 函数，挂载到 Fiber 节点的 updateQueue 上，等 Fiber 节点进入到 commit 阶段后会执行这些 effect 函数。
+
+```javascript
+function mountEffect(
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null
+) {
+  mountEffectImpl(
+    PassiveEffect | PassiveStaticEffect,
+    HookPassive,
+    create,
+    deps
+  )
+}
+
+function mountEffectImpl(
+  fiberFlags: Flags,
+  hookFlags: HookFlags,
+  create: () => (() => void) | void,
+  deps: Array<mixed> | void | null
+) {
+  const hook = mountWorkInProgressHook()
+  const nextDeps = deps === undefined ? null : deps
+  currentlyRenderingFiber.flags |= fiberFlags // fiber 节点的 flags
+  hook.memoizedState = pushSimpleEffect( // 这个 hook 的初始状态为 effect
+    HookHasEffect | hookFlags,
+    createEffectInstance(),
+    create,
+    nextDeps
+  )
+}
+
+function pushSimpleEffect(
+  tag: HookFlags,
+  inst: EffectInstance,
+  create: () => (() => void) | void,
+  deps
+) {
+  const effect = {
+    tag,
+    create,
+    deps,
+    inst,
+    next
+  }
+  return pushEffectImpl(effect)
+}
+
+function pushEffectImpl(effect: Effect): Effect {
+  let componentUpdateQueue: null | FunctionComponentUpdateQueue =
+    (currentlyRenderingFiber.updateQueue: any); // 每个 Fiber 节点上的 updateQueue 都保存需要执行的 effect link list（单向闭合链表的结构）
+  if (componentUpdateQueue === null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any); // 保存 effect list
+  }
+  // componentUpdateQueue 主要就是保存 effect link list
+  const lastEffect = componentUpdateQueue.lastEffect;
+  if (lastEffect === null) {
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    const firstEffect = lastEffect.next;
+    lastEffect.next = effect;
+    effect.next = firstEffect;
+    componentUpdateQueue.lastEffect = effect;
+  }
+  return effect;
+}
+```
+
 ### React.useSyncExternalStore
 
 这个 api 内部会给这个 Fiber 节点的 hook list 上添加2个 hook，同时也会给这个 Fiber 节点添加2个 effect。
 
 和 useEffect 不一样的地方是，这个 api 内部会构造一个 effect 函数：`subscribeToStore` 并挂载到 Fiber.updateQueue 上，这样当这个 Fiber 节点进入到 commit 阶段后执行这个 effect 函数。
 
-对于这个 effect 函数来说，主要的工作就是执行传入的 subscribe 方法，并将内部的方法 `handleStoreChange` 传入到函数内部，这样在**业务代码侧也就可以拿到决定是否可以重新触发组件渲染的回调函数。业务代码侧也就可以在 store 发生变化后主动调用这个回调函数来开启组件的重新渲染**
+对于这个 effect 函数来说，主要的工作就是执行业务代码调用这个 api 的时候传入的第一个参数 `subscribe` 方法，并将内部的方法 `handleStoreChange` 传入到函数内部，这样在**业务代码侧也就可以拿到决定是否可以重新触发组件渲染的回调函数，可以在 store 发生变化后主动调用这个回调函数来开启组件的重新渲染**
 
 **Fiber.updateQueue 上保存了需要被执行的 effect link list。**
 
