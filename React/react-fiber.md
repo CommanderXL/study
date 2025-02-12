@@ -717,7 +717,7 @@ function completeWork(
           workInProgress
         )
 
-        appendAllChildren(instance, workInProgress, false, false) // 对于初始化的应用来说，通过 Fiber 节点找到子 Fiber 节点上挂载的真实的 dom 节点，并通过 document.appendChild 将子的 dom 节点挂载到当前节点
+        appendAllChildren(instance, workInProgress, false, false) // 对于初始化的应用来说，通过 Fiber 节点找到子 Fiber 节点上挂载的真实的 dom 节点，并通过 document.appendChild 将子的 dom 节点挂载到当前节点，这个时候每个 Fiber 节点的 stateNode 已经是挂载了所有子节点的 dom 节点
         workInProgress.stateNode = instance // 在这里建立 Fiber 节点和 HostComponent（即 dom element）的联系，web 场景下其实就是 dom 元素
         ...
       }
@@ -855,18 +855,18 @@ function commitMutationEffectsOnFiber(finishedWork, root, lanes) {
     case HostRoot: {
       ...
       recursivelyTraverseMutationEffects(root, finishedWork, lanes)
-      commitReconciliationEffects(finishedWork)
+      commitReconciliationEffects(finishedWork) 
     }
     case HostComponent: {
-      recursivelyTraverseMutationEffects(root, finishedWork, lanes)
-      commitReconciliationEffects(finishedWork)
+      recursivelyTraverseMutationEffects(root, finishedWork, lanes) // 先进行节点的删除操作
+      commitReconciliationEffects(finishedWork) // 再进行节点的添加操作
       ...
     }
   }
 }
 
 function recursivelyTraverseMutationEffects(root, parentFiber, lanes) {
-  // 如果有节点删除的情况，先处理节点删除，这样就不需要再递归调用这个节点的子节点的 muationEffects
+  // 如果有节点删除的情况，先处理节点删除，这样就不需要再递归调用这个节点的子节点的 mutationEffects
   const deletions = parentFiber.deletions
   if (deletions !== null) {
     for (let i = 0; i < deletions.length; i++) {
@@ -1429,6 +1429,8 @@ commitRootImpl
 
 // the next phase is the mutation phase, where we mutate the host tree
 commitMutationEffects
+
+commitBeforeMutationEffects(root, finishedWork)
 
 commitMutationEffectsOnFiber
 

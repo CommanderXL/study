@@ -377,12 +377,15 @@ function genNode (node) {
 
 // todo 最终的 render function 产物
 
-#### 组件更新
+#### 组件更新（React Hooks vs Reactivity）
 
 todo：核心关键就是响应式系统和 React 如何结合的？
 
-对于一个普通的 React Function Component 来说，组件的二次更新一般来自于 props、state 或者 context 的变化。
+在 React 当中，对于一个普通的 React Function Component 来说，组件的二次更新一般来自于 props、state 或者 context 的变化。
 
+Reactivity -> React Hooks subscribe
+
+但是在 mpx2rn 的过程中，
 
 不过 `React` 还提供了一个 `useSyncExternalStore` 的 hook api，这个 api 的主要功能就是可以订阅外部的状态，将 React 组件触发更新渲染的控制权交给外部。
 
@@ -404,6 +407,14 @@ todo 响应式系统
 todo: props/event，组件引用
 
 ### 事件系统
+
+### 组件体系
+
+业务组件 -> mpx 基础组件 -> RN 基础组件
+
+### 平台特性
+
+selectComponent
 
 ### 路由
 
