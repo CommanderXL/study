@@ -123,9 +123,35 @@ mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更�
 
 那么父子组件在渲染过程中，父子的 renderEffect 在执行的过程中都是访问的同一个响应式数据 list，因此 list 也就建立了和这2个 renderEffect 的联系，一旦 list 发生变更，进入到响应式系统调度的过程，父与子的 renderEffect 被放到同一个异步队列当中执行。（todo id 的比较？）
 
-再来看看场景二，父子间的通讯数据是一个简单类型(todo 看下 ref 类型)，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时子组件的 renderEffect 过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是和场景一一样访问的父组件传下的原始的响应式数据。
+再来看看场景二，父子间的通讯数据是一个简单类型(todo 看下 ref 类型)，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时**子组件的 renderEffect 在执行过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是像场景一一样访问的是父组件传下的原始的响应式数据**。
 
-那么在场景二的二次更新的过程当中，
+那么在场景二的二次更新的过程当中，首先父组件的响应式数据变更，将 useSyncExternalStore schedule react update callback（父组件第一次异步），这个阶段子组件无任何变化（因为还没实际进入到组件的渲染阶段），等到 react update callback 执行后，这时才真正的触发父组件的更新操作（父组件第二次异步），进入到 react Fiber tree 的更新阶段，在子组件(react)的 render 阶段接受到的 props 是更新后的数据，同时在这个 render 阶段会由 mpx 的响应式系统来接管这个子 react 组件的渲染时机，具体的体现就是：
+
+```javascript
+export default getDefaultOptions({ type, rawOptions = {}, currentInject }) {
+  const defaultOptions = memo(forwardRef(props, ref) => {
+    ...
+    if (!isFirst) {
+      // 处理props更新
+      Object.keys(validProps).forEach((key) => {
+        if (hasOwn(props, key)) {
+          instance[key] = props[key]
+        } else {
+          const altKey = hump2dash(key)
+          if (hasOwn(props, altKey)) {
+            instance[key] = props[altKey]
+          }
+        }
+      })
+    }
+    ...
+  })
+}
+```
+
+在子 react 二次 render 的过程会将接收到的最新的 props 数据更新到 mpxProxy 实例上，其实就是会触发子组件的响应式数据的更新，进而 schedule react update callback（子组件第一次异步）推入异步更新队列，等 react update callback 实际开始执行的时候才开始子组件的更新渲染。因此二次更新的时序就是：补个图
+
+也意味着父组件先完成更新，子组件再完成更新，那么父组件的 UPDATED 钩子肯定是先于子组件的 UPDATED 钩子的执行的。
 
 
 
