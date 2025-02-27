@@ -1,11 +1,22 @@
 ## mpx2rn 组件渲染更新和 ref
 
-基础用法：
+### 基础用法：
 
-1. <view wx:ref="xxx"></view>
-2. <view wx:ref id="a" class="a b c"></view>
+1. 通过 `$ref` 去访问节点
+
+```javascript
+<view wx:ref="xxx"></view>
+```
+
+2. 通过 `createSelectorQuery` 去访问节点
+
+```javascript
+<view wx:ref id="a" class="a b c"></view>
+```
 
 代码同构，不同平台表现的差异性也决定了代码整体的可维护性；
+
+### 一些概念
 
 框架设计
 
