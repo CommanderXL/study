@@ -96,12 +96,14 @@ mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更�
 
 那么对于一个 mpx2rn 的组件更新流程就是：
 
-响应式数据 -> RenderEffect run -> queueJob -> react hook update(useSyncExternalStore) -> React 组件重新渲染
+1. 初始化一个 ReactiveEffect 建立起响应式数据和 update job 的关系；
+2. 响应式数据变更 -> schedule update job -> queueJob -> react hook update(useSyncExternalStore) -> React 组件重新渲染
 
-**在这个过程当中涉及了2次异步操作:**
+**在组件二次更新的过程当中涉及了2次异步操作:**
 
-**1. 响应式系统的 schedule renderEffect；**
-**2. renderEffect 结束后会进行 react hookApi 的 schedule effect。**
+**第一次异步：响应式系统 schedule update job（react effect）；**
+
+**第二次异步：update job 执行会进行 react hookApi 的 schedule effect，react 组件更新**
 
 那么再回到刚才的示例当中，当响应式数据发生变更后发生了什么事情呢？
 
