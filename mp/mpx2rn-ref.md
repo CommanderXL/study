@@ -18,21 +18,19 @@
 
 ### 一些概念
 
-框架设计
-
 * mpx
 
-桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行；
+
 
 todo 画个图
 
-在 react 函数组件当中没有生命周期的概念，主要还是利用 useEffect api 来模拟生命周期的执行。
 
-* react
+
+* react hook
 
 react 提供了 useEffect（PassiveHook 类型），useImperativeHandle（LayoutHook 类型） 内置的 hookApi。在 react 组件的 commit 阶段，一个核心的工作就是 commit HookApi 上挂载的 effect 函数(schedule effect)，不同的 Hook 类型也有一定的先后执行顺序：
 
-1. 在组件内部，LayoutHook 类型（在这个阶段，也完成了对于原生节点的挂载和访问）先于 PassiveHook 类型的执行：
+1. 在组件内部，LayoutHook 类型（在这个阶段，也完成了对于 Host Component 的挂载和访问）先于 PassiveHook 类型的执行：
 
 ```javascript
 function () {
@@ -42,16 +40,18 @@ function () {
 }
 ```
 
-2. 在 commit 阶段，是个深度优先执行的过程，也就是在父子之间，子组件的 Hook effect 会先于父组件的 Hook effect 执行；
+2. 此外 react 在 commit 阶段，是个深度优先执行的过程，也就是说子组件的 Hook effect 会先于父组件的 Hook effect 执行；
 
-那么在这样一个组件 commit 执行顺序下，在组件的 useEffect 当中一定是：
+那么在这样的 commit 执行顺序下，在组件的 useEffect 当中一定是：
 
 1. 可以拿到组件实例or基础节点
 2. 能拿到子组件的节点
 
+* 生命周期
 
+在 react 函数组件当中没有生命周期的概念，主要还是利用 react 本身的渲染机制来模拟生命周期的执行。react 组件的渲染主要包括 render 和 commit 2个阶段。
 
-* mpx2rn
+桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行，一张图来表示：
 
 `ref` 能否拿到数据和节点(react)的挂载时机有强依赖关系。
 
@@ -59,11 +59,45 @@ React Hook 执行时机
 
 ### 场景一：组件内部获取基础节点
 
+```javascript
+<template>
+  <view bindtap="change" wx:ref="title">title</view>
+  <view wx:if="{{ show }}" wx:ref="subTitle">subTitle</view>
+</template>
+
+<script>
+  import { createComponent, UPDATED } from '@mpxjs/core'
+  createComponent({
+    data: {
+      show: false
+    },
+    ready() {
+      console.log('get the title ref', this.$refs.title)
+    },
+    methods: {
+      change () {
+        this.show = true
+        this.$nextTick(() => {
+          this.$refs.subTitle.boundingClientRect(res => {
+            console.log('the subTitle rect is:', res) // 为空
+          }).exec()
+        })
+      }
+    },
+    [UPDATED] () {
+      this.$refs.subTitle.boundingClientRect(res => {
+        console.log('the subTitle rect is:', res) // 能正常访问
+      }).exec()
+    }
+  })
+</script>
+```
+
 #### 初次渲染
 
-* created/attached -> CREATED 时机肯定是拿不到的
+* created/attached(对应到 mpxProxy CREATED) 时机肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（构建 Fiber 节点）；
 
-* ready -> MOUNTED 是一定能拿到（渲染的时序保证的）
+* ready(对应到 mpxProxy MOUNTED) 是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
 
 #### 二次更新
 
