@@ -67,7 +67,7 @@ React Hook 执行时机
 ```javascript
 // parent.mpx
 <template>
-  <child wx:ref="child"></child>
+  <child list="{{ list }}" wx:ref="child"></child>
 </template>
 
 // child.mpx
@@ -81,11 +81,51 @@ Case 1：mpx 组件混合使用 react 组件
 
 Case 2：mpx 组件使用 mpx 子组件
 
+场景一：
+
 初次渲染，parent -> child 渲染（HookLayout -> HookPassive），ready 生命周期一定能拿到
 
 父组件响应式数据发生更新，触发子组件的重新渲染。如果在小程序/web情况，大家都会使用 nextTick 来保证获取更新后的节点，但是在 mpx2rn 的场景下就不一定能正常的 work 了。
 
-这里简单介绍下，mpx2rn 的渲染机制。
+这里先简单介绍下 mpx2rn 组件渲染机制：
+
+mpx sfc => () => {}
+
+mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新；
+对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化；
+
+那么对于一个 mpx2rn 的组件更新流程就是：
+
+响应式数据 -> RenderEffect run -> queueJob -> react hook update(useSyncExternalStore) -> React 组件重新渲染
+
+**在这个过程当中涉及了2次异步操作:**
+
+**1. 响应式系统的 schedule renderEffect；**
+**2. renderEffect 结束后会进行 react hookApi 的 schedule effect。**
+
+那么再回到刚才的示例当中，当响应式数据发生变更后发生了什么事情呢？
+
+首先响应式系统会将 watchEffect、renderEffect 在同一个异步队列当中 flush 掉，不过这里使用 nextTick 也引入了一个异步任务，那么：
+
+* watchEffect -> nextTick
+* renderEffect -> react hook update
+
+这里2个异步任务实际的执行时序是没法保证的，所以会遇到的问题是在 nextTick 当中**不一定能拿到子组件渲染更新完成的节点**。
+
+既然问题找到了，针对这种场景能给到的解法是：
+
+1. 子组件部署 `UPDATED` 钩子，更新完成后事件通知到父组件，父组件感知到子组件完成更新后再做操作；
+2. 父子组件不做更新通讯，即子组件不做任何操作，父组件部署 `UPDATED` 钩子来感知子组件更新完成；（todo 解释下为什么这个方案理论上是可以的）子组件肯定是先于父组件的 UPDATED 钩子触发的
+
+场景二：
+
+在场景一当中，父子间通讯的数据是一个引用类型，在 mpx2rn 的场景下父子组件通讯过程中，props 数据是直接透传下来的，也就意味子组件访问到的响应式数据是在父组件当中的响应式数据。
+
+那么父子组件在渲染过程中，父子的 renderEffect 在执行的过程中都是访问的同一个响应式数据 list，因此 list 也就建立了和这2个 renderEffect 的联系，一旦 list 发生变更，进入到响应式系统调度的过程，父与子的 renderEffect 被放到同一个异步队列当中执行。（todo id 的比较？）
+
+再来看看场景二，父子间的通讯数据是一个简单类型(todo 看下 ref 类型)，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时子组件的 renderEffect 过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是和场景一一样访问的父组件传下的原始的响应式数据。
+
+那么在场景二的二次更新的过程当中，
 
 
 
