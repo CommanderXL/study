@@ -123,10 +123,9 @@ mpx 在处理生命周期的过程当中是桥接不同平台的组件生命周�
 
 那么在这个组件二次更新的场景当中，当响应式数据发生变化后，代码执行的逻辑就是：
 
-1. nextTick -> Promise.resovle（一次异步）
-2. schedule update job（第一次异步），update job 执行，react 组件更新（第二次异步）；
+![mpx2rn-ref](../images/mp/mpx2rn-ref6.jpg)
 
-因此对于1，2这两个执行的流程的代码时机时序是没法严格保证的。
+因此对于红色框中的异步代码的执行时序是没法严格保证的。
 
 但是为什么可以在 `UPDATED` 钩子里拿到节点呢？因为 `UPDATED` 钩子是在组件二次更新的 useEffect 阶段派发的，所以对应的 react 节点已经完成挂载了。
 
