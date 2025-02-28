@@ -49,13 +49,19 @@ function () {
 
 * 生命周期
 
-在 react 函数组件当中没有生命周期的概念，主要还是利用 react 本身的渲染机制来模拟生命周期的执行。react 组件的渲染主要包括 render 和 commit 2个阶段。
+在 react 函数组件当中没有生命周期的概念，主要还是利用 react 本身的渲染机制来模拟生命周期的执行，例如 `useEffect(() => {}, [])`。react 组件的渲染主要包括 render 和 commit 2个阶段。
 
 桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行，一张图来表示：
 
 `ref` 能否拿到数据和节点(react)的挂载时机有强依赖关系。
 
 React Hook 执行时机
+
+* mpx2rn 
+
+我们使用 mpx 作为上层的 dsl，react 作为 mpx2rn 的渲染 runtime library。也就是说我们写着 mpx 的代码，但是经过一系列的 mpx 框架的处理后变成了可以放到 react 当中执行的代码。
+
+mpx sfc ->  () => {} + mpxProxy
 
 ### 场景一：组件内部获取基础节点
 
@@ -95,16 +101,34 @@ React Hook 执行时机
 
 #### 初次渲染
 
-* created/attached(对应到 mpxProxy CREATED) 时机肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（构建 Fiber 节点）；
+* created/attached(映射到 mpxProxy CREATED) 时机肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（正在构建 Fiber 节点）；
 
-* ready(对应到 mpxProxy MOUNTED) 是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
+* ready(映射到 mpxProxy MOUNTED) 是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
 
 #### 二次更新
 
-响应式数据发生变化，触发组件更新；
+响应式数据发生变化，触发组件二次更新，在小程序/web场景下，都会使用 nextTick 来确保拿到的是更新后的节点；但是在 mpx2rn 的场景下会出现拿不到节点的情况，这里就要介绍一下 mpx2rn 的组件渲染机制：
 
-在小程序/web场景下，会使用 nextTick 来确保拿到的是更新后的节点；
+mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新；
+对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化；
 
+那么对于一个 mpx2rn 的组件更新流程就是：
+
+1. 初始化一个 ReactiveEffect 建立起响应式数据和 update job effect 的关系；
+2. 响应式数据变更 -> schedule update job(queueJob) -> 同步任务执行完 -> update job(useSyncExternalStore) -> React 组件重新渲染
+
+**在组件二次更新的过程当中涉及了2次异步操作:**
+
+**第一次异步：响应式系统 schedule update job（react effect）；**
+
+**第二次异步：update job 执行会进行 react effect，react 组件更新**
+
+那么在这个组件二次更新的过程当中，当响应式数据发生变化后，代码执行的逻辑就是：
+
+1. nextTick -> Promise.resovle
+。。。
+
+但是为什么可以在 `UPDATED` 钩子里拿到呢？
 
 
 ### 场景二：父组件获取子组件当中的基础节点
@@ -128,29 +152,11 @@ Case 2：mpx 组件使用 mpx 子组件
 
 场景一：
 
-初次渲染，parent -> child 渲染（HookLayout -> HookPassive），ready 生命周期一定能拿到
+在父子组件初次渲染的情况下，parent -> child 渲染（HookLayout -> HookPassive），在父组件的 ready 生命周期内一定能拿到拿到子组件当中的基础节点。
 
 父组件响应式数据发生更新，触发子组件的重新渲染。如果在小程序/web情况，大家都会使用 nextTick 来保证获取更新后的节点，但是在 mpx2rn 的场景下就不一定能正常的 work 了。
 
-这里先简单介绍下 mpx2rn 组件渲染机制：
-
-mpx sfc => () => {}
-
-mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新；
-对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化；
-
-那么对于一个 mpx2rn 的组件更新流程就是：
-
-1. 初始化一个 ReactiveEffect 建立起响应式数据和 update job 的关系；
-2. 响应式数据变更 -> schedule update job -> queueJob -> react hook update(useSyncExternalStore) -> React 组件重新渲染
-
-**在组件二次更新的过程当中涉及了2次异步操作:**
-
-**第一次异步：响应式系统 schedule update job（react effect）；**
-
-**第二次异步：update job 执行会进行 react hookApi 的 schedule effect，react 组件更新**
-
-那么再回到刚才的示例当中，当响应式数据发生变更后发生了什么事情呢？
+当响应式数据发生变更后发生了什么事情呢？
 
 首先响应式系统会将 watchEffect、renderEffect 在同一个异步队列当中 flush 掉，不过这里使用 nextTick 也引入了一个异步任务，那么：
 
@@ -253,7 +259,7 @@ list 初始值为 `[]`
 
 
 
-----
+<!-- ----
 
 异步的异步没法保证
 
@@ -285,4 +291,4 @@ props 驱动组件的更新机制
 props、provide/inject
 
 
-不是 bug，而是在较为复杂的业务代码的场景下，如何能确保代码的执行是符合预期的
+不是 bug，而是在较为复杂的业务代码的场景下，如何能确保代码的执行是符合预期的 -->
