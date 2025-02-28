@@ -299,47 +299,19 @@ mpx 组件当中可以直接使用 react 组件（例如基础组件 view，butt
 
 解法：父组件将组件实例传递给子组件，子组件去调用父组件获取基础节点。
 
-todo：看下大家目前还有哪些场景，梳理下看下相关的解法；
 
+## 最后
 
-遇到调用 `wx:ref` 或者 `createSelectQuery` 获取不到节点实例的情况。
+二次渲染的场景下，使用 nextTicket/setTimeout 去获取更新后的节点不一定符合预期，还需具体情况具体分析，找到对应的解法。
 
-demo 实例：
+<!-- 遇到调用 `wx:ref` 或者 `createSelectQuery` 获取不到节点实例的情况。 -->
 
-```javascript
-<template>
-  <component-a wx:ref="scroll" list="{{list}}" currentIndex="{{currentIndex}}"/>
-</template>
-
-<script>
-  createComponent({
-    data: {
-      list: []
-    },
-    watch: {
-      list (newVal, val) {
-        this.$nextTick(() => {
-          const query = this.$refs.scroll.createSelectorQuery()
-          query.selectAll('.item').boundingClientReact().exec(res => {
-            console.log('---boundingClientReact', res)
-          })
-        })
-      }
-    }
-  })
-</script>
-```
-
-list 初始值为 `[]`
-
-----
-
-1. nextTick 的实现和作用；
+<!-- 1. nextTick 的实现和作用；
 2. react hook 执行的顺序；
 3. 响应式系统 + react hook；
 4. 简单值 + 对象对于组件渲染时机；
 
-跨组件获取实例需要关注哪些内容？
+跨组件获取实例需要关注哪些内容？ -->
 
 
 <!-- 初始化实例，二次渲染 -->
