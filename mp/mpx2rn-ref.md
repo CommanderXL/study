@@ -276,7 +276,9 @@ export default getDefaultOptions({ type, rawOptions = {}, currentInject }) {
 }
 ```
 
-在子 react 组件二次 render 的过程会将接收到的最新的 props 数据更新到 mpxProxy 实例上，其实就是会触发子组件的响应式数据的更新，进而 schedule react update callback（子组件第一次异步）推入异步更新队列，等 react update callback 实际开始执行的时候才开始子组件的更新渲染。因此二次更新的时序就是：补个图
+在子 react 组件二次 render 的过程会将接收到的最新的 props 数据更新到 mpxProxy 实例上，其实就是会触发子组件的响应式数据的更新，进而 schedule react update callback（子组件第一次异步）推入异步更新队列，等 react update callback 实际开始执行的时候才开始子组件的更新渲染。因此二次更新的时序就是：
+
+![mpx2rn-ref](../images/mp/mpx2rn-ref5.jpg)
 
 也意味着父组件先完成更新，子组件再完成更新，那么父组件的 UPDATED 钩子肯定是先于子组件的 UPDATED 钩子的执行的。
 
@@ -299,6 +301,8 @@ mpx 组件当中可以直接使用 react 组件（例如基础组件 view，butt
 
 有个场景就是通过 `wx:if` 来控制 popup 的渲染时机并调用 popup show 方法来展示组件。不过因为 popup 在展示之前需要通过获取子组件的高度来决定组件移动的位置。
 
+
+解法：子 react 组件如果是异步渲染可以考虑提供类似于 onUpdated 钩子，在组件渲染完成后调用来通知父 mpx 组件子组件已渲染完成，确保父组件能正确获取子节点。
 
 ## 场景三：子组件获取父组件的基础节点
 
