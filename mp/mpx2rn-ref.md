@@ -41,9 +41,12 @@ function () {
 
 * 生命周期
 
-在 react 函数组件当中没有生命周期的概念，主要还是利用 react 本身的渲染机制来模拟生命周期的执行，例如 `useEffect(() => {}, [])`。react 组件的渲染主要包括 render 和 commit 2个阶段。
+在 react 函数组件当中没有生命周期的概念，主要还是利用 react 本身的渲染机制来模拟生命周期的执行，例如使用 `useEffect(() => {}, [])` 来模拟组件初次挂载的时机。react 组件的渲染主要包括 render 和 commit 2个阶段。
 
-桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行，一张图来表示：
+mpx 在处理生命周期的过程当中是桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行，一张图来表示：
+
+![mpx2rn-ref](../images/mp/mpx2rn-ref1.jpg)
+
 
 <!-- `ref` 能否拿到数据和节点(react)的挂载时机有强依赖关系。 -->
 
@@ -53,7 +56,9 @@ function () {
 
 我们使用 mpx 作为上层的 dsl，react 作为 mpx2rn 的渲染 runtime library。也就是说我们写着 mpx 的代码，会经过一系列的 mpx 框架的处理后变成了可以放到 react 当中执行的代码。
 
-mpx sfc ->  () => {} + mpxProxy
+![mpx2rn-ref](../images/mp/mpx2rn-ref2.jpg)
+
+<!-- mpx sfc ->  () => {} + mpxProxy -->
 
 ## 场景一：组件内部获取基础节点
 
@@ -101,6 +106,8 @@ mpx sfc ->  () => {} + mpxProxy
 
 响应式数据发生变化，触发组件二次更新，在小程序/web场景下，都会使用 nextTick 来确保拿到的是更新后的节点。但是在 mpx2rn 的场景下会出现拿不到节点的情况，这里就要介绍一下 mpx2rn 的组件渲染机制：mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新。
 <!-- 对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化； -->
+
+![mpx2rn-ref](../images/mp/mpx2rn-ref3.jpg)
 
 那么对于一个 mpx2rn 的组件更新流程就是：
 
@@ -181,11 +188,11 @@ mpx sfc ->  () => {} + mpxProxy
 
 首先响应式系统会将 watchEffect、父renderEffect、子renderEffect(effect 就是上文提到的 update job) 在同一个异步队列当中 flush 掉，不过这里使用 nextTick 也引入了一个异步任务，那么：
 
-todo 补个图
+![mpx2rn-ref](../images/mp/mpx2rn-ref4.jpg)
 
-* watchEffect(queueJob) -> nextTick
+<!-- * watchEffect(queueJob) -> nextTick
 * 父renderEffect(queueJob) -> update job -> react 组件更新
-* 子renderEffect(queueJob) -> update job -> react 组件更新
+* 子renderEffect(queueJob) -> update job -> react 组件更新 -->
 
 2个红色框内的异步任务实际的执行时序是没法保证的，所以会遇到的问题是在 nextTick 当中**不一定能拿到子组件渲染更新完成的节点**。
 
