@@ -1,6 +1,6 @@
-## mpx2rn 组件渲染更新和 ref 使用
+# mpx2rn 组件渲染更新和 ref 使用
 
-### 基础用法：
+## 基础用法：
 
 1. 通过 `$ref` 去访问节点
 
@@ -16,15 +16,7 @@
 
 <!-- 代码同构，不同平台表现的差异性也决定了代码整体的可维护性； -->
 
-### 一些概念
-
-* mpx
-
-
-
-todo 画个图
-
-
+## 一些概念
 
 * react hook
 
@@ -63,7 +55,7 @@ function () {
 
 mpx sfc ->  () => {} + mpxProxy
 
-### 场景一：组件内部获取基础节点
+## 场景一：组件内部获取基础节点
 
 ```javascript
 <template>
@@ -99,13 +91,13 @@ mpx sfc ->  () => {} + mpxProxy
 </script>
 ```
 
-#### 初次渲染
+1. 初次渲染
 
 * 组件 created/attached(映射到 mpxProxy CREATED)阶段肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（正在构建 Fiber 节点）；
 
 * 组件 ready(映射到 mpxProxy MOUNTED) 阶段是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
 
-#### 二次更新
+2. 二次更新
 
 响应式数据发生变化，触发组件二次更新，在小程序/web场景下，都会使用 nextTick 来确保拿到的是更新后的节点。但是在 mpx2rn 的场景下会出现拿不到节点的情况，这里就要介绍一下 mpx2rn 的组件渲染机制：mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新。
 <!-- 对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化； -->
@@ -132,24 +124,32 @@ mpx sfc ->  () => {} + mpxProxy
 但是为什么可以在 `UPDATED` 钩子里拿到节点呢？因为 `UPDATED` 钩子是在组件二次更新的 useEffect 阶段派发的，所以对应的 react 节点已经完成挂载了。
 
 
-### 场景二：父组件获取子组件当中的基础节点
+## 场景二：父组件获取子组件当中的基础节点
+
+### Case 1：mpx 组件使用 mpx 子组件
 
 ```javascript
 // parent.mpx
 <template>
   <child list="{{ list }}" wx:ref="child"></child>
 </template>
+<script>
+  import { createComponent } from '@mpxjs/core'
+  createComponent({
+    data: {
+      list: []
+    },
+    ready() {
+      
+    }
+  })
+</script>
 
 // child.mpx
 <template>
   <view wx:ref="title"></view>
 </template>
 ```
-
-Case 1：mpx 组件混合使用 react 组件
-
-
-Case 2：mpx 组件使用 mpx 子组件
 
 场景一：
 
@@ -159,14 +159,17 @@ Case 2：mpx 组件使用 mpx 子组件
 
 当响应式数据发生变更后发生了什么事情呢？
 
-首先响应式系统会将 watchEffect、renderEffect 在同一个异步队列当中 flush 掉，不过这里使用 nextTick 也引入了一个异步任务，那么：
+首先响应式系统会将 watchEffect、父renderEffect、子renderEffect(effect 就是上文提到的 update job) 在同一个异步队列当中 flush 掉，不过这里使用 nextTick 也引入了一个异步任务，那么：
 
-* watchEffect -> nextTick
-* renderEffect -> react hook update
+todo 补个图
 
-这里2个异步任务实际的执行时序是没法保证的，所以会遇到的问题是在 nextTick 当中**不一定能拿到子组件渲染更新完成的节点**。
+* watchEffect(queueJob) -> nextTick
+* 父renderEffect(queueJob) -> update job -> react 组件更新
+* 子renderEffect(queueJob) -> update job -> react 组件更新
 
-既然问题找到了，针对这种场景能给到的解法是：
+2个红色框内的异步任务实际的执行时序是没法保证的，所以会遇到的问题是在 nextTick 当中**不一定能拿到子组件渲染更新完成的节点**。
+
+既然问题找到了，就是父组件目前没法感知到子组件的更新渲染状态。针对这种场景能给到的解法是：
 
 1. 子组件部署 `UPDATED` 钩子，更新完成后事件通知到父组件，父组件感知到子组件完成更新后再做操作；
 2. 父子组件不做更新通讯，即子组件不做任何操作，父组件部署 `UPDATED` 钩子来感知子组件更新完成；（todo 解释下为什么这个方案理论上是可以的）子组件肯定是先于父组件的 UPDATED 钩子触发的
@@ -175,11 +178,11 @@ Case 2：mpx 组件使用 mpx 子组件
 
 在场景一当中，父子间通讯的数据是一个引用类型，在 mpx2rn 的场景下父子组件通讯过程中，props 数据是直接透传下来的，也就意味子组件访问到的响应式数据是在父组件当中的响应式数据。
 
-那么父子组件在渲染过程中，父子的 renderEffect 在执行的过程中都是访问的同一个响应式数据 list，因此 list 也就建立了和这2个 renderEffect 的联系，一旦 list 发生变更，进入到响应式系统调度的过程，父与子的 renderEffect 被放到同一个异步队列当中执行。（todo id 的比较？）
+那么父子组件在渲染过程中，父子组件的 renderEffect 在执行的过程中都是访问的同一个响应式数据 list，因此 list 也就建立了和这2个 renderEffect 的联系，一旦 list 发生变更，进入到响应式系统调度的过程，**父与子的 renderEffect 被放到同一个异步队列当中执行**，然后进入到 react 组件的更新阶段。
 
 再来看看场景二，父子间的通讯数据是一个简单类型(todo 看下 ref 类型)，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时**子组件的 renderEffect 在执行过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是像场景一一样访问的是父组件传下的原始的响应式数据**。
 
-那么在场景二的二次更新的过程当中，首先父组件的响应式数据变更，将 useSyncExternalStore schedule react update callback（父组件第一次异步），这个阶段子组件无任何变化（因为还没实际进入到组件的渲染阶段），等到 react update callback 执行后，这时才真正的触发父组件的更新操作（父组件第二次异步），进入到 react Fiber tree 的更新阶段，在子组件(react)的 render 阶段接受到的 props 是更新后的数据，同时在这个 render 阶段会由 mpx 的响应式系统来接管这个子 react 组件的渲染时机，具体的体现就是：
+那么在场景二的二次更新的过程当中，首先父组件的响应式数据变更，将 schedule update job（父组件第一次异步），这个阶段子组件无任何变化（因为还没实际进入到组件的渲染阶段），等到 update job 执行后，这时才真正的触发父组件的更新操作（父组件第二次异步），进入到 react Fiber tree 的更新阶段，在子组件(react)的 render 阶段接受到的 props 是更新后的数据，同时在这个 render 阶段会由 mpx 的响应式系统来接管这个子 react 组件的渲染时机，具体的体现就是：
 
 ```javascript
 export default getDefaultOptions({ type, rawOptions = {}, currentInject }) {
@@ -203,13 +206,29 @@ export default getDefaultOptions({ type, rawOptions = {}, currentInject }) {
 }
 ```
 
-在子 react 二次 render 的过程会将接收到的最新的 props 数据更新到 mpxProxy 实例上，其实就是会触发子组件的响应式数据的更新，进而 schedule react update callback（子组件第一次异步）推入异步更新队列，等 react update callback 实际开始执行的时候才开始子组件的更新渲染。因此二次更新的时序就是：补个图
+在子 react 组件二次 render 的过程会将接收到的最新的 props 数据更新到 mpxProxy 实例上，其实就是会触发子组件的响应式数据的更新，进而 schedule react update callback（子组件第一次异步）推入异步更新队列，等 react update callback 实际开始执行的时候才开始子组件的更新渲染。因此二次更新的时序就是：补个图
 
 也意味着父组件先完成更新，子组件再完成更新，那么父组件的 UPDATED 钩子肯定是先于子组件的 UPDATED 钩子的执行的。
 
+### Case 2：mpx 组件混合使用 react 子组件
+
+mpx 组件当中可以直接使用 react 组件（例如基础组件 view，button 等），那么 react 组件本身的渲染时机也会影响使用它的父组件的代码执行。
+
+例如在 `mpx-cube-ui` 当中封装的 `popup` 组件，它使用了 react 自定义组件 `root-portal`。`popup` 本身需要渲染的节点内容最终都是作为 `root-portal` 的子组件。
+
+在 `root-portal` 的实现当中接受到的子组件并不是同步渲染的，而是在组件的 useEffect 当中去 setState 来触发组件的更新，并将 popup 实际的内容渲染出来。
+
+```javascript
+<popup 
+  wx:if="{{ showPopup }}"
+  wx:ref="popup">
+  </popup>
+```
+
+有个场景就是通过 `wx:if` 来控制 popup 的渲染时机并调用 popup show 方法来展示组件。不过因为 popup 在展示之前需要通过获取子组件的高度来决定组件移动的位置。
 
 
-### 场景三：子组件获取父组件的基础节点
+## 场景三：子组件获取父组件的基础节点
 
 由于平台能力的限制，在 mpx2rn 的场景下。
 
@@ -256,7 +275,7 @@ list 初始值为 `[]`
 跨组件获取实例需要关注哪些内容？
 
 
-初始化实例，二次渲染
+<!-- 初始化实例，二次渲染 -->
 
 
 
