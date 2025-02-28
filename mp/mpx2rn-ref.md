@@ -14,7 +14,7 @@
 <view wx:ref id="a" class="a b c"></view>
 ```
 
-代码同构，不同平台表现的差异性也决定了代码整体的可维护性；
+<!-- 代码同构，不同平台表现的差异性也决定了代码整体的可维护性； -->
 
 ### 一些概念
 
@@ -53,13 +53,13 @@ function () {
 
 桥接不同平台的组件生命周期，最终由 mpx 统一来调度生命周期的执行，一张图来表示：
 
-`ref` 能否拿到数据和节点(react)的挂载时机有强依赖关系。
+<!-- `ref` 能否拿到数据和节点(react)的挂载时机有强依赖关系。 -->
 
-React Hook 执行时机
+<!-- React Hook 执行时机 -->
 
 * mpx2rn 
 
-我们使用 mpx 作为上层的 dsl，react 作为 mpx2rn 的渲染 runtime library。也就是说我们写着 mpx 的代码，但是经过一系列的 mpx 框架的处理后变成了可以放到 react 当中执行的代码。
+我们使用 mpx 作为上层的 dsl，react 作为 mpx2rn 的渲染 runtime library。也就是说我们写着 mpx 的代码，会经过一系列的 mpx 框架的处理后变成了可以放到 react 当中执行的代码。
 
 mpx sfc ->  () => {} + mpxProxy
 
@@ -101,34 +101,35 @@ mpx sfc ->  () => {} + mpxProxy
 
 #### 初次渲染
 
-* created/attached(映射到 mpxProxy CREATED) 时机肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（正在构建 Fiber 节点）；
+* 组件 created/attached(映射到 mpxProxy CREATED)阶段肯定是拿不到的，因为这个阶段只是处于 react 组件的 render 阶段（正在构建 Fiber 节点）；
 
-* ready(映射到 mpxProxy MOUNTED) 是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
+* 组件 ready(映射到 mpxProxy MOUNTED) 阶段是一定能拿到，因为这个阶段处于 react commit 阶段，且 LayoutHook 已经先于 PassiveHook 执行完了。
 
 #### 二次更新
 
-响应式数据发生变化，触发组件二次更新，在小程序/web场景下，都会使用 nextTick 来确保拿到的是更新后的节点；但是在 mpx2rn 的场景下会出现拿不到节点的情况，这里就要介绍一下 mpx2rn 的组件渲染机制：
-
-mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新；
-对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化；
+响应式数据发生变化，触发组件二次更新，在小程序/web场景下，都会使用 nextTick 来确保拿到的是更新后的节点。但是在 mpx2rn 的场景下会出现拿不到节点的情况，这里就要介绍一下 mpx2rn 的组件渲染机制：mpx 引入了响应式系统，利用响应式系统来调度组件的渲染更新。
+<!-- 对于 React 来说组件的更新一般来自于 props、state 或者 context 的变化； -->
 
 那么对于一个 mpx2rn 的组件更新流程就是：
 
-1. 初始化一个 ReactiveEffect 建立起响应式数据和 update job effect 的关系；
-2. 响应式数据变更 -> schedule update job(queueJob) -> 同步任务执行完 -> update job(useSyncExternalStore) -> React 组件重新渲染
+1. react 组件初次 render 阶段初始化 mpxProxy 实例；
+2. 初始化一个 ReactiveEffect 建立起响应式数据和 update job effect 的关系；
+3. 响应式数据变更 -> schedule update job(queueJob) -> 同步任务执行完 -> update job effect(useSyncExternalStore) -> React 组件重新渲染
 
 **在组件二次更新的过程当中涉及了2次异步操作:**
 
-**第一次异步：响应式系统 schedule update job（react effect）；**
+**第一次异步：响应式系统 schedule update job；**
 
-**第二次异步：update job 执行会进行 react effect，react 组件更新**
+**第二次异步：update job 执行，react 组件更新**
 
-那么在这个组件二次更新的过程当中，当响应式数据发生变化后，代码执行的逻辑就是：
+那么在这个组件二次更新的场景当中，当响应式数据发生变化后，代码执行的逻辑就是：
 
-1. nextTick -> Promise.resovle
-。。。
+1. nextTick -> Promise.resovle（一次异步）
+2. schedule update job（第一次异步），update job 执行，react 组件更新（第二次异步）；
 
-但是为什么可以在 `UPDATED` 钩子里拿到呢？
+因此对于1，2这两个执行的流程的代码时机时序是没法严格保证的。
+
+但是为什么可以在 `UPDATED` 钩子里拿到节点呢？因为 `UPDATED` 钩子是在组件二次更新的 useEffect 阶段派发的，所以对应的 react 节点已经完成挂载了。
 
 
 ### 场景二：父组件获取子组件当中的基础节点
