@@ -134,20 +134,40 @@ mpx sfc ->  () => {} + mpxProxy
   <child list="{{ list }}" wx:ref="child"></child>
 </template>
 <script>
-  import { createComponent } from '@mpxjs/core'
+  import { createComponent, UPDATED } from '@mpxjs/core'
   createComponent({
     data: {
       list: []
     },
     ready() {
-      
+      setTimeout(() => {
+        Array(10).fill(0).map(i => Math.random()).forEach((id) => {
+          this.list.push({ key: id, name: 'name' + id })
+        })
+      }, 1000)
+    },
+    watch: {
+      list: function() {
+        this.$nextTick(() => {
+          const query = this.$refs.child.createSelectorQuery()
+          query.selectAll('.item').boundingClientRect().exec(res => {
+            console.log('the items rect is:', res) // 为空
+          })
+        })
+      }
+    },
+    [UPDATE]() {
+      const query = this.$refs.child.createSelectorQuery()
+      query.selectAll('.item').boundingClientRect().exec(res => {
+        console.log('the items rect is:', res) // 有值
+      })
     }
   })
 </script>
 
 // child.mpx
 <template>
-  <view wx:ref="title"></view>
+  <view wx:for="{{list}}" wx:ref class="item"></view>
 </template>
 ```
 
@@ -176,11 +196,54 @@ todo 补个图
 
 场景二：
 
+```javascript
+// parent.mpx
+<template>
+  <child wx:ref="child" currentIndex="{{currentIndex}}"></child>
+</template>
+<script>
+  import { createComponent, UPDATED } from '@mpxjs/core'
+  createComponent({
+    data: {
+      currentIndex: 0
+    },
+    ready() {
+      setTimeout(() => {
+        this.currentIndex = 1
+      }, 1000)
+    },
+    watch: {
+      currentIndex: function() {
+        this.$nextTick(() => {
+          const query = this.$refs.child.createSelectorQuery()
+          query.selectAll('.item').boundingClientRect().exec(res => {
+            console.log('the items rect is:', res) // 为空
+          })
+        })
+      }
+    },
+    [UPDATE]() {
+      const query = this.$refs.child.createSelectorQuery()
+      query.selectAll('.item').boundingClientRect().exec(res => {
+        console.log('the items rect is:', res) // 为空
+      })
+    }
+  })
+</script>
+
+// child.mpx
+<template>
+  <view wx:if="{{ currentIndex >= 1 }}">
+     <view wx:ref class="item"></view>
+  </view>
+</template>
+```
+
 在场景一当中，父子间通讯的数据是一个引用类型，在 mpx2rn 的场景下父子组件通讯过程中，props 数据是直接透传下来的，也就意味子组件访问到的响应式数据是在父组件当中的响应式数据。
 
 那么父子组件在渲染过程中，父子组件的 renderEffect 在执行的过程中都是访问的同一个响应式数据 list，因此 list 也就建立了和这2个 renderEffect 的联系，一旦 list 发生变更，进入到响应式系统调度的过程，**父与子的 renderEffect 被放到同一个异步队列当中执行**，然后进入到 react 组件的更新阶段。
 
-再来看看场景二，父子间的通讯数据是一个简单类型(todo 看下 ref 类型)，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时**子组件的 renderEffect 在执行过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是像场景一一样访问的是父组件传下的原始的响应式数据**。
+再来看看场景二，父子间的通讯数据是一个简单类型，父子间的通讯也就会变成一个非响应式数据类型的值，然后在子组件初始化的过程当中会将 props 上的这些数据初始化为响应式的数据，这时**子组件的 renderEffect 在执行过程中实际上是访问到的子组件自身的响应式数据并建立联系，而不是像场景一一样访问的是父组件传下的原始的响应式数据**。
 
 那么在场景二的二次更新的过程当中，首先父组件的响应式数据变更，将 schedule update job（父组件第一次异步），这个阶段子组件无任何变化（因为还没实际进入到组件的渲染阶段），等到 update job 执行后，这时才真正的触发父组件的更新操作（父组件第二次异步），进入到 react Fiber tree 的更新阶段，在子组件(react)的 render 阶段接受到的 props 是更新后的数据，同时在这个 render 阶段会由 mpx 的响应式系统来接管这个子 react 组件的渲染时机，具体的体现就是：
 
@@ -210,6 +273,8 @@ export default getDefaultOptions({ type, rawOptions = {}, currentInject }) {
 
 也意味着父组件先完成更新，子组件再完成更新，那么父组件的 UPDATED 钩子肯定是先于子组件的 UPDATED 钩子的执行的。
 
+对于这种场景的解法：子组件部署 `UPDATED` 钩子来感知子组件更新状态，更新完成后通过事件等通讯的方式来告知父组件子组件已经更新完成，可以拿到更新后的子组件。
+
 ### Case 2：mpx 组件混合使用 react 子组件
 
 mpx 组件当中可以直接使用 react 组件（例如基础组件 view，button 等），那么 react 组件本身的渲染时机也会影响使用它的父组件的代码执行。
@@ -230,7 +295,9 @@ mpx 组件当中可以直接使用 react 组件（例如基础组件 view，butt
 
 ## 场景三：子组件获取父组件的基础节点
 
-由于平台能力的限制，在 mpx2rn 的场景下。
+在 mpx2rn 的场景下，由于平台能力的限制，没有直接的 api 能做到在子组件获取父组件的基础节点。
+
+解法：父组件将组件实例传递给子组件，子组件去调用父组件获取基础节点。
 
 todo：看下大家目前还有哪些场景，梳理下看下相关的解法；
 
