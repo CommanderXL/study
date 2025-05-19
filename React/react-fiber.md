@@ -24,16 +24,21 @@ export default app
 // component-a.js
 function componentA(props) {
   const [cls, setCls] = useState('normal')
+  const [show, setHide] = useState(true)
   useEffect(() => {
     // do something
     setTimeout(() => {
       setCls('highlight')
+      setHide(false)
     }, 2000)
   }, [])
   return (
     <div>
       <p class={cls}></p>
       <p>{props.count}</p>
+      {
+        show ? <p>text</p> : ''
+      }
     <div>
   )
 }
@@ -482,10 +487,16 @@ function reconcileSingleElement(
     ...
   } else {
     const created = createFiberFromElement(element, returnFiber.mode, lanes) // 根据 ReactElement 来创建 Fiber 节点
-    coerceRef(created, element) // 建立 Fiber 节点和 ref 间的联系
+    coerceRef(created, element) // 将 props 接收到的 ref 属性挂载到 Fiber 节点 
     created.return = returnFiber // 通过 return 来建立起新的 Fiber 节点和父 Fiber 节点之间的联系
     return created
   }
+}
+
+// 通过 props 接受到的 ref 属性挂载到 Fiber 节点上
+function coerceRef(workInProgress: Fiber, element: ReactElement): void {
+  const refProp = element.props.ref
+  workInProgress.ref = refProp !== undefined ? refProp : null
 }
 
 function createFiberFromElement() {
@@ -765,7 +776,7 @@ function markUpdate(workInProgress) {
 
 ## Commit 阶段
 
-那么经过2次遍历的操作（beginWork、completeWork），就可以将 Fiber 节点所对应的 DOM 节点创建并关联起来了（fiber.stateNode = domNode），最终整个 Fiber Tree 也有记录了每个 hostComponent 的需要变更的操作，接下来就回到 `performWorkOnRoot` 方法当中，进入到后续的 commit 阶段：
+那么经过2次遍历的操作（beginWork、completeWork），就可以将 Fiber 节点所对应的 DOM 节点创建并关联起来了（fiber.stateNode = domNode），最终整个 Fiber Tree 也有记录了每个 hostComponent 的需要变更的操作，接下来就回到 `performWorkOnRoot` 方法当中，进入到后续的 commit 阶段（commit 阶段核心有2个触发 effect 的时间节点：mutation、layout）：
 
 ```javascript
 function renderRootSync() {
@@ -807,12 +818,28 @@ function commitRootImpl(...) {
   if (subtreeHasEffects || rootHasEffect) {
     ...
     // The next phase is the mutation phase, where we mutate the host tree.
+    // 主要完成的工作是:
+    /**
+     * 1. Host Component 节点的添加or删除
+     * 2. （函数组件）触发 HookInsertion effect（unmount、mount 阶段）
+     * 3. （函数组件）触发 HookLayout effect（unmount 阶段）
+     * 
+     * */
+
+    /**
+     * 另外需要特别注意的是不同的 hook 类型执行的时机也会有差异，依次为：
+     * HookInsertion
+     * HookLayout
+     * HookPassive
+     */
     commitMutationEffects(root, finishedWork, lanes) // 将 render 记录的 Fiber 节点操作开始进行 commit 操作
     ...
     root.current = finishedWork
 
+    // -> safelyAttachRef -> 和 HostComponent 建立 ref 关系，即调用绑定到 HostComponent 上的 ref 函数
     ...
-    commitLayoutEffects(finishedWork, root, lanes)
+    // HookLayout effect 在 mutation 阶段后 之后
+    commitLayoutEffects(finishedWork, root, lanes) // 触发带有 Update flag 的 Fiber 节点上 Hook 当中带有 HookLayout 类型的 effect 函数，例如通过 useImperativeHandle 创建的带有 effect 函数的 hook 及 useLayout hook api 等
 
     ...
     if (inlcudesSyncLane(pendingPassiveEffectsLanes) && 
@@ -848,8 +875,18 @@ function commitMutationEffectsOnFiber(finishedWork, root, lanes) {
       recursivelyTraverseMutationEffects(root, finishedWork, lanes)
       commitReconciliationEffects(finishedWork)
 
-      if (flags & Update) {
-        // do something
+      if (flags & Update) { // 如果有 Update flag
+        commitHookEffectListUnmount(
+          HookInsertion | HookHasEffect, // 目前 HookInsertion 只在 useInsertionEffect 这个 hook api 当中使用到了
+          finishedWork,
+          finishedWork.return
+        )
+        commitHookEffectListMount(HookInsertion | HookHasEffect, finishedWork)
+        commitHookLayoutUnmountEffects(
+          finishedWork,
+          finishedWork.return,
+          HookLayout | HookHasEffect // useImperativeHandle、useLayout 这2个 hook api 当中使用到了
+        )
       }
       break
     case HostRoot: {
@@ -1027,6 +1064,8 @@ function commitHookEffectListMount(flags, finishedWork) {
 
 
 ## 二次更新
+
+### 节点属性的更新
 
 在上面的 demo 示例当中，`component-a` 过 2s 后会调用 `setCls` 方法来重新设置值（有关 `useState` 触发更新的操作见 react-api 相关的内容），开启组件更新及视图更新的操作。
 
@@ -1381,6 +1420,16 @@ function commitMutationEffectsOnFiber(
 }
 ```
 
+### 节点的添加、删除
+
+todo: 节点的添加&删除流程，或者更新的流程。
+
+createElement 重新调用传入的 props，和之前的对比就不一致了？
+
+clone fiber 节点也就意味着不需要经过 ReactElement render 流程
+
+Fiber 节点 render 阶段可以中断 -> commit 阶段不能中断；
+
 ---------
 
 一个 Function Component 和 Fiber 节点间的关系是什么？
@@ -1440,6 +1489,7 @@ flushPassiveEffects
 
 flushPassiveEffectsImpl
 
+commitPassiveUnmountEffects
 commitPassiveMountEffects
 
 commitPassiveMountOnFiber
