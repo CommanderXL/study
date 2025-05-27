@@ -659,6 +659,8 @@ Fiber -> renderWithHooks -> ReactElement -> Fiber -> renderWithHooks -> ReactEle
 
 简单解释下就是：一个 Function Component 对应一个 Fiber 节点，Function Component 执行返回的 ReactElement 是用来创建这个 Fiber 节点的子 Fiber 节点。（todo: 这里对于 Fiber 节点的理解，Fiber 节点和 Function Component 之间的关系）
 
+即：Function Component 执行返回 ReactElement，react 内部会依据这个 ReactElement 去创建 Fiber 节点，进而继续进入到后续的这个 Fiber 节点的处理。
+
 这里以最开始的 app.js 当中的 function component 为例，它的最终执行结果就是返回了一个 `ReactElement`，子组件 `component-a`（同样也是 ReactElement，子组件还没执行 render）都挂载到了 `props.children` 属性上，接下里也就会为这个 ReactElement 创建对应的 Fiber 节点（和元素 `p` 标签对应），不过这个 Fiber 节点和其他 Function Component (`fiberTag = FunctionComponent`)特殊的地方在于 `fiberTag = HostComponent`，后续进入到这个 Fiber 节点处理的过程中，实际也就进入了 `updateHostComponent` 处理过程。
 
 当所有的 Fiber 节点完成了 renderWithHooks 之后（`performUnitOfWork`），然后由下向上反向的再次遍历 Fiber 节点（`completeUnitOfWork`），当前 Fiber 节点遍历完成后，再遍历其 sibling 节点，和 renderWithHooks 节点（深度优先）的遍历流程不一致：
