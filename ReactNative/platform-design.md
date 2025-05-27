@@ -1,5 +1,7 @@
 ### 架构设计
 
+RN 场景下使用的是 immutables trees（shadow tree）
+
 supportsMutation（host component 允许一些 update 等操作） -> false
 supportsPersistence -> true
 
@@ -9,6 +11,8 @@ supportsPersistence -> true
 
 
 UIManagerBinding.cpp
+
+提供了一系列供 react 访问的操作 shadow dom （和 web dom 类似）的 api
 
 * createNode
 * appendChild
@@ -37,3 +41,5 @@ export function get(
 
 
 react-native/ReactCommon/react/renderer/dom
+
+shadow dom 的具体实现

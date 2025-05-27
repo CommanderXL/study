@@ -101,7 +101,32 @@ function createContainer() {
 }
 ```
 
-createRoot 最终返回一个 ReactDOMRoot 节点的实例，挂载了 render 方法**可以接受我们自定义的 react 组件，从而进入到后续的整个应用的渲染流程当中，也就是 react 组件的渲染流程**。（我们通过 JSX 或者 createElement 书写的组件实际上是 react 当中的 ReactElement 类型）
+createRoot 最终返回一个 ReactDOMRoot 节点的实例，挂载了 render 方法**可以接受我们自定义的 react 组件，从而进入到后续的整个应用的渲染流程当中，也就是 react 组件的渲染流程**。（我们通过 JSX 或者 createElement 书写的组件实际上是 react 当中的 ReactElement 类型，每个 Function Component 都会返回一个 ReactElement，最终会通过 ReactElement 创建 Fiber 节点）
+
+```javascript
+// src/jsx/ReactJSXElement.js
+
+function ReactElement(
+  type,
+  key,
+  ...
+) {
+  ...
+  let element
+
+  element = {
+    $$typeof: REACT_ELEMENT_TYPE,
+
+    // Built-in properties that belong on the element
+    type, //  function or string or object （例如对于函数组件来说，这个 type 就是实际的函数组件的定义）
+    key,
+    ref,
+    props // 包含了 children，子节点
+  }
+
+  return element
+}
+```
 
 初始化阶段实际上是将 ReactElement 和 Fiber 节点绑定的过程；
 
