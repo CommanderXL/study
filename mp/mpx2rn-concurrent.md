@@ -167,9 +167,46 @@ function beginWork() {
 
 ```
 
+再回到整个 Fiber tree 开始处理的地方，通过 try/catch 来处理 Fiber 节点的处理过程中抛出来的异常，例如上面提到的 lazy api 返回的 LazyComponent 处理阶段抛出来的异常：`throw payload._result`，保存了加载异步组件的 promise 实例。
+
+```javascript
+function renderRootSync(root: FiberRoot, lanes: Lanes) {
+  ...
+  do {
+    try {
+      workLoopSync()
+      break
+    } catch (thrownValue) {
+      handleError(root, throwValue)
+    }
+  } while (true)
+}
+
+function handleError(root, thrownValue): void {
+  do {
+    let erroredWork = workInProgress
+    try {
+      ...
+      throwException(
+        root,
+        erroredWork.return,
+        erroredWork,
+        throwValue,
+        workInProgressRootRenderLanes
+      )
+      completeUnitOfWork(erroredWork)
+    } catch () {
+      ...
+      continue
+    }
+    return
+  } while (true)
+}
+```
 
 
-workLoop/workLoopConcurrent -> handleError(root, throwValue) // throwValue 是一个 promise 类型的数据
+
+workLoopSync/workLoopConcurrentSync -> handleError(root, throwValue) // throwValue 是一个 promise 类型的数据
 
 throwException
 
@@ -181,6 +218,22 @@ function throwException(
   value: mixed,
   rootRenderLanes: Lanes
 ) {
+  // The source fiber did not complete
   sourceFiber.flags |= Incomplete
+
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof value.then === 'function'
+  ) {
+    // This is a wakeable. The component suspended
+    const wakeable: Wakeable = (value: any)
+
+    ...
+    const suspenseBoundary = getNearestSuspenseBoundaryToCapture(returnFiber)
+    if (suspenseBoundary !== null) {
+      
+    }
+  }
 }
 ```
