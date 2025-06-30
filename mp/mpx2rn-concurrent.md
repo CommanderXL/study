@@ -324,3 +324,10 @@ function commitMutationEffectsOnFiber(
   }
 }
 ```
+
+commit 阶段，才会挂载 lazy promise.then 函数，所以这个 then callback 一直没有执行。commit 阶段时一个异步任务(setTimeout)
+
+
+queueMicrotask native 注入的函数；
+
+主线程持续被占用，导致异步函数被延迟执行；
