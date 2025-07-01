@@ -17,7 +17,118 @@
 
 ### React 能力
 
-React 也提供了获取基础节点的，
+React 提供了获取基础节点的能力：
+
+```javascript
+import { useRef, useEffect, createElement } from 'react'
+
+function Component() {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    ref.current.measure(function(x, y) {
+      // do something
+    })
+  }, [])
+
+  return createElement('div', { ref })
+}
+```
+
+同时也提供了父子组件间的通讯能力：
+
+```javascript
+import { useRef, useImperativeHandle, createElemnt } from 'react'
+
+const ParentComponent = () => {
+  const ref = useRef(null)
+
+  return createElement(ChildComponent, { ref })
+}
+
+const ChildComponent = (props, ref) => {
+  useImperativeHandle(ref, () => {
+    return {
+      show () {
+        // do something
+      }
+    }
+  })
+
+  return <div></div>
+}
+```
+
+React 提供的能力直观是能满足我们需要实现的功能。
+
+### 功能拆解
+
+我们已经清楚了上层需要实现的 api 能力，同时也清楚了 RN 平台所提供的底层 api 的能力。
+
+对于一个 mpx 组件的 Template 模版来说最终也是转化成了 render 函数：
+
+```javascript
+<template>
+  <view wx:ref="view">
+    <child-component wx:ref="childComponent"></child-component>
+  </view>
+</template>
+```
+
+```javascript
+createElement('view', {
+  ref: ''
+}, createElement('child-component', {
+  ref: ''
+}))
+```
+
+
+#### 基础组件
+
+RN 平台本身提供了一系列的基础组件：，这些基础组件只是针对 RN 平台的。
+
+微信小程序平台提供了一系列的基础组件：`View`、`Button`、`Text`、`ScrollView` 等，同样 RN 平台本身也提供了一系列的基础组件，当然这些基础组件仅针对 RN 平台的使用。
+
+Mpx2Rn 核心要解决的一个问题是以微信小程序的能力范围为跨端标准来保持平台能力的一致性，即在微信小程序平台使用的组件在其他平台下能力要保证一致。因此 Mpx2Rn 需要去利用 RN 平台提供的一系列组件去实现对标微信小程序基础组件的基础组件。举个简单的例子：
+
+`view` => `mpx-view` + `View`
+
+
+
+
+需要有一套协议来实现基础组件的 Ref 能力。
+
+```javascript
+export type HandlerRef<T, P> = {
+  getNodeInstance(): {
+    props: RefObject<P>,
+    nodeRef: RefObject<T>,
+    instance: Obj
+  }
+}
+
+export default function useNodesRef<T, P> (props: P, ref: ForwardedRef<HandlerRef<T, P>>, nodeRef: RefObject<T>, instance:Obj = {}) {
+  const _props = useRef<P | null>(null)
+  _props.current = props
+
+  useImperativeHandle(ref, () => {
+    return {
+      getNodeInstance () {
+        return {
+          props: _props,
+          nodeRef,
+          instance
+        }
+      }
+    }
+  })
+}
+```
+
+#### 自定义组件
+
+`mpx sfc` => `() => {}` + `mpxProxy`
 
 
 那么在实现 Mpx2Rn 的 Ref 能力的过程中，核心要解决的问题是：
