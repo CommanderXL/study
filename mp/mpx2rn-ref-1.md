@@ -17,7 +17,7 @@
 
 ### React 能力
 
-React 提供了获取基础节点的能力：
+React 本身提供了获取基础节点（web、rn）的能力：
 
 ```javascript
 import { useRef, useEffect, createElement } from 'react'
@@ -35,7 +35,7 @@ function Component() {
 }
 ```
 
-同时也提供了父子组件间的通讯能力：
+同时也基于 ref 的能力提供了父子组件间的通讯能力：
 
 ```javascript
 import { useRef, useImperativeHandle, createElemnt } from 'react'
@@ -59,7 +59,7 @@ const ChildComponent = (props, ref) => {
 }
 ```
 
-React 提供的能力直观是能满足我们需要实现的功能。
+React 提供的 ref 能力直观是能满足我们需要实现的微信小程序平台提供的。(todo 补个图)
 
 ### 功能拆解
 
@@ -88,12 +88,13 @@ createElement('view', {
 
 RN 平台本身提供了一系列的基础组件：，这些基础组件只是针对 RN 平台的。
 
-微信小程序平台提供了一系列的基础组件：`View`、`Button`、`Text`、`ScrollView` 等，同样 RN 平台本身也提供了一系列的基础组件，当然这些基础组件仅针对 RN 平台的使用。
+微信小程序平台提供了一系列的基础组件：`View`、`Button`、`Text`、`ScrollView` 等，同样 RN 平台本身也提供了一系列的基础组件，当然这些基础组件仅针对 RN 平台的使用。这两个平台所提供的基础组件的能力范围也有非常大的差异。
 
-Mpx2Rn 核心要解决的一个问题是以微信小程序的能力范围为跨端标准来保持平台能力的一致性，即在微信小程序平台使用的组件在其他平台下能力要保证一致。因此 Mpx2Rn 需要去利用 RN 平台提供的一系列组件去实现对标微信小程序基础组件的基础组件。举个简单的例子：
+那么对于 Mpx2Rn 来说，核心要解决的一个问题是**以微信小程序的能力范围为跨端标准来保持跨平台能力的一致性**：即在微信小程序平台使用的基础组件在其他平台下能力和行为要保证一致。因此 Mpx2Rn 也就需要利用 RN 平台提供的一系列组件去实现对标微信小程序基础组件的基础组件。举个简单的例子：
 
 `view` => `mpx-view` + `View`
 
+一个微信小程序的 `view` 基础组件最终在 Mpx2Rn 当中
 
 
 
