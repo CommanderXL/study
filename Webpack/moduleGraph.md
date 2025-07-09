@@ -103,6 +103,41 @@ class ModuleGraphConnection {
 和其他找寻模块的方法不一样的地方主要对应的使用场景。
 
 
+webpack seal 阶段是 module 都已经确定的阶段，要开始构建
+
+## ChunkGraph
+
+在 seal 阶段会通过 moduleGraph 去初始化 chunkGraph 实例，但是这个时候 chunkGraph 实例上并没有包含 chunk 相关的信息（因为在这个时候 chunk 还没创建），
+
+```javascript
+const chunkGraph = new ChunkGraph(
+  this.moduleGraph,
+  this.outputOptions.hashFunction
+)
+this.chunkGraph = chunkGraph
+
+...
+
+const chunkGraphInit = new Map()
+for (const [name, { dependencies, includeDependencies, options }] of this.entries) {
+  const chunk = this.addChunk(name) // 根据入口模块创建 chunk
+  
+  const entrypoint = new Entrypoint(options) // 创建每个 chunk 的时候，都会随之创建一个 entrypoint(特殊的 chunkGroup 实例)
+  if (!options.dependOn && !options.runtime) {
+    entrypoint.setRuntimeChunk(chunk)
+  }
+
+  entrypoint.setEntrypointChunk(chunk)
+  this.namedChunkGroups.set(name, entrypoint)
+  this.entrypoints.set(name, entrypoint)
+  this.chunkGroups.push(entrypoint) // 收集 chunkGroup 到 chunkGroups 当中
+  connectChunkGroupAndChunk(entrypoint, chunk)
+
+  ...
+}
+```
+
+处理节点逐步的创建 chunk，并建立 chunk 间的依赖关系。
 
 
 
