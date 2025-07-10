@@ -96,11 +96,11 @@ RN 平台本身提供了一系列的基础组件：，这些基础组件只是�
 
 因此在我们源码当中写的 `view` 标签，最终都是转化为 `mpx-view`（即 Mpx 框架提供的在 RN 平台上和微信小程序 view 能力对齐的自定义组件）。`mpx-view` 本身是基于 RN 提供的 `View` 基础组件做的二次封装，它是一个自定义组件，
 
-那么如果我们想要在页面/组件当中去获取 `View` 节点的 ref 始终都是绕不开自定义组件 `mpx-view`，（始终都是和 mpx-view 进行交互，还不能直接和基础节点 `View` 进行交互，除了 `view` 组件以外，Mpx2Rn 所提供的所有基础组件都面临这个问题）。
+那么如果我们想要在页面/组件当中去获取 `View` 节点的 ref 始终都是绕不开自定义组件 `mpx-view`，（始终都是和 mpx-view 进行交互，还不能直接和基础节点 `View` 进行交互，除了 `view` 组件以外，Mpx2Rn 所提供的对表微信小程序的基础组件都面临这个问题）。
 
+在 Mpx2Rn 的场景下如何获取基础节点的 ref：如何获取自定义组件当中的节点的 ref。
 
-
-需要有一套协议来实现基础组件的 Ref 能力。
+这里定义了一套协议来实现基础组件的 ref 能力。
 
 ```javascript
 export type HandlerRef<T, P> = {
@@ -129,12 +129,54 @@ export default function useNodesRef<T, P> (props: P, ref: ForwardedRef<HandlerRe
 }
 ```
 
+每一个基础组件都按照 `useNodesRef` hook 的约定来完成相关接口的部署：
+
+
+```javascript
+import { forwardRef, useRef } from 'react'
+import { View } from 'react-native'
+
+const MpxView = forwardRef((props, ref) => {
+  ...
+  const nodeRef = useRef(null)
+  useNodesRef(props, ref, nodeRef, {
+    // some other properties
+  })
+  ...
+
+  return <View ref={nodeRef}></View>
+})
+```
+
+
+
 #### 自定义组件
 
-`mpx sfc` => `() => {}` + `mpxProxy`
+`mpx sfc` => `() => {}` + `instance`
 
+对于每个 mpx sfc 来说，其实都是由一个实体的 React Function Component（以下就简称为“RFC”） 和一个抽象的 instance 构成，由 RFC 来做平台的桥接层（渲染、生命周期等），由 instance 对 RFC 来做能力的增强（响应式系统、渲染调度等）。
 
-那么在实现 Mpx2Rn 的 Ref 能力的过程中，核心要解决的问题是：
+在微信小程序的设计规范里，父组件可以通过 this.selectComponent 方法获取子组件实例对象，这样就可以直接访问组件的任意数据和方法。
+
+但是对于 RFC 来说就是一个纯函数，并没有组件实例的概念。因此 Mpx2Rn 的场景当中是通过抽象的 instance 来实现对标微信小程序的组件实例。
+
+```javascript
+export function getDefaultOptions() {
+  const defaultOptions = memo(forwardRef(props, ref) => {
+    const instanceRef = useRef(null)
+    ...
+    if (!instanceRef.current) {
+      instanceRef.current = createInstance({ propsRef, type, rawOptions, ... })
+    }
+
+    const instance = instanceRef.current
+    useImperativeHandle(ref, () =? {
+      return instance
+    })
+    ...
+  })
+}
+```
 
 
 Mpx2Rn 要实现小程序的标准规范
@@ -152,3 +194,4 @@ todo 补个图
 * 底层 api 调用（__selectRef 等的使用），special case 调用底层的 api 去做一些查询工作
 * 调用/获取时机不能过早，需要在 onMounted 之后
 * selector 的使用限制
+* 跨组件获取 ref 

@@ -131,11 +131,29 @@ for (const [name, { dependencies, includeDependencies, options }] of this.entrie
   this.namedChunkGroups.set(name, entrypoint)
   this.entrypoints.set(name, entrypoint)
   this.chunkGroups.push(entrypoint) // 收集 chunkGroup 到 chunkGroups 当中
-  connectChunkGroupAndChunk(entrypoint, chunk)
+  connectChunkGroupAndChunk(entrypoint, chunk) // 建立 chunkGroup 和 chunk 之间的关系: chunkGroup.pushChunk(chunk) && chunk.addGroup(chunkGroup)
 
   ...
+  buildChunkGraph(this, chunkGraphInit) // 创建 chunkGraph
+}
+
+
+```
+
+`buildChunkGraph`: 
+
+```javascript
+// this method created the Chunk graph from the Module graph
+const buildChunkGraph = (compilation, inputEntrypointsAndModules) => {
+
 }
 ```
+
+`SplitChunkPlugin`:
+
+
+
+
 
 处理节点逐步的创建 chunk，并建立 chunk 间的依赖关系。
 
