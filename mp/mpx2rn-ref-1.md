@@ -5,22 +5,35 @@
   
 ### 小程序的标准能力
 
-微信小程序提供了底层 api：
+微信小程序提供了用以获取平台基础节点和自定义组件实例的 api：
 
-* createQuerySelector 用以获取平台提供的基础节点(view、button 等)；
+* createQuerySelector & SelectorQuery 用以获取平台提供的基础节点(view、button 等)；
 * selectComponent/selectComponents 用以获取自定义组件实例；
 
-那么对于 ref 语法糖来说，最终通过编译+运行时结合的方案去...
+在我们使用 Mpx 进行开发的过程中，可以通过 Mpx 提供的增强能力 `wx:ref` 指令来获取模版上对应的基础节点或者自定义组件实例。事实上 `wx:ref` 本身是一个语法糖，举个例子：
 
-* this.$refs.a => this.createQuerySelector().select('#a') => 获取节点的布局等信息等；
-* this.$refs.b => this.selectComponent('#b') => 访问自定义组件实例的方法等；
+```javascript
+<template>
+  <view wx:ref="view">
+    <child-component wx:ref="childComponent"></child-component>
+  </view>
+</template>
+```
+
+* this.$refs.view 等效为 this.createQuerySelector().select() => 获取到基础节点；
+* this.$refs.childComponent 等效为 this.selectComponent() => 获取到自定义组件实例；
+
+ Mpx 框架通过编译+运行时一系列的处理使得我们不用写平台底层的代码，而是通过这一跨平台的抽象能力（wx:ref）来提高我们的开发体验和效率。
+
 
 ### React 能力
 
-React 本身提供了获取基础节点（web、rn）的能力：
+React 本身提供了获取基础节点（web、rn）的能力，通过在基础节点上部署 ref 属性来获取对应的基础节点，这样获取到基础节点后通过调用对应平台的基础节点相关 api 即可查询节点的布局位置等信息：
 
 ```javascript
+// rn 示例
 import { useRef, useEffect, createElement } from 'react'
+import { View } from 'react-native'
 
 function Component() {
   const ref = useRef(null)
@@ -31,23 +44,29 @@ function Component() {
     })
   }, [])
 
-  return createElement('div', { ref })
+  return createElement(View, { ref })
 }
 ```
 
-同时也基于 ref 的能力提供了父子组件间的通讯能力：
+除了获取基础节点外，react 也提供了父子组件间的通讯能力，父组件在创建子组件的过程中部署 ref 属性，子组件通过 `useImperativeHandle` api 来暴露需要给到父组件使用的 api：
 
 ```javascript
 import { useRef, useImperativeHandle, createElemnt } from 'react'
 
+// 父组件
 const ParentComponent = () => {
   const ref = useRef(null)
+
+  useEffect(() => {
+    
+  }, [])
 
   return createElement(ChildComponent, { ref })
 }
 
+// 子组件
 const ChildComponent = (props, ref) => {
-  useImperativeHandle(ref, () => {
+  useImperativeHandle(ref, () => { // 暴露对应的接口
     return {
       show () {
         // do something
@@ -59,7 +78,7 @@ const ChildComponent = (props, ref) => {
 }
 ```
 
-React 提供的 ref 能力直观是能满足我们需要实现的微信小程序平台提供的。(todo 补个图)
+React 提供的获取平台基础节点的能力和父子组件间通讯的能力直观是能满足我们需要实现的微信小程序平台提供的。(todo 补个图)
 
 ### 功能拆解
 
@@ -170,7 +189,7 @@ export function getDefaultOptions() {
     }
 
     const instance = instanceRef.current
-    useImperativeHandle(ref, () =? {
+    useImperativeHandle(ref, () => {
       return instance
     })
     ...
@@ -191,6 +210,7 @@ todo 补个图
 
 
 * React 组件的 Ref
+* 选择器的使用（wx:key）
 * 底层 api 调用（__selectRef 等的使用），special case 调用底层的 api 去做一些查询工作
 * 调用/获取时机不能过早，需要在 onMounted 之后
 * selector 的使用限制
