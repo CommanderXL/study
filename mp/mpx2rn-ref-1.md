@@ -84,7 +84,7 @@ const ChildComponent = (props, ref) => {
 
 ### 功能拆解
 
-具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。
+具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为节点的 `ref` 属性，接下来主要还是看对于基础节点、自定义组件来说如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
 
 ```javascript
 <template>
@@ -198,12 +198,7 @@ export function getDefaultOptions() {
 }
 ```
 
-所以在自定义组件的场景当中，
-
-
-Mpx2Rn 要实现小程序的标准规范
-
-核心要解决的问题：
+所以在自定义组件的场景当中如何通过 ref 获取组件实例呢？实际上就是把 RFC 当中创建的抽象的 instance 实例通过 `useImperativeHandle` 暴露出去即可，这样在父组件当中也就能获取到子组件的实例。
 
 ### 核心工作流程
 
@@ -211,10 +206,33 @@ todo 补个图
 
 ### Some tips
 
-
-* React 组件的 Ref
+<!-- * React 组件的 Ref
 * 选择器的使用（wx:key）
 * 底层 api 调用（__selectRef 等的使用），special case 调用底层的 api 去做一些查询工作
-* 调用/获取时机不能过早，需要在 onMounted 之后
-* selector 的使用限制
-* 跨组件获取 ref 
+* 调用/获取时机不能过早，需要在 onMounted 之后 -->
+1. selector 的使用限制
+
+目前仅支持：
+
+* id 选择器：#the-id
+* class 选择器（可连续指定多个）：.a-class、.b-class.c-class
+
+2. 跨组件获取基础节点/组件实例
+
+在微信小程序的能力下，可通过 `>>>` 选择器来跨组件获取基础节点。在 Mpx2Rn 的场景下不支持 `>>>` 选择器，可通过获取子组件的实例后，再去通过子组件实例去获取对应的基础节点、自定义组件。
+
+
+3. Mpx 混合使用 React 组件
+
+....
+
+4. 底层 api 的调用
+
+获取到底层的基础节点：
+
+```javascript
+this.$refs.xxx.nodeRefs.getNodeInstance().nodeRef.measure(function(x, y, width, height, pageX, pageY) {
+  // do something
+})
+```
+
