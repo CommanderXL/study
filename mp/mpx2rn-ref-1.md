@@ -318,12 +318,14 @@ export default function getRefsMixins () {
 
 ....
 
-4. 底层 api 的调用
+4. RN 原始节点 ref 的获取：
 
-获取到底层的基础节点：
+部分场景，业务可能需要获取到原始的 RN 基础组件 ref，那么可以直接访问 NodesRef 实例：
 
 ```javascript
-this.$refs.viewRef.nodeRefs.getNodeInstance().nodeRef.measure(function(x, y, width, height, pageX, pageY) {
+this.$refs.viewRef
+  .nodeRefs[0].getNodeInstance().nodeRef
+  .measure(function(x, y, width, height, pageX, pageY) {
   // do something
 })
 ```
