@@ -1,8 +1,3 @@
-
-* Vue 能力（抽象）-> 跨平台（$ref）
-
-提供了跨平台（mp、web、rn）、一致性（基础节点、自定义节点）的获取节点实例的**语法糖**。
-  
 ### 小程序的标准能力
 
 微信小程序提供了用以获取平台基础节点和自定义组件实例的 api：
@@ -86,6 +81,8 @@ const ChildComponent = (props, ref) => {
 
 具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为节点的 `ref` 属性，接下来主要还是看对于基础节点、自定义组件来说如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
 
+Mpx2Rn 源码：
+
 ```javascript
 <template>
   <view wx:ref="view">
@@ -93,6 +90,8 @@ const ChildComponent = (props, ref) => {
   </view>
 </template>
 ```
+
+编译后生成的 render 函数
 
 ```javascript
 createElement('view', {
@@ -202,7 +201,100 @@ export function getDefaultOptions() {
 
 ### 核心工作流程
 
-todo 补个图
+在上文提到了 `wx:ref` 其实就是一个语法糖，它是通过框架的编译 + 运行时结合的方式来实现的。
+
+#### 编译阶段
+
+主要做两件事：
+
+1. 收集并注入相关的 ref 信息；
+2. 构造好运行时所提供的函数调用 (this.__getRefVal)；
+
+```javascript
+<template>
+  <view wx:ref="view">
+    <child-component wx:ref="childComponent"></child-component>
+  </view>
+</template>
+```
+
+编译后生成的 render 函数：
+
+```javascript
+createElement('view', {
+  ref: this.__getRefVal('node', [['', 'view']], 'ref_fn_1')
+}, createElement('child-component', {
+  ref: this.__getRefVal('component', [['', 'childComponent']], 'ref_fn_2')
+}))
+```
+
+   
+最终产出的 render 函数代码会交由 react 接管进行渲染。
+
+#### 运行时
+
+1. 通过 mixin 的方式给每个组件实例混入 `__getRefVal` 方法，它的返回时一个函数，核心是通过这个函数建立起当前页面/组件和所需要获取的节点间对应关系：
+
+```javascript
+// @mpxjs/core/src/platform/builtInMixins/refsMixins.ios.js
+export default function getRefsMixins () {
+  return {
+    [BEFORECREATE] () {
+      this.__refCache = {}
+      this.__refs = {}
+      this.$refs = {}
+      this.__getRefs()
+    },
+    methods: {
+      __getRefs () {
+        const refs = this.__getRefsData() || []
+        const target = this
+        refs.forEach(({ key, type, all }) => {
+          Object.defineProperty(this.$refs, key, {
+            enumerable: true,
+            configurable: true,
+            get () {
+              if (type === 'component') {
+                return all ? target.selectAllComponents(key) : target.selectComponent(key)
+              } else {
+                return createSelectorQuery().in(target).select(key, all)
+              }
+            }
+          })
+        })
+      },
+      __getRefVal (type, selectorsConf, refFnId) {
+        if (!this.__refCache[refFnId]) {
+          this.__refCache[refFnId] = (instance) => {
+            selectorsConf.forEach((item = []) => {
+              const [prefix, selectors = ''] = item
+              if (selectors) {
+                selectors.trim().split(/\s+/).forEach(selector => {
+                  const refKey = prefix + selector
+                  const refVal = { type, instance, refFnId }
+                  this.__refs[refKey] = this.__refs[refKey] || []
+                  if (instance) { // mount
+                    this.__refs[refKey].push(refVal)
+                  } else { // unmount
+                    const index = this.__refs[refKey].findIndex(item => item.refFnId === refFnId)
+                    if (index > -1) {
+                      this.__refs[refKey].splice(index, 1)
+                    }
+                  }
+                })
+              }
+            })
+          }
+        }
+        return this.__refCache[refFnId]
+      },
+    }
+  }
+}
+```
+
+2. 自定义组件通过 useImperativeHandle 暴露相关的接口
+3. 底层的 createSelectorQuery / NodeRef 实现就不展开说了；（补个代码实现链接）
 
 ### Some tips
 
@@ -231,7 +323,7 @@ todo 补个图
 获取到底层的基础节点：
 
 ```javascript
-this.$refs.xxx.nodeRefs.getNodeInstance().nodeRef.measure(function(x, y, width, height, pageX, pageY) {
+this.$refs.viewRef.nodeRefs.getNodeInstance().nodeRef.measure(function(x, y, width, height, pageX, pageY) {
   // do something
 })
 ```
