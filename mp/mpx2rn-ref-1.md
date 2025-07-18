@@ -304,7 +304,7 @@ export default function getRefsMixins () {
 ```
 
 2. 自定义组件通过 useImperativeHandle 暴露相关的接口
-3. 底层的 createSelectorQuery / NodeRef 实现就不展开说了；（补个代码实现链接）
+3. 底层的 [createSelectorQuery](https://github.com/didi/mpx/blob/master/packages/api-proxy/src/platform/api/create-selector-query/rnSelectQuery.js) / [NodeRef](https://github.com/didi/mpx/blob/master/packages/api-proxy/src/platform/api/create-selector-query/rnNodesRef.js) 实现可以具体参照源码；
 
 ### Some tips
 
