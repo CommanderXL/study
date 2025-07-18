@@ -51,14 +51,14 @@ function Component() {
 除了获取基础节点外，react 也提供了父子组件间的通讯能力，父组件在创建子组件的过程中部署 ref 属性，子组件通过 `useImperativeHandle` api 来暴露需要给到父组件使用的 api：
 
 ```javascript
-import { useRef, useImperativeHandle, createElemnt } from 'react'
+import { useRef, useImperativeHandle, createElement } from 'react'
 
 // 父组件
 const ParentComponent = () => {
   const ref = useRef(null)
 
   useEffect(() => {
-    
+    ref.current.show() // 调用子组件暴露的 api
   }, [])
 
   return createElement(ChildComponent, { ref })
@@ -74,15 +74,15 @@ const ChildComponent = (props, ref) => {
     }
   })
 
-  return <div></div>
+  return createElement(View)
 }
 ```
 
-直观上来看 React 提供的获取平台基础节点的能力和父子组件间通讯的能力是能满足我们需要实现的微信小程序平台所提供的获取基础节点和组件实例的能力。但是具体到功能的实现，我们需要优先看清楚平台框架之间的设计差异性，才能找到对应的解决方案。
+React 提供了获取平台基础节点的能力和父子组件间通讯的能力，直观上看 react 相关 api 的调用和设计和小程序平台还是有比较大的差异，所以接下来我们需要优先看清楚平台框架之间的设计差异性，才能找到对应的解决方案。
 
 ### 功能拆解
 
-具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为节点的 `ref` 属性，接下来主要还是看对于基础节点、自定义组件来说如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
+具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为 react 节点的 `ref` 属性，接下来就看对于编译转化后的代码是如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
 
 Mpx2Rn 源码：
 
