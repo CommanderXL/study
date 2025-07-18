@@ -2,7 +2,7 @@
 
 微信小程序提供了用以获取平台基础节点和自定义组件实例的 api：
 
-* createQuerySelector & SelectorQuery 用以获取平台提供的基础节点(view、button 等)；
+* createQuerySelector 及相关 api 用以获取平台提供的基础节点(view、button 等)；
 * selectComponent/selectComponents 用以获取自定义组件实例；
 
 在我们使用 Mpx 进行开发的过程中，可以通过 Mpx 提供的增强能力 `wx:ref` 指令来获取模版上对应的基础节点或者自定义组件实例。事实上 `wx:ref` 本身是一个语法糖，举个例子：
