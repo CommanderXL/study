@@ -1,3 +1,5 @@
+在我们使用 Mpx 进行开发的过程中，可以通过 Mpx 提供的增强能力 `wx:ref` 指令来获取模版上对应的基础节点或者自定义组件实例。
+
 ### 小程序的标准能力
 
 微信小程序提供了用以获取平台基础节点和自定义组件实例的 api：
@@ -5,7 +7,9 @@
 * createQuerySelector 及相关 api 用以获取平台提供的基础节点(view、button 等)；
 * selectComponent/selectComponents 用以获取自定义组件实例；
 
-在我们使用 Mpx 进行开发的过程中，可以通过 Mpx 提供的增强能力 `wx:ref` 指令来获取模版上对应的基础节点或者自定义组件实例。事实上 `wx:ref` 本身是一个语法糖，举个例子：
+Mpx 框架通过编译+运行时一系列的处理使得我们不用写平台底层的代码，而是提供了这一跨平台的抽象能力（wx:ref）来满足在跨小程序平台、web及现在的 RN 场景下获取节点诉求。
+
+事实上 `wx:ref` 本身是一个语法糖，举个例子：
 
 ```javascript
 <template>
@@ -15,13 +19,12 @@
 </template>
 ```
 
-* this.$refs.view 等效为 this.createQuerySelector().select() => 获取到基础节点；
-* this.$refs.childComponent 等效为 this.selectComponent() => 获取到自定义组件实例；
+* this.$refs.view 的使用会被 Mpx 处理为使用小程序的 api this.createQuerySelector().select() 调用，那么也就可以获取到 `view` 基础节点；
+* this.$refs.childComponent 的使用会被 Mpx 处理为使用小程序的 api this.selectComponent() 调用，也就可以获取到 `child-component` 自定义组件实例；
 
-Mpx 框架通过编译+运行时一系列的处理使得我们不用写平台底层的代码，而是使用这一跨平台的抽象能力（wx:ref）来满足我们研发诉求的前提下提高我们的开发体验和效率。
+除了 `wx:ref` 这一指令外，在 Mpx2Rn 的场景下核心要解决的一个问题就是：**以微信小程序的能力范围为跨端标准来保持跨平台能力的一致性**。也就是说在微信小程序提供的底层 api 能力及框架的增强能力在 Mpx2Rn 的场景下也需要保持一致，这也就意味着我们需要在保证上层 api 一致的情况下，在 RN 实现对等小程序的能力。
 
-我们清楚了 `wx:ref` 本身要解决的问题及小程序平台提供的底层能力，那么在 Mpx2Rn 的场景下核心要解决的一个问题就是：**以微信小程序的能力范围为跨端标准来保持跨平台能力的一致性**。也就是说在微信小程序提供的底层 api 能力及 `wx:ref` 增强能力在 Mpx2Rn 的场景下也需要保持一致，那也就意味着我们需要在保证上层 api 一致的情况下，在 RN 实现对等小程序的能力。（todo 描述再优化下）
-
+具体到上面的例子就是：在 Mpx2Rn 的场景下 `this.$refs.view` 和 `this.$refs.childComponent` 同样可以分别获取到 `view` 基础节点和 `child-component` 的组件实例。
 
 ### React 能力
 
@@ -311,7 +314,7 @@ export default function getRefsMixins () {
 
 2. 跨组件获取基础节点/组件实例
 
-在微信小程序的能力下，可通过 `>>>` 选择器来跨组件获取基础节点。在 Mpx2Rn 的场景下不支持 `>>>` 选择器，可通过获取子组件的实例后，再去通过子组件实例去获取对应的基础节点、自定义组件。
+在微信小程序的能力下，可通过 `>>>` 选择器来跨组件获取基础节点。因为在 Mpx2Rn 的场景下不支持 `>>>` 选择器，那么可通过获取子组件的实例后，再去通过子组件实例去获取对应的基础节点、自定义组件。
 
 
 3. Mpx 混合使用 React 组件
