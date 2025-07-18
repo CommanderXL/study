@@ -82,7 +82,7 @@ React 提供了获取平台基础节点的能力和父子组件间通讯的能�
 
 ### 功能拆解
 
-具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说，在 Mpx2Rn 的场景下最终会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为 react 节点的 `ref` 属性，接下来就看对于编译转化后的代码是如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
+具体到 Mpx2Rn 的场景来看，对于一个 mpx 组件的 template 模版来说会被编译转化为一个 react 的 render 函数，我们在模版上定义的属性、指令也都被编译处理后注入到 render 函数中，最终这个 mpx 组件的渲染会交由 react 去接管。例如在模版上定义的 `wx:ref` 指令，最终是转化为 react 节点的 `ref` 属性，接下来就看对于编译转化后的代码是如何利用 react 的能力使得在当前页面/组件可以正确获取到对应的基础组件及组件实例。
 
 Mpx2Rn 源码：
 
@@ -121,9 +121,10 @@ createElement('view', {
 
 在 Mpx2Rn 的场景下如何获取基础节点的 ref？这个问题等效于如何获取自定义组件当中的基础节点的 ref。
 
-这里定义了一套协议来实现基础组件的 ref 能力：
+这里定义了一个自定义的 hook 来实现获取基础组件的 ref 能力：
 
 ```javascript
+// webpack-plugin/lib/runtime/components/react/useNodesRef.ts
 export type HandlerRef<T, P> = {
   getNodeInstance(): {
     props: RefObject<P>,
@@ -150,31 +151,37 @@ export default function useNodesRef<T, P> (props: P, ref: ForwardedRef<HandlerRe
 }
 ```
 
-Mpx2Rn 每开发一个基础组件都需要接入并按照 `useNodesRef` hook 的约定来完成相关接口的部署：
+hook 本身还是通过调用 `useImperativeHandle` 来对外暴露统一的 api: `getNodeInstance` 来保证在页面/父组件当中可以通过 ref 访问到子组件所期望暴露的信息（props、nodeRef、instance）。
+
+那么对于 `mpx-view` 来说需要将 nodeRef 挂载到对应的 `View` 组件节点上。最终所达到的效果就是：虽然我们的代码是直接和 `mpx-view` 等自定义组件交互，但是框架侧通过一定的处理使得我们可以访问 RN 提供的 `View` 基础组件。
 
 
 ```javascript
-import { forwardRef, useRef } from 'react'
+// mpx-view.tsx
+import useNodesRef from './useNodesRef'
+import { useRef, forwardRef, createElement } from 'react'
 import { View } from 'react-native'
 
-const MpxView = forwardRef((props, ref) => {
+const _View = forwardRef((viewProps, ref) => {
   ...
   const nodeRef = useRef(null)
   useNodesRef(props, ref, nodeRef, {
-    // some other properties
+    style: normalStyle
   })
-  ...
 
-  return <View ref={nodeRef}></View>
+  return createElement(View, { ref: nodeRef })
 })
+
+_View.displayName = 'MpxView'
+
+export default _View
 ```
 
-最终所达到的效果就是：虽然我们的代码是直接和 mpx-xxx 等自定义组件交互，但是框架侧通过xxxx
-
+Mpx2Rn 每开发一个跨平台的基础组件都需要接入并按照 `useNodesRef` hook 的约定来完成相关接口的部署。
 
 #### 自定义组件
 
-`Mpx2Rn sfc` => `() => {}` + `instance`
+![mpx2rn-ref-1](../images/mp//mpx2rn-ref2.jpg)
 
 对于每个 Mpx2Rn 组件来说，其实都是由一个实体的 React Function Component（以下就简称为“RFC”） 和一个抽象的组件 instance 实例（对标微信小程序组件实例）构成，由 RFC 来做平台的桥接层（渲染、生命周期等），由 instance 对 RFC 来做能力的增强（响应式系统、渲染调度等）。
 
@@ -319,7 +326,7 @@ export default function getRefsMixins () {
 
 3. Mpx 混合使用 React 组件
 
-....
+一个 Mpx2Rn 页面/组件使用自定义的 react 组件，希望通过 `wx:ref` 来获取自定义 react 组件实例，那么可以在这个组件内部通过 `useImperativeHandle` 将相关 api 给暴露出来，即可使得在页面/父组件获取到子组件暴露的信息。
 
 4. RN 原始节点 ref 的获取：
 
