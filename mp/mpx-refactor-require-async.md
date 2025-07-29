@@ -109,4 +109,4 @@ hooks.runtimeRequirementInTree
 
 那么在 processRuntimeRequirements 的处理过程当中动态添加的 RuntimeModule，会放到下一轮的 `_runCodeGenerationJobs` 模块代码生成工作，专门处理在 processRuntimeRequirements 阶段所收集到的 RuntimeModule。
 
-注意：在 compilation codeGeneration 第一次的处理过程当中仅处理 NormalModule 等实际的静态的 module，在这个阶段只是通过 hook api 完成 RuntimeModule 的收集工作，并没有完成对于 RuntimeModule 的代码生成处理，实际的 RuntimeModule 生成工作是在 codeGeneration 的回调当中进行第二次的 `_runCodeGenerationJobs` 所开启的代码生成工作。
+注意：在 compilation codeGeneration 第一次的处理过程当中仅处理 NormalModule 等实际的静态的 module，在这个阶段只是通过 hook api 完成 RuntimeModule 的收集工作，并没有完成对于 RuntimeModule 的代码生成处理，实际的 RuntimeModule 生成工作是在 codeGeneration 的回调当中进行第二次的 `_runCodeGenerationJobs` 所开启的代码生成 module.generate() 工作。
