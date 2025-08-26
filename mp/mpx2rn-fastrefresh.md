@@ -87,3 +87,17 @@ hmr server 实现
 }
 ```
 
+inverseDependencies 反向的依赖关系：
+
+当源码当中某个模块的内容发生了变化，metro hmr server 会将变化的 module 推送到 hmr client 侧，那么在推送的代码字符串当中就包含了这个发生变化的模块的反向依赖关系，也就是哪些模块依赖了这个变化的模块，以及这些模块的其他依赖关系。那么实际在执行这段字符串代码的时候就能依据这些模块间的依赖关系来：
+
+1. 模块的重新加载执行，获取其暴露的内容；
+2. 整个应用的 fresh 的组件边界；
+
+module 加载的流程：
+
+```javascript
+metroRequire(id)
+```
+
+fiber tree 更新的流程；
