@@ -101,3 +101,13 @@ metroRequire(id)
 ```
 
 fiber tree 更新的流程；
+
+------
+
+mpx sfc 当中 js block 当中涉及到 js 处理的部分主要包括了：
+
+1. mpx_resolve_path 相关；
+2. mpx_require_external 图片资源相关的路径；
+3. require.async 能力；
+4. 条件编译相关；
+5. defs 代码注入相关；
