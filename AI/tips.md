@@ -35,3 +35,17 @@
 * 前向传播：在机器学习中，前向传播指的是输入进入神经网络并流经计算图，最终在另一端产生输出的计算过程；
 * autoregressive model 自回归模型：使用早期预测来进行后续预测的模型，例如模型使用第一个词元来生成第二个词元。
 * 语言建模头（language modeling head）
+* RoPE（rotary position embedding）旋转位置嵌入
+
+
+## 文本分类
+
+## 提示工程
+
+* temperature 温度
+* top-p 核采样
+
+
+* 思维树(tree-of-thought)
+
+需要注意的是，模型输出是否遵循指定的格式仍然取决于模型本身。有些模型比其他模型更善于遵循指令。
