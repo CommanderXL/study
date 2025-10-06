@@ -7,16 +7,18 @@
 
 模型包含了 x 个参数，每个参数都是一个数值，代表了模型与语言的理解。
 
-* foundation model 基础模型
+* foundation model 基础模型：预训练后的大语言模型；
 
 * LLM 的训练范式：
-  * 语言建模
-  * 微调
+  * 预训练：在大规模、多样化的数据集上进行训练，以形成全面的语言理解能力，即语言建模 -》具备了文本补全、少样本能力
+  * 微调：在规模较小的特定任务或领域数据集上对模型进行针对性训练，进一步提升其特定能力（例如 ChatGPT 和 GPT-3 之间的关系）
 
 * GPU 显存，在选择 GPU 时一个重要的考量因素是可用的 VRAM(video random access memory 视频随机存储器，即显存)的容量；不存在一种统一的规则可以确定一个模型具体需要多少显存容量，主要取决于模型的架构、规模、压缩技术、上下文长度、运行模型等后端的因素。
 
 
 ## 词元和嵌入
+
+词元不仅是模型的输出单位，也是模型查看输入的单位和方式。
 
 * 深入了解分词器：Designing Large Language Model Applications
 * 如果想更详细地了解分词器的训练，可以参考Hugging Face上的NLP课程中分词器相关的部分，以及Natural Language Processing with Transformers, Revised Edition一书
@@ -33,9 +35,11 @@
 ## LLM 的内部机制
 
 * 前向传播：在机器学习中，前向传播指的是输入进入神经网络并流经计算图，最终在另一端产生输出的计算过程；
-* autoregressive model 自回归模型：使用早期预测来进行后续预测的模型，例如模型使用第一个词元来生成第二个词元。
+* autoregressive model 自回归模型：将之前的输出作为未来预测的输入，例如模型使用第一个词元来生成第二个词元。
 * 语言建模头（language modeling head）
 * RoPE（rotary position embedding）旋转位置嵌入
+* 涌现（emergence）：模型能够完成未经明确训练的任务的能力，这种能力并非模型在训练期间被明确教授所得，而是其广泛接触大量多语言数据和各种上文的自然结果。
+
 
 
 ## 文本分类
