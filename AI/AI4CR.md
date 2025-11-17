@@ -90,3 +90,7 @@ BitsCR - 哪些不需要做，前期重精确度，建立信心；
 * tree-sitter ->  vue 等项目，逻辑表达
 
 
+-----
+
+CodeRabbit 业内的付费工具
+SmartCode 等工具的对比
