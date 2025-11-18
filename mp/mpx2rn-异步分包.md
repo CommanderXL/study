@@ -8,8 +8,8 @@
 
 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
-* wx.onLazyLoad
-* require.async
+* wx.onLazyLoadError
+* js bundle 异步分包 - `require.async` api
 * 页面/组件的异步分包能力
 
 等。
@@ -18,7 +18,9 @@
 
 在实际进入到 Mpx2RN 分包能力分享之前，先简单聊下 Mpx 在跨其他平台的场景当中是如何去实现异步分包的能力。从平台视角来看主要是分为小程序平台（wx/ali/tt 等），web 以及 RN。在小程序的平台场景下，由平台提供异步分包的底层的能力(包的加载、执行等能力)，对于上层的小程序应用来说完全黑盒，Mpx 在跨小程序平台的场景下只需要保证最终的代码符合分包输出规范，再交由不同的宿主小程序平台去完成最终的分包代码的编译和输出来保障分包能力的使用。
 
-但是对于 Mpx2Web 的场景来说，宿主是浏览器，**浏览器本身提供了动态插入 script 标签异步加载并执行 js 代码的能力**。运行时阶段，页面的渲染完全由 Vue 去接管，Vue 提供了[异步组件](https://v2.cn.vuejs.org/v2/guide/components-dynamic-async.html#%E5%BC%82%E6%AD%A5%E7%BB%84%E4%BB%B6)的能力，那么 Mpx2Web 的场景下...
+但是对于 Mpx2Web 的场景来说，代码运行的宿主是浏览器，**浏览器本身提供了动态插入 script 标签异步加载并执行 js 代码的能力**。在 Mpx2Web 的运行时阶段，页面的渲染完全由 Vue 去接管(具体的技术细节可以参见[这篇文章](https://github.com/CommanderXL/Biu-blog/issues/56))，Vue 提供了[异步组件](https://v2.cn.vuejs.org/v2/guide/components-dynamic-async.html#%E5%BC%82%E6%AD%A5%E7%BB%84%E4%BB%B6)的能力，那么 Mpx2Web 的场景要**遵照微信小程序的规范来实现异步分包的能力**，最终也就是在编译构建阶段转为 Vue 异步组件。
+
+Mpx 侧来完成代码的转换，构建工具 webpack 完成拆包，运行时代码的处理。平台侧提供下包的能力。
 
 再回到 Mpx2RN 的场景，宿主是 RN，但是它并没有提供直接可用的异步加载并执行 js 代码的能力。此外......
 
