@@ -35,13 +35,28 @@ react async component container，dynamic import 的桥接，所以最终页面/
 * import 转换能力
 * require.async 转换能力 -> 桥接到 dynamic import 的能力
 
+### Webpack Code Splitting
 
-webpack 的 Code Splitting 能力：
 * 模块拆分
 * 模块加载
 * 模块管理
 
 webpack RuntimeModule
+
+### 分包页面
+
+### 分包组件
+
+mpx 通过扩展语法能力；
+异步分包的组件可以通过在引入阶段通过 `root` 来声明当前组件为通过异步分包的形式引入以及指定需要被分配到哪个具体的分包当中。
+
+### 分包 js bundle
+
+对于分包 js bundle 来说，源码当中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 所识别。所以针对 `require.async` 引入的 js bundle 在编译环节核心要解决2个问题：
+
+* 添加 AsyncDependenciesBlock
+* 添加 ImportDependency
+
 
 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。
 
