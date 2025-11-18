@@ -9,6 +9,8 @@
 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
 * wx.onLazyLoad
+* require.async
+* 页面/组件的异步分包能力
 
 等。
 
@@ -26,14 +28,20 @@
 createElement('...')
 ```
 
-react async component container，所以最终页面/组件的代码最终都会变为异步执行的策略。
+react async component container，dynamic import 的桥接，所以最终页面/组件的代码最终都会变为异步执行的策略。
+
+* import 转换能力
+* require.async 转换能力
+
 
 webpack 的 Code Splitting 能力：
 * 模块拆分
 * 模块加载
 * 模块管理
 
-在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle
+webpack RuntimeModule
+
+在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。
 
 
 * 非常有技术复杂度的一个项目
