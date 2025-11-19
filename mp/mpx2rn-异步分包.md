@@ -45,6 +45,58 @@ webpack RuntimeModule
 
 ### 分包页面
 
+在小程序的技术开发规范当中有 Page 概念及所对应的 Page 行为和方法，不过在 react 当中并没有等价的 Page，对于 Mpx2RN 来说也就需要通过**react 自定义组件作为载体来模拟实现小程序规范当中的 Page 能力**。此外，和 Page 息息相关的还有路由系统，在小程序的技术规范当中提供了专门的路由 api 来供我们进行页面间的相互跳转、回退。
+
+不管是 Page 还是路由系统的底层能力实现都由小程序平台来提供，那么在 Mpx2RN 的场景下需要有对等的实现，在这种情况下 Mpx 作为上层的 DSL，实际的渲染工作完全是交由 RN 来进行的。
+
+`@react-navigation` 来作为路由系统
+
+```javascript
+// @mpxjs/core/src/platform/createApp.ios.js
+export default function createApp(options) {
+  ...
+  const Stack = createNativeStackNavigator()
+  const getPageScreens  = (initialRouteName, initialParams) => {
+    return Object.entries(pagesMap).map(([key, item]) => {
+      ...
+      const getComponent = () => {
+        return item.displayName ? item : item()
+      }
+      if (key === initialRouteName) {
+        return createElement(Stack.Screen, {
+          name: key,
+          getComponent,
+          initalParams,
+          layout: headerLayout
+        })
+      }
+      return createElement(Stack.Screen, {
+        name: key,
+        getComponent,
+        layout: headerLayout
+      })
+    })
+  }
+
+  ...
+  global.__mpxOptionsMap[currentInject.moduleId] = memo((props) => {
+    ...
+    return createElement(SafeAreaProvider,
+      null,
+      createElement(NavigationContainer,
+        {...},
+        createElement(Stack.Navigator,
+          {...},
+          ...getPageScreens(initalRouteName, initialParams)
+        )
+      )
+    )
+  })
+}
+```
+
+
+
 ### 分包组件
 
 mpx 通过扩展语法能力；
