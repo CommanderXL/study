@@ -35,15 +35,31 @@ react async component container，dynamic import 的桥接，所以最终页面/
 * import 转换能力
 * require.async 转换能力 -> 桥接到 dynamic import 的能力
 
+### 异步加载容器
+
 ### Webpack Code Splitting
 
-* 模块拆分
-* 模块加载
-* 模块管理
+Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
-webpack RuntimeModule
+* 模块拆分与合并；
+* 模块加载；
+* 模块管理；
 
-### 分包页面
+一个简单的示例：
+
+```javascript
+import('./a.js').then(() => { 
+  // do something
+})
+```
+
+这段代码在编译阶段... 注入 webpack RuntimeModule
+
+```javascript
+__webpack__require.e
+```
+
+### 异步分包页面
 
 在小程序的技术开发规范当中有 Page 概念及所对应的 Page 行为和方法，不过在 react 当中并没有等价的 Page，对于 Mpx2RN 来说也就需要通过**react 自定义组件作为载体来模拟实现小程序规范当中的 Page 能力**。此外，和 Page 息息相关的还有路由系统，在小程序的技术规范当中提供了专门的路由 api 来供我们进行页面间的相互跳转、回退。
 
@@ -98,12 +114,28 @@ export default function createApp(options) {
 在编译阶段将（异步分包）页面处理为...
 运行时阶段由 RN 来接管实际的渲染工作；
 
-### 分包组件
+那么对于异步分包页面来说，Navigator 组件实际消费的是异步加载容器组件，再由异步加载容器组件去调度实际需要被异步加载的组件。
+
+todo 简单补个图
+
+### 异步分包组件
 
 mpx 通过扩展语法能力；
-异步分包的组件可以通过在引入阶段通过 `root` 来声明当前组件为通过异步分包的形式引入以及指定需要被分配到哪个具体的分包当中。
+异步分包的组件可以通过在组件声明阶段使用 `root` 来声明最终被输出的分包。
 
-### 分包 js bundle
+在 Mpx2RN 的场景下，源码当中每个自定义组件通过 `json block` 来声明自身的组件依赖，这些依赖关系都会在编译阶段都会处理为...
+
+```javascript
+
+```
+
+其实是渲染的异步加载的容器组件。
+
+
+
+todo 补个图，
+
+### 异步分包 js bundle
 
 对于分包 js bundle 来说，源码当中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 所识别。所以针对 `require.async` 引入的 js bundle 在编译环节核心要解决2个问题：
 
