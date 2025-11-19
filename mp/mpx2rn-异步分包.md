@@ -95,7 +95,8 @@ export default function createApp(options) {
 }
 ```
 
-
+在编译阶段将（异步分包）页面处理为...
+运行时阶段由 RN 来接管实际的渲染工作；
 
 ### 分包组件
 
@@ -110,11 +111,13 @@ mpx 通过扩展语法能力；
 * 添加 ImportDependency
 
 
+在编译环节主要借助 Webpack Code Splitting 的能力进行拆包，在运行时环节 xxx
+
 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。
 
 
 * 非常有技术复杂度的一个项目
-* 问题分析(mpx、rn、微信平台能力设计)
+<!-- * 问题分析(mpx、rn、微信平台能力设计)
   * 微信平台能力标准的解读
   * webpack 的能力
   * mpx2rn 的差异
@@ -128,4 +131,4 @@ mpx 通过扩展语法能力；
 * mpx2rn（mpx & drn 交互）
 * 一些问题（ExternalModule）
   * ExternalModule
-  * RetryModule
+  * RetryModule -->
