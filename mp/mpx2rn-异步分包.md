@@ -42,7 +42,7 @@ react async component container，dynamic import 的桥接，所以最终页面/
 Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
 * 模块拆分与合并；
-* 模块加载；
+* 模块加载与执行；
 * 模块管理；
 
 一个简单的示例：
@@ -53,7 +53,13 @@ import('./a.js').then(() => {
 })
 ```
 
-这段代码在编译阶段... 注入 webpack RuntimeModule
+这段代码在 parse 阶段会被 webpack 识别到使用了 dynamic import 的能力
+
+从功能定位上来说，runtimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法。
+
+然后在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法。
+
+注入 webpack RuntimeModule
 
 ```javascript
 __webpack__require.e
