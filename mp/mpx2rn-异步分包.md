@@ -55,7 +55,11 @@ react async component container，dynamic import 的桥接，所以最终页面/
 
 ### 异步加载容器
 
-在支持异步分包能力之前，页面/组件都是同步引入的方式。
+为了支持异步页面/组件，我们通过实现一个**异步加载的容器来管理异步页面/组件的加载**，主要体现在：
+
+* 异步加载状态的管理；
+* 异步加载模块的缓存与复用；
+* 占位页面(组件)&兜底页面(组件)的管理；
 
 
 ### Webpack Code Splitting 和 RuntimeModule
@@ -104,7 +108,7 @@ JsonpChunkLoadingRuntimeModule
 
 Code Splitting 当中的模块拆分和合并、模块的管理都是 webpack 提供的，其实现和平台无关。但是对于异步模块的加载强依赖平台能力，LoadScriptRuntimeModule 注入的异步加载的 js 代码强依赖浏览器环境，显然在 RN 平台下无法使用。
 
-因此一方面为了充分利用 Webpack 的 Code Splitting 的能力，另外一方面也要使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们通过 syncBail 类型的 `hooks.runtimeRequirementInTree` 来替换我们在 Mpx2RN 环境下在运行时注入的能在 RN 正常加载异步分包的运行时代码：
+因此一方面为了充分利用 Webpack 的 Code Splitting 的能力，另外一方面也要使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们通过 syncBail 类型的 `hooks.runtimeRequirementInTree` 来替换我们在 Mpx2RN 环境下注入的能在 RN 正常加载异步分包的运行时代码：
 
 ```javascript
 if (isReact(this.options.mode)) {
