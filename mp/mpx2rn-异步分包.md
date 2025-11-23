@@ -12,6 +12,9 @@
 * mpx app -> webpack -> js bundle
 * js bundle -> metro -> HBC
 
+为什么要防到 mpx 侧来做？为什么不放到 metro 来做？
+它们两者之间编译构建的区别是什么？
+
 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
 * wx.onLazyLoadError
@@ -52,7 +55,10 @@ react async component container，dynamic import 的桥接，所以最终页面/
 
 ### 异步加载容器
 
-### Webpack Code Splitting
+在支持异步分包能力之前，页面/组件都是同步引入的方式。
+
+
+### Webpack Code Splitting 和 RuntimeModule
 
 Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
@@ -88,10 +94,33 @@ import('./add.js').then((m) => {
 * LoadScriptRuntimeModule
 * ...
 
+JsonpChunkLoadingRuntimeModule
+
 对于 LoadScriptRuntimeModule 来说最终输出的代码就是浏览器环境下的异步加载 js 的代码。
 
 ```javascript
 // todo 补一段代码
+```
+
+Code Splitting 当中的模块拆分和合并、模块的管理都是 webpack 提供的，其实现和平台无关。但是对于异步模块的加载强依赖平台能力，LoadScriptRuntimeModule 注入的异步加载的 js 代码强依赖浏览器环境，显然在 RN 平台下无法使用。
+
+因此一方面为了充分利用 Webpack 的 Code Splitting 的能力，另外一方面也要使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们通过 syncBail 类型的 `hooks.runtimeRequirementInTree` 来替换我们在 Mpx2RN 环境下在运行时注入的能在 RN 正常加载异步分包的运行时代码：
+
+```javascript
+if (isReact(this.options.mode)) {
+  compilation.hooks.runtimeRequirementInTree
+    .for(RuntimeGlobals.loadScript)
+    .tap({
+      stage: -1000,
+      name: 'LoadAsyncChunk'
+    }, (chunk, set) => {
+      compilation.addRuntimeModule(
+        chunk,
+        new LoadAsyncChunkModule(this.options.rnConfig)
+      )
+      return true
+    })
+}
 ```
 
 Todo: 模块的管理
@@ -153,6 +182,8 @@ export default function createApp(options) {
 在编译阶段将（异步分包）页面处理为...
 运行时阶段由 RN 来接管实际的渲染工作；
 
+处理为 import 语法
+
 那么对于异步分包页面来说，Navigator 组件实际消费的是异步加载容器组件，再由异步加载容器组件去调度实际需要被异步加载的组件。
 
 todo 简单补个图
@@ -177,6 +208,8 @@ todo 补个图，
 ### 异步分包 js bundle
 
 对于分包 js bundle 来说，源码当中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 所识别。所以针对 `require.async` 引入的 js bundle 在编译环节核心要解决2个问题：
+
+去模拟实现 dynamic import 的能力
 
 js parser hook 
 
