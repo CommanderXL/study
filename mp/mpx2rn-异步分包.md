@@ -1,6 +1,12 @@
 ## Mpx2Rn 异步分包
 
 
+整体能力实现需要的要素：
+
+* 分包
+* 
+
+
 在 Mpx2RN 整个链路当中，涉及两个编译构建流程：
 
 * mpx app -> webpack -> js bundle
@@ -51,8 +57,12 @@ react async component container，dynamic import 的桥接，所以最终页面/
 Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
 * 模块拆分与合并；
-* 模块加载与执行；
+* 模块加载；
 * 模块管理；
+
+Mpx 充分复用 Webpack 的能力或做能力拓展
+
+Code Splitting 涉及到非常多的技术细节，**Mpx 所实现的异步分包的能力也是充分复用&拓展底层的 Code Spiltting**，这篇文章不展开底层的技术，在这里仅通过一个简单的 demo 来大致讲解下 Webpack 的处理流程。
 
 一个简单的示例：
 
@@ -70,15 +80,23 @@ import('./add.js').then((m) => {
 
 `import` api 在 parse 阶段会被 webpack 识别到使用了 dynamic import 的能力来
 
-从功能定位上来说，runtimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法。
+那么在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
 
-然后在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法。
+在运行时阶段为了能正常加载异步的 js bundle，在编译阶段 Webpack 会按需注入和异步分包有关的  RuntimeModule（从功能定位上来说，RuntimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法，在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法）：
 
-注入 webpack RuntimeModule
+* JsonpChunkLoadingRuntimeModule
+* LoadScriptRuntimeModule
+* ...
+
+对于 LoadScriptRuntimeModule 来说最终输出的代码就是浏览器环境下的异步加载 js 的代码。
 
 ```javascript
-__webpack__require.e
+// todo 补一段代码
 ```
+
+Todo: 模块的管理
+
+
 
 ### 异步分包页面
 
@@ -160,6 +178,8 @@ todo 补个图，
 
 对于分包 js bundle 来说，源码当中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 所识别。所以针对 `require.async` 引入的 js bundle 在编译环节核心要解决2个问题：
 
+js parser hook 
+
 * 添加 AsyncDependenciesBlock
 * 添加 ImportDependency
 
@@ -167,6 +187,8 @@ todo 补个图，
 在编译环节主要借助 Webpack Code Splitting 的能力进行拆包，在运行时环节 xxx
 
 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。
+
+### 异步分包 preload
 
 
 * 非常有技术复杂度的一个项目
