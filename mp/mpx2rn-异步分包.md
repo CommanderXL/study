@@ -100,6 +100,7 @@ function getAsyncSuspense(type, moduleId, componentRequest, componentName, chunk
   ${getFallback ? `getFallback: ${getFallback},` : ''}
   ${getLoading ? `getLoading: ${getLoading},` : ''}
   getChildren () {
+    // dynamic import 拆包
     return import(${getAsyncChunkName(chunkName)}${componentRequest}).then(function (res) {
       return getComponent(res, {displayName: ${JSON.stringify(componentName)}})
     })
@@ -130,7 +131,7 @@ export default function createApp(options) {
         return item.displayName ? item : item()
       }
       if (key === initialRouteName) {
-        return createElement(Stack.Screen, {
+        return createElement(Stack.Screen, { // 路由页面
           name: key,
           getComponent,
           initalParams,
@@ -162,12 +163,9 @@ export default function createApp(options) {
 }
 ```
 
-在编译阶段将（异步分包）页面处理为...
-运行时阶段由 RN 来接管实际的渲染工作；
+对于每个 Stack.Screen 组件来说会消费组件来作为路由的页面，在支持异步分包页面之前，Stack.Screen 实际渲染的就是对应声明的页面组件。**那么对于异步分包页面来说，Stack.Screen 组件实际消费的是异步加载容器组件(AsyncSuspense)，再由异步加载容器组件去管理异步加载的页面。**
 
-处理为 import 语法
-
-**那么对于异步分包页面来说，Navigator 组件实际消费的是异步加载容器组件(AsyncSuspense)，再由异步加载容器组件去管理异步加载的页面。**
+Stack.Screen -> AsyncSuspense -> Page
 
 todo 简单补个图
 
