@@ -62,7 +62,7 @@ js chunk 的实现就不一样了；
 
 ### 技术细节
 
-mpx sfc -> react 代码的过程
+mpx sfc -> react 代码的过程（中间态的代码）
 
 ### 异步加载容器
 
@@ -282,11 +282,8 @@ Todo: 模块的管理
 
 ### RN LoadChunkAsync bridge
 
-### 异步分包 preload
-
-
-* 非常有技术复杂度的一个项目
-<!-- * 问题分析(mpx、rn、微信平台能力设计)
+<!--* 非常有技术复杂度的一个项目
+ * 问题分析(mpx、rn、微信平台能力设计)
   * 微信平台能力标准的解读
   * webpack 的能力
   * mpx2rn 的差异
