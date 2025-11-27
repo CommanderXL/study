@@ -60,6 +60,10 @@ js chunk 的实现就不一样了；
 
 如何去拆？
 
+### 技术细节
+
+mpx sfc -> react 代码的过程
+
 ### 异步加载容器
 
 对于一个页面/组件暴露出来的内容是，只需要从同步 `require` api 改为 dynamic `import`
@@ -70,7 +74,7 @@ js chunk 的实现就不一样了；
 
 * 异步分包页面/组件的拆包；
 
-运行阶段：
+运行时阶段：
 
 * 异步加载状态的管理；
 * 异步加载模块的缓存与复用；
@@ -81,6 +85,7 @@ js chunk 的实现就不一样了；
   * loading；
   * fallback；
 * 异步分包页面重试；
+* 调度页面/组件的渲染；
 
 
 
@@ -163,7 +168,7 @@ export default function createApp(options) {
 }
 ```
 
-对于每个 Stack.Screen 组件来说会消费组件来作为路由的页面，在支持异步分包页面之前，Stack.Screen 实际渲染的就是对应声明的页面组件。**那么对于异步分包页面来说，Stack.Screen 组件实际消费的是异步加载容器组件(AsyncSuspense)，再由异步加载容器组件去管理异步加载的页面。**
+对于每个 Stack.Screen 组件来说会消费组件来作为路由的页面，对于非异步分包的页面，Stack.Screen 实际渲染的就是对应声明的页面组件。**对于异步分包页面来说，Stack.Screen 组件实际消费的是异步加载容器组件(AsyncSuspense)，再由异步加载容器组件去管理异步加载的页面。**
 
 Stack.Screen -> AsyncSuspense -> Page
 
@@ -171,18 +176,9 @@ todo 简单补个图
 
 #### 异步分包组件
 
-mpx 通过扩展语法能力；
-异步分包的组件可以通过在组件声明阶段使用 `root` 来声明最终被输出的分包。
+异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 js 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 AsyncSuspense 容器组件的依赖关系，再由 AsyncSuspense 管理异步组件的加载和渲染**；
 
-在 Mpx2RN 的场景下，源码当中每个自定义组件通过 `json block` 来声明自身的组件依赖，这些依赖关系都会在编译阶段都会处理为 RN 代码当中的组件引入关系。
-
-和异步分包组件一样，依赖组件首先消费的是异步加载容器组件(AsyncSuspense)，再由 AsyncSuspense 去管理异步加载的组件。
-
-
-
-其实是渲染的异步加载的容器组件。
-
-
+Component/Page -> AsyncSuspense -> Component
 
 todo 补个图，
 
