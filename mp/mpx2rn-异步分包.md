@@ -62,7 +62,9 @@ js chunk 的实现就不一样了；
 
 ### 技术细节
 
-mpx sfc -> react 代码的过程（中间态的代码）
+mpx sfc -> Mpx2RN process loader(template/script/json) -> js 代码的过程（中间态的代码）建立 （App -> 页面 -> component） 之间的依赖关系
+
+依赖关系建立 -> xx
 
 ### 异步加载容器
 
@@ -215,19 +217,20 @@ __webpack__require__.e(1).then(__webpack_require__.bind(__webpack_require__, 3))
 })
 ```
 
-`import` api 在 parse 阶段会被 webpack 识别到使用了 dynamic import 的能力来
+`import` api 在 js parse 阶段会被 webpack 识别到使用了 dynamic import 的能力来
 
-那么在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
+后续在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
 
-在运行时阶段为了能正常加载异步的 js bundle，在编译阶段 Webpack 会按需注入和异步分包有关的  RuntimeModule（从功能定位上来说，RuntimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法，在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法）：
+在运行时阶段为了能正常加载异步的 js bundle，在编译阶段 Webpack 会按需注入和异步分包有关的  RuntimeModule（从功能定位上来说，RuntimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法，在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法），和 Code Splitting 高度相关的 RuntimeModule 主要有如下2个：
 
 * JsonpChunkLoadingRuntimeModule
+
+定义了通过 Jsonp 的代码加载形式，通过劫持全局变量 `chunkLoadingGlobal.push` 方法使得 Jsonp 加载的代码
+
+
 * LoadScriptRuntimeModule
-* ...
 
-JsonpChunkLoadingRuntimeModule
-
-对于 LoadScriptRuntimeModule 来说最终输出的代码就是浏览器环境下的异步加载 js 的代码。
+LoadScriptRuntimeModule 最终输出的代码就是浏览器环境下的异步加载 js 的代码。
 
 ```javascript
 // todo 补一段代码
