@@ -195,13 +195,17 @@ todo 补个图，
 
 Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
-* 模块拆分与合并；
-* 模块加载；
-* 模块管理；
+* 编译阶段 - 模块拆分与合并；
+* 运行时 - 模块加载与管理；
+
+当然这些高度可定制的能力也被 webpack 给暴露出来，主要体现在：
+
+* 通过 webpack 对外暴露的 optimization.splitChunk 去精细化管理分包策略；
+* webpack hook 能力可以让我们直接“侵入” webpack 内部去接管异步分包代码的加载和执行；
 
 Mpx 充分复用 Webpack 的能力或做能力拓展
 
-Code Splitting 涉及到非常多的技术细节，**Mpx 所实现的异步分包的能力也是充分复用&拓展底层的 Code Spiltting**，这篇文章不展开底层的技术，在这里仅通过一个简单的 demo 来大致讲解下 Webpack 的处理流程。
+Code Splitting 涉及到非常多的技术细节，**Mpx 所实现的异步分包的能力也是充分复用&拓展底层的 Code Spiltting**，这篇文章不展开底层的技术，在这里仅通过一个简单的 js demo 来大致讲解下 Webpack 的处理流程。
 
 一个简单的示例：
 
@@ -217,34 +221,31 @@ import('./add.js').then((m) => {
 })
 
 -------
-// 编译后输出
+// 编译后输出的代码
 __webpack__require__.e(1).then(__webpack_require__.bind(__webpack_require__, 3)).then((m) => {
   // do something
 })
 ```
 
-`import` api 在 js parse 阶段会被 webpack 识别到使用了 dynamic import 的能力来
-
-后续在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
+源码当中 `import` api 在 js parse 阶段会被 webpack 识别到使用了 dynamic import 的能力，后续在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
 
 在运行时阶段为了能正常加载异步的 js bundle，在编译阶段 Webpack 会按需注入和异步分包有关的  RuntimeModule（从功能定位上来说，RuntimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法，在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法），和 Code Splitting 高度相关的 RuntimeModule 主要有如下2个：
 
 * JsonpChunkLoadingRuntimeModule
 
-定义了通过 Jsonp 的代码加载形式，通过劫持全局变量 `chunkLoadingGlobal.push` 方法使得 Jsonp 加载的代码
-
+定义了 Jsonp 格式的代码加载运行机制。注入到最终产物的运行代码会通过劫持 `chunkLoadingGlobal.push` 来管理异步 js chunk 的加载和缓存。
 
 * LoadScriptRuntimeModule
 
-LoadScriptRuntimeModule 最终输出的代码就是浏览器环境下的异步加载 js 的代码。
+LoadScriptRuntimeModule 包含了**浏览器环境下的异步加载 js 的代码**实现，这部分的代码也会被注入到最终的代码产物当中。
 
 ```javascript
 // todo 补一段代码
 ```
 
-Code Splitting 当中的模块拆分和合并、模块的管理都是 webpack 提供的，其实现和平台无关。但是对于异步模块的加载强依赖平台能力，LoadScriptRuntimeModule 注入的异步加载的 js 代码强依赖浏览器环境，显然在 RN 平台下无法使用。
+对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分和合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然在 RN 平台下无法正常使用。
 
-因此一方面为了充分利用 Webpack 的 Code Splitting 的能力，另外一方面也要使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们通过 SyncBail 类型的 `hooks.runtimeRequirementInTree` 来替换我们在 Mpx2RN 环境下注入的能在 RN 正常加载异步分包的运行时代码：
+因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们“侵入” SyncBail 类型的 `hooks.runtimeRequirementInTree` ：
 
 ```javascript
 if (isReact(this.options.mode)) {
@@ -263,14 +264,14 @@ if (isReact(this.options.mode)) {
 }
 ```
 
-`LoadAsyncChunkModule.js`：
+来确保在 Mpx2RN 场景下注入的是 Mpx 框架实现的能在 RN 正常加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
 
 ```javascript
 // packages/webpack-plugin/lib/react/LoadAsyncChunkModule.js
 class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
   ...
   generate() {
-
+    const { compilation } = this
   }
 }
 ```
