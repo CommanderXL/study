@@ -2,7 +2,7 @@
 
 因此对于 Mpx2RN 异步分包这个能力来说，包含了两层含义：
 
-* 小程序的异步分包能力定义了规范和标准；
+* 微信小程序定义了异步分包的规范和标准；
 * RN 作为宿主平台按照小程序的规范和标准提供底层的能力实现；
 
 最终一套以 Mpx 为上层 DSL 的代码，也就具备了在不同端上有着相同能力和表现的分包能力。
@@ -245,7 +245,7 @@ LoadScriptRuntimeModule 包含了**浏览器环境下的异步加载 js 的代�
 
 对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分和合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然在 RN 平台下无法正常使用。
 
-因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。按照找个思路，我们“侵入” SyncBail 类型的 `hooks.runtimeRequirementInTree` ：
+因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
 
 ```javascript
 if (isReact(this.options.mode)) {
@@ -264,7 +264,7 @@ if (isReact(this.options.mode)) {
 }
 ```
 
-来确保在 Mpx2RN 场景下注入的是 Mpx 框架实现的能在 RN 正常加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
+来确保在 Mpx2RN 场景下**注入的是 Mpx 框架实现的能在 RN 正常加载异步分包的运行时代码 `LoadAsyncChunkModule.js`**，而非 webpack 内置的 `LoadScriptRuntimeModule`：
 
 ```javascript
 // packages/webpack-plugin/lib/react/LoadAsyncChunkModule.js
