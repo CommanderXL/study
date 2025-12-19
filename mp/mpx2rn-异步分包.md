@@ -72,30 +72,34 @@ mpx sfc -> Mpx2RN process loader(template/script/json) -> js 代码的过程（�
 
 依赖关系建立 -> xx
 
-### 异步加载容器
 
-对于一个页面/组件暴露出来的内容是，只需要从同步 `require` api 改为 dynamic `import`
+参与分包的都有哪些要素呢？页面/组件/js module
 
-为了支持异步页面/组件，我们通过实现一个**异步加载容器 AsyncSuspense 来管理异步页面/组件的加载**，它主要承载了：
+### 异步分包页面/组件
 
-编译阶段：
+Mpx Component/Page -> AsyncSuspense -> react Component
 
-* 异步分包页面/组件的拆包；
+todo 补个图
 
-运行时阶段：
+#### MpxAsyncSuspense
 
-* 异步加载状态的管理；
-* 异步加载模块的缓存与复用；
+在上文也提到了在小程序平台上，由平台提供底层的分包加载的能力，当然这里面还包括了模块的缓存和复用、异常处理这些逻辑层的功能外，还包括兜底页面的渲染和重试这些视图能力。那么对于 Mpx2RN 来说需要有对等的实现。
+
+因此在能力的分层上，单独抽象了一个异步加载容器组件 `MpxAsyncSuspense` 用以异步分包页面/组件的：
+
+* 异步加载状态的管理，模块的缓存和复用；
 * 全局异常加载 api 的调用；
   * onLazyLoad
   * onLazyLoadPageError
-* 占位页面(组件)&兜底页面(组件)的渲染等；
+* 占位页面/组件&兜底页面/组件的渲染；
   * loading；
   * fallback；
 * 异步分包页面重试；
 * 调度页面/组件的渲染；
 
+那么对于参与到异步分包页面/组件来说，只需要关注自身的渲染和逻辑；
 
+<!-- 对于一个页面/组件暴露出来的内容是，只需要从同步 `require` api 改为 dynamic `import`
 
 ```javascript
 function getAsyncChunkName (chunkName) {
@@ -122,7 +126,7 @@ function getAsyncSuspense(type, moduleId, componentRequest, componentName, chunk
 }
 ```
 
-`getChildren` 方法内部通过 dynamic import api 来引入对应的异步分包页面/组件，在接下来的编译阶段由 webpack 来接管后续的分包流程。
+`getChildren` 方法内部通过 dynamic import api 来引入对应的异步分包页面/组件，在接下来的编译阶段由 webpack 来接管后续的分包流程。 -->
 
 #### 异步分包页面
 
@@ -184,12 +188,7 @@ todo 简单补个图
 
 #### 异步分包组件
 
-异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 js 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 AsyncSuspense 容器组件的依赖关系，再由 AsyncSuspense 管理异步组件的加载和渲染**；
-
-Component/Page -> AsyncSuspense -> Component
-
-todo 补个图，
-
+异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 react component 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 AsyncSuspense 容器组件的依赖关系，再由 AsyncSuspense 管理异步组件的加载和渲染**；
 
 ### Webpack Code Splitting 和 RuntimeModule
 
@@ -198,10 +197,10 @@ Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体�
 * 编译阶段 - 模块拆分与合并；
 * 运行时 - 模块加载与管理；
 
-当然这些高度可定制的能力也被 webpack 给暴露出来，主要体现在：
+对于开发者来说也有不同的方式来使用这部分的功能：
 
-* 通过 webpack 对外暴露的 optimization.splitChunk 去精细化管理分包策略；
-* webpack hook 能力可以让我们直接“侵入” webpack 内部去接管异步分包代码的加载和执行；
+* 配置 optimization.splitChunk 去精细化管理分包策略；
+* 通过 webpack hook 直接“侵入” webpack 内部去接管异步分包代码的加载和执行；
 
 Mpx 充分复用 Webpack 的能力或做能力拓展
 
@@ -237,7 +236,7 @@ __webpack__require__.e(1).then(__webpack_require__.bind(__webpack_require__, 3))
 
 * LoadScriptRuntimeModule
 
-LoadScriptRuntimeModule 包含了**浏览器环境下的异步加载 js 的代码**实现，这部分的代码也会被注入到最终的代码产物当中。
+LoadScriptRuntimeModule 提供了在**浏览器环境下的异步加载 js 的代码**实现，这部分内容会被注入到最终代码产物当中。
 
 ```javascript
 // todo 补一段代码
@@ -264,7 +263,7 @@ if (isReact(this.options.mode)) {
 }
 ```
 
-来确保在 Mpx2RN 场景下**注入的是 Mpx 框架实现的能在 RN 正常加载异步分包的运行时代码 `LoadAsyncChunkModule.js`**，而非 webpack 内置的 `LoadScriptRuntimeModule`：
+来确保在 Mpx2RN 场景下注入的是我们自定义的加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
 
 ```javascript
 // packages/webpack-plugin/lib/react/LoadAsyncChunkModule.js
