@@ -1,5 +1,13 @@
 ## Mpx2RN 异步分包
 
+在分享 Mpx2RN 的异步分包能力之前，先简单了解下在 RN 平台上的能力和限制。RN 使用 react 作为上层 dsl，那么理论上 react 本身所支持的能力基本上在 RN 平台上有对等的实现，这样才能做代码的同构。
+
+在 react 框架侧提供了 lazy + suspense 的方案去**延迟挂载组件代码**，在 web 技术体系下通过编译构建工具（如 webpack）支持 dynamic import 动态导入的能力去实现 js bundle 拆分，最终这些拆分后的代码可以通过发布到 CDN 上并按需加载，来达到减少主 bundle 体积，优化页面加载性能。
+
+在 RN 场景当中，原生支持 lazy + suspense 以及 dynamic import 的 api，但是经过 metro 编译构建后最终代码的产物仍然输出到同一个 bundle 当中，最终组件可以延迟挂载，优化页面渲染的性能，但是主 bundle 体积没有太大的变化，同时也不具备 bundle 按需加载的能力，此外 RN 官方标准 API 也并不直接支持动态执行额外的 JS Bundle。那么如果想在 RN 平台上做到和 web 能力一致，那么很显然 RN 需要在构建工具，JS Runtime 以及 Native 容器上都需要额外的能力适配才能达到和 web 技术体系下能力一致的动态加载能力。
+
+
+
 因此对于 Mpx2RN 异步分包这个能力来说，包含了两层含义：
 
 * 微信小程序定义了异步分包的规范和标准；
@@ -85,7 +93,7 @@ todo 补个图
 
 在上文也提到了在小程序平台上，由平台提供底层的分包加载的能力，当然这里面还包括了模块的缓存和复用、异常处理这些逻辑层的功能外，还包括兜底页面的渲染和重试这些视图能力。那么对于 Mpx2RN 来说需要有对等的实现。
 
-因此在能力的分层上，单独抽象了一个异步加载容器组件 `MpxAsyncSuspense` 用以异步分包页面/组件的：
+因此在能力的分层上，单独抽象了一个异步加载容器组件 `MpxAsyncSuspense` 用以管理异步分包页面/组件的：
 
 * 异步加载状态的管理，模块的缓存和复用；
 * 全局异常加载 api 的调用；
@@ -188,7 +196,7 @@ todo 简单补个图
 
 #### 异步分包组件
 
-异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 react component 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 AsyncSuspense 容器组件的依赖关系，再由 AsyncSuspense 管理异步组件的加载和渲染**；
+异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 react component 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 MpxAsyncSuspense 容器组件的依赖关系，再由 MpxAsyncSuspense 来接管异步组件的加载和渲染**；
 
 ### Webpack Code Splitting 和 RuntimeModule
 
@@ -242,7 +250,7 @@ LoadScriptRuntimeModule 提供了在**浏览器环境下的异步加载 js 的�
 // todo 补一段代码
 ```
 
-对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分和合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然在 RN 平台下无法正常使用。
+对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分和合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，**LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然这些代码在 RN 平台下无法正常使用**。
 
 因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
 
@@ -274,6 +282,8 @@ class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
   }
 }
 ```
+
+那么 Mpx2RN 加载
 
 Todo: 模块的管理
 
