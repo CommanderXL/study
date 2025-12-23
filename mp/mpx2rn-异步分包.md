@@ -6,7 +6,7 @@
 
 > 定义问题、核心能力实现
 
-### Mpx 跨小程序/web异步分包
+## Mpx 跨小程序/web异步分包
 
 先简单聊下 Mpx 在跨其他平台的场景当中是如何去实现异步分包的能力。
 
@@ -24,7 +24,7 @@
 
 **因此在 Mpx2RN 场景下，Mpx 利用 Webpack 做拆包及分包输出，分包的加载由 Mpx 提供的运行时代码来完成，最终的代码执行由 RN 来接管。** -->
 
-### RN 异步分包
+## RN 异步分包
 
 RN 使用 react 作为上层 dsl，react 本身提供了 lazy + suspense 的方案去**延迟挂载组件代码**，在 web 技术体系下通过编译构建工具（如 webpack）支持 dynamic import 动态导入的能力去实现 js bundle 拆分，最终这些拆分后的代码可以通过发布到 CDN 上并按需加载，来达到减少主 bundle 体积，优化页面加载性能。
 
@@ -51,7 +51,7 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 <!-- 为什么要防到 mpx 侧来做？为什么不放到 metro 来做？
 它们两者之间编译构建的区别是什么？ -->
 
-### Mpx2RN 异步分包
+## Mpx2RN 异步分包
 
 那么在 Mpx2RN 的场景下，情况又变的不一样了。对于 Mpx2RN 异步分包这个能力来说，包含了两层含义：
 
@@ -110,13 +110,13 @@ mpx sfc -> Mpx2RN process loader(template/script/json) -> js 代码的过程（�
 
 参与分包的都有哪些要素呢？页面/组件/js module -->
 
-### 异步分包页面/组件
+## 异步分包页面/组件
 
 Mpx Component/Page -> AsyncSuspense -> react Component
 
 todo 补个图
 
-#### MpxAsyncSuspense
+### MpxAsyncSuspense
 
 在上文也提到了在小程序平台上，由平台提供底层的分包加载的能力，其中包括了模块的缓存和复用、异常处理这些逻辑层的功能外，还包括兜底页面的渲染和重试这些视图能力。因此对于 Mpx2RN 来说也需要有对等的实现。
 
@@ -134,7 +134,7 @@ todo 补个图
 
 而对于参与到异步分包页面/组件来说，不需要关注异步加载的过程，统一交由 MpxAsyncSuspense 来管理和调度，页面/组件只需要关注自身的渲染和逻辑；
 
-#### dynamic import
+### dynamic import
 
 <!-- 对于一个页面/组件暴露出来的内容是，只需要从同步 `require` api 改为 dynamic `import`
 
@@ -165,7 +165,7 @@ function getAsyncSuspense(type, moduleId, componentRequest, componentName, chunk
 
 `getChildren` 方法内部通过 dynamic import api 来引入对应的异步分包页面/组件，在接下来的编译阶段由 webpack 来接管后续的分包流程。 -->
 
-#### 异步分包页面
+### 异步分包页面
 
 在小程序的技术开发规范当中有 Page 概念及所对应的 Page 行为和方法，不过在 react 当中并没有等价的 Page，对于 Mpx2RN 来说也就需要通过**react 自定义组件作为载体来模拟实现小程序规范当中的 Page 能力**。此外，和 Page 息息相关的还有路由系统，在小程序的技术规范当中提供了专门的路由 api 来供我们进行页面间的相互跳转、回退。
 
@@ -223,17 +223,19 @@ Stack.Screen -> AsyncSuspense -> Page
 
 todo 简单补个图
 
-#### 异步分包组件
+### 异步分包组件
 
 异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 react component 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 MpxAsyncSuspense 容器组件的依赖关系，再由 MpxAsyncSuspense 来接管异步组件的加载和渲染**；
 
-#### 异步分包 js bundle
+### 异步分包 js bundle
 
 对于分包 js bundle 来说，业务代码中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的。
 
 ```javascript
 require.async('./add.js?root=utils').then((m) => {
   // do something
+}).catch(() => {
+  // catch load async chunk error
 })
 ```
 
@@ -248,7 +250,7 @@ require.async('./add.js?root=utils').then((m) => {
 
 <!-- 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。 -->
 
-#### LoadAsyncChunkModule
+### LoadAsyncChunkModule
 
 因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
 
@@ -283,7 +285,7 @@ class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
 
 最终 webpack 加载分包的代码被重写。
 
-### Webpack Code Splitting
+## Webpack Code Splitting
 
 Mpx 使用 Webpack 作为编译构建工具。Webpack 本身提供了高度可定制的 Code Splitting 能力，它主要体现在：
 
@@ -323,7 +325,7 @@ index.js 源码当中 `import` api 在 js parse 阶段会被 webpack 识别到�
 
 * JsonpChunkLoadingRuntimeModule
 
-定义了 Jsonp 格式的代码加载运行机制（浏览器所支持的异步代码执行的方式）。注入到最终产物的代码会通过劫持 `chunkLoadingGlobal.push` 来管理异步 js chunk 的加载和缓存。
+定义了 Jsonp 格式的代码加载运行机制（浏览器所支持的异步代码执行的方式）。注入到最终产物的代码会通过劫持 `chunkLoadingGlobal.push` 来管理异步 js chunk 的加载和缓存。异步分包代码也是通过 Jsonp 的格式产出。
 
 * LoadScriptRuntimeModule
 
@@ -369,7 +371,7 @@ class LoadScriptRuntimeModule extends HelperRuntimeModule {
 
 对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分/合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，**LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然这些代码在 RN 平台下无法正常使用**。
 
-### RN LoadChunkAsync
+## RN LoadChunkAsync
 
 RN 官方标准 API 并不直接支持动态加载并执行额外的 js bundle，这项功能强依赖宿主 App 的能力实现。
 
