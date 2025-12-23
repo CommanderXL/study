@@ -1,10 +1,13 @@
 ## Mpx2RN 异步分包
 
-对于 Mpx 跨端
+对于 Mpx 跨端来说，核心思路是以微信小程序的技术规范为标准，不同端参照小程序的技术规范来补齐/抹平相关的能力实现，最终确保以 Mpx 作为上层的 DSL 跨端输出的表现一致。
 
-在分享 Mpx2RN 的异步分包能力之前，先简单了解下在 RN 平台上相关的能力和限制。
+对于 Mpx2RN 的异步分包能力来说也不例外：
 
-> 定义问题、核心能力实现
+* 由微信小程序定义异步分包的规范和标准；
+* RN 作为宿主平台按照小程序的规范和标准提供底层的能力实现；
+
+在进入 Mpx2RN 的异步分包能力分享之前，先简单了解下 Mpx 跨端在不同平台上的能力差异与实现。
 
 ## Mpx 跨小程序/web异步分包
 
@@ -89,17 +92,17 @@ Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的�
 createElement('...')
 ```
 
-react async component container，dynamic import 的桥接，所以最终页面/组件的代码最终都会变为异步执行的策略。
+<!-- react async component container，dynamic import 的桥接，所以最终页面/组件的代码最终都会变为异步执行的策略。 -->
 
-* import 转换能力
-* require.async 转换能力 -> 桥接到 dynamic import 的能力
+<!-- * import 转换能力 -->
+<!-- * require.async 转换能力 -> 桥接到 dynamic import 的能力 -->
 
 <!-- 异步分包页面/组件/js chunk -->
 
 <!-- 页面/组件可以通过 mpx 声明增强语法来实现； -->
 <!-- js chunk 的实现就不一样了； -->
 
-如何去拆？
+<!-- 如何去拆？ -->
 
 <!-- ### 技术细节
 
