@@ -316,16 +316,26 @@ class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
 
 ### 异步分包 js bundle
 
-对于分包 js bundle 来说，业务代码中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 在编译阶段被识别。所以对于 `require.async` 引入的 js bundle 主要是在 parse 阶段去模拟实现 dynamic import 的能力，使得这个模块被 webpack 当作异步模块来处理：
+对于分包 js bundle 来说，业务代码中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的。
 
-* 添加 AsyncDependenciesBlock
-* 添加 ImportDependency
+```javascript
+require.async('./add.js?root=utils').then((m) => {
+  // do something
+})
+```
 
-在编译环节主要借助 Webpack Code Splitting 的能力进行拆包，在运行时环节 xxx
+但是 `require.async` api 本身是小程序的能力规范，并不像 webpack 提供的 dynamic import 在编译阶段被识别。所以对于 `require.async` 拆分的 js bundle 主要是在 parse 阶段去模拟实现 dynamic import 的能力，使用 webpack 内置的 AsyncDependenciesBlock 和 ImportDependency 使得这个模块被 webpack 当作异步模块来处理。
+
+这里涉及到一些 webpack 依赖构建的内容，不单独展开了，有兴趣的同学可以[参阅代码](https://github.com/didi/mpx/blob/master/packages/webpack-plugin/lib/index.js#L1440-L1499)
+
+<!-- * 添加 AsyncDependenciesBlock -->
+<!-- * 添加 ImportDependency -->
+
+<!-- 在编译环节主要借助 Webpack Code Splitting 的能力进行拆包，在运行时环节 xxx -->
 
 <!-- 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。 -->
 
-### RN LoadChunkAsync bridge
+### RN LoadChunkAsync
 
 RN 官方标准 API 并不直接支持动态加载并执行额外的 js bundle，这项功能强依赖宿主 App 的能力实现。
 
