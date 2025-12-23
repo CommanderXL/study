@@ -56,9 +56,9 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 
 ## Mpx2RN 异步分包
 
-在 Mpx2RN 的场景下宿主环境变成了 App 容器。很显然如果要对等实现微信小程序的异步分包规范就需要提供一系列的底层能力。
+在 Mpx2RN 的场景下宿主环境变成了 App 容器。很显然如果要对等实现微信小程序的异步分包规范就需要提供一系列的底层能力，从能力分层上来看主要包含以下两个环节：
 
-* 上层框架支持分包输出；
+* 上层框架支持分包代码输出；
 * 容器支持分包代码的加载&执行；
 
 在 Mpx2RN 整个工程链路当中，涉及到了两个编译构建流程：
@@ -66,7 +66,7 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 * mpx app => webpack => js bundle
 * js bundle => metro => HBC
 
-其中第一阶段 Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时，最终产出可以在 RN 环境下运行的 js bundle。
+其中第一阶段 Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时代码，最终产出可以在 RN 环境下运行的 js bundle。
 
 第二阶段对于 RN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 RN 容器上运行的 HBC 代码。
 
@@ -112,11 +112,11 @@ Mpx Component/Page -> AsyncSuspense -> react Component
 
 todo 补个图
 
-### MpxAsyncSuspense
+### MpxAsyncSuspense 容器组件
 
-在上文也提到了在小程序平台上，由平台提供底层的分包加载的能力，其中包括了模块的缓存和复用、异常处理这些逻辑层的功能外，还包括兜底页面的渲染和重试这些视图能力。因此对于 Mpx2RN 来说也需要有对等的实现。
+在上文也提到了在小程序平台上，由平台提供底层的分包加载能力，此外还包括了模块的缓存和复用、异常处理这些逻辑层的功能外，以及兜底页面的渲染和重试这些视图能力。这些能力需要在 Mpx2RN 上有对等的实现。
 
-在能力的分层上，Mpx 底层单独抽象了一个异步加载容器组件 `MpxAsyncSuspense` 用以管理异步分包页面/组件的：
+在能力的分层上，Mpx 内部单独抽象了一个异步加载容器组件 `MpxAsyncSuspense` 用以管理异步分包页面/组件的：
 
 * 异步加载状态的管理，模块的缓存和复用；
 * 全局异常加载 api 的调用；
@@ -128,7 +128,7 @@ todo 补个图
 * 异步分包页面重试；
 * 调度页面/组件的渲染；
 
-而对于参与到异步分包页面/组件来说，不需要关注异步加载的过程，统一交由 MpxAsyncSuspense 来管理和调度，页面/组件只需要关注自身的渲染和逻辑；
+对于参与到异步分包页面/组件来说，不需要关注异步加载的过程，统一交由 MpxAsyncSuspense 来管理和调度，页面/组件只需要关注自身的渲染和逻辑；
 
 ### dynamic import
 
@@ -163,7 +163,7 @@ function getAsyncSuspense(type, moduleId, componentRequest, componentName, chunk
 
 ### 异步分包页面
 
-在小程序的技术开发规范当中有 Page 概念及所对应的 Page 行为和方法，不过在 react 当中并没有等价的 Page，对于 Mpx2RN 来说也就需要通过**react 自定义组件作为载体来模拟实现小程序规范当中的 Page 能力**。此外，和 Page 息息相关的还有路由系统，在小程序的技术规范当中提供了专门的路由 api 来供我们进行页面间的相互跳转、回退。
+在小程序的技术开发规范当中有 Page 概念及所对应的 Page 行为和方法，不过在 react 当中并没有等价的 Page，对于 Mpx2RN 来说也就需要通过**react 自定义组件作为载体来模拟实现小程序规范当中的 Page 能力**。同时，和 Page 息息相关的还有路由系统，在小程序的技术规范当中提供了专门的路由 api 来供我们进行页面间的相互跳转、回退。
 
 不管是 Page 还是路由系统的底层能力实现都由小程序平台来提供，那么在 Mpx2RN 的场景下需要有对等的实现，在这种情况下 Mpx 作为上层的 DSL，实际的渲染工作完全是被 RN 所接管。
 
@@ -248,7 +248,7 @@ require.async('./add.js?root=utils').then((m) => {
 
 ### LoadAsyncChunkModule
 
-因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
+为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
 
 ```javascript
 if (isReact(this.options.mode)) {
