@@ -1,5 +1,7 @@
 ## Mpx2RN 异步分包
 
+对于 Mpx 跨端
+
 在分享 Mpx2RN 的异步分包能力之前，先简单了解下在 RN 平台上相关的能力和限制。
 
 > 定义问题、核心能力实现
@@ -8,13 +10,13 @@
 
 先简单聊下 Mpx 在跨其他平台的场景当中是如何去实现异步分包的能力。
 
-从平台视角来看主要是分为小程序平台（wx/ali/tt 等），web 以及 RN。在小程序的平台场景下，由平台提供异步分包的底层的能力(包的加载、执行等能力)，对于上层的小程序应用来说完全黑盒，Mpx 在跨小程序平台的场景下只需要保证最终的代码符合分包输出规范（即代码的拆包），再交由不同的宿主小程序平台去完成最终的分包代码的编译和输出来保障分包能力的加载&执行以及分包的管理。
+从平台视角来看主要有小程序平台（wx/ali/tt 等），web。在小程序的平台场景下，由平台提供异步分包的底层的能力(包的加载、执行等能力)，对于上层的小程序应用来说完全黑盒，Mpx 在跨小程序平台的场景下只需要保证最终的代码符合分包输出规范（即代码的拆包），再交由不同的宿主小程序平台去完成最终的分包代码的编译和输出来保障分包能力的加载&执行以及分包的管理。
 
 **在 Mpx 跨小程序平台的场景下，Mpx 主要利用 Webpack 来做拆包及分包输出，实际的分包加载&执行都是由小程序平台来接管。**
 
-但是对于 Mpx2Web 的场景来说，代码实际运行的宿主是浏览器，**浏览器本身提供了动态插入 script 标签异步加载并执行 js 代码的能力**。在 Mpx2Web 的运行时阶段，页面的渲染完全由 Vue 去接管(具体的技术细节可以参见[这篇文章](https://github.com/CommanderXL/Biu-blog/issues/56))，Vue 提供了[异步组件](https://v2.cn.vuejs.org/v2/guide/components-dynamic-async.html#%E5%BC%82%E6%AD%A5%E7%BB%84%E4%BB%B6)的能力，那么 Mpx2Web 的场景要**遵照微信小程序的规范来实现异步分包的能力**，最终也就是在编译构建阶段转为 Vue 异步组件。
+对于 Mpx2Web 的场景来说，代码实际运行的宿主是浏览器，**浏览器本身提供了动态插入 script 标签异步加载并执行 js 代码的能力**。在 Mpx2Web 的运行时阶段，页面的渲染完全由 Vue 去接管(具体的技术细节可以参见[这篇文章](https://github.com/CommanderXL/Biu-blog/issues/56))，Vue 提供了[异步组件](https://v2.cn.vuejs.org/v2/guide/components-dynamic-async.html#%E5%BC%82%E6%AD%A5%E7%BB%84%E4%BB%B6)的能力，那么 Mpx2Web 的场景要**遵照微信小程序的规范来实现异步分包的能力**，最终也就是在编译构建阶段转为 Vue 异步组件。
 
-**在 Mpx2Web 场景下，Mpx 除了利用 Webpack 来做拆包及分包输出，实际的分包加载由 Webpack 提供的运行时代码来完成，最终动态加载的代码执行由浏览器来接管。**
+**在 Mpx2Web 场景下，Mpx 除了利用 Webpack 来做拆包及分包输出，实际的分包加载由 Webpack 提供的运行时代码来完成，底层能力由浏览器提供，最终动态加载的代码执行由浏览器来接管。**
 
 <!-- Mpx 侧来完成代码的转换，构建工具 webpack 完成拆包，运行时代码的处理。平台侧提供下包的能力。
 
@@ -26,7 +28,7 @@
 
 RN 使用 react 作为上层 dsl，react 本身提供了 lazy + suspense 的方案去**延迟挂载组件代码**，在 web 技术体系下通过编译构建工具（如 webpack）支持 dynamic import 动态导入的能力去实现 js bundle 拆分，最终这些拆分后的代码可以通过发布到 CDN 上并按需加载，来达到减少主 bundle 体积，优化页面加载性能。
 
-在 RN 场景当中，原生支持 lazy + suspense 以及 dynamic import 的 api，但是经过 metro 编译构建后最终代码的产物仍然输出到同一个 bundle 当中，最终组件可以延迟挂载，优化页面渲染的性能，但是主 bundle 体积没有太大的变化，同时也不具备 bundle 按需加载的能力，此外 RN 官方标准 API 也并不直接支持动态执行额外的 JS Bundle。那么如果想在 RN 平台上做到和 web 能力一致，那么很显然 RN 需要在构建工具，JS Runtime 以及 Native 容器上都需要额外的能力适配才能达到和 web 技术体系下能力一致的动态加载能力。
+在 RN 场景当中，原生支持 lazy + suspense 以及 dynamic import 的 api，但是**经过 metro 编译构建后最终代码的产物仍然输出到同一个 bundle 当中**，最终组件可以延迟挂载，优化页面渲染的性能，但是主 bundle 体积没有太大的变化，同时也不具备 bundle 按需加载的能力，此外 RN 官方标准 API 也并不直接支持动态执行额外的 JS Bundle。那么如果想在 RN 平台上做到和 web 能力一致，那么很显然 RN 需要在构建工具，JS Runtime 以及 Native 容器上都需要额外的能力适配才能达到和 web 技术体系下能力一致的动态加载能力。
 
 <!-- 但是回到 Mpx2RN 的场景下，情况又变的不一样了。对于 Mpx2RN 异步分包这个能力来说，包含了两层含义：
 
@@ -63,9 +65,11 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 * mpx app => webpack => js bundle
 * js bundle => metro => HBC
 
-Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相关的运行时，最终产出可以在 RN 环境下运行的 js bundle。
+Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时，最终产出可以在 RN 环境下运行的 js bundle。
 
 对于 DRN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 DRN 容器上运行的 HBC 代码。
+
+而是一套跨越构建工具、JS 运行时和 Native 容器的完整解决方案 。
 
 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
@@ -77,7 +81,7 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 
 规范只约定了能力的表现，一方面是上层框架，另一方面是宿主平台能力。
 
-Mpx 基于 Webpack 的分包能力。
+<!-- Mpx 基于 Webpack 的分包能力。 -->
 
 对于一个 mpx sfc 来说，不管是页面还是组件，最终都是由一个 react component 去承载。伪代码：
 
@@ -90,10 +94,10 @@ react async component container，dynamic import 的桥接，所以最终页面/
 * import 转换能力
 * require.async 转换能力 -> 桥接到 dynamic import 的能力
 
-异步分包页面/组件/js chunk
+<!-- 异步分包页面/组件/js chunk -->
 
-页面/组件可以通过 mpx 声明增强语法来实现；
-js chunk 的实现就不一样了；
+<!-- 页面/组件可以通过 mpx 声明增强语法来实现； -->
+<!-- js chunk 的实现就不一样了； -->
 
 如何去拆？
 
@@ -232,7 +236,7 @@ Mpx 深度使用 Webpack 作为编译构建工具。Webpack 本身提供了高�
 
 对于开发者来说也有不同的方式来使用这部分的功能：
 
-* 配置 optimization.splitChunk 去精细化管理分包策略；
+* 配置 optimization.splitChunk 去精细化管理分包的拆分和合并策略；
 * 通过 webpack hook 直接“侵入” webpack 内部去接管异步分包代码的加载和执行；
 
 Mpx 充分复用 Webpack 的能力或做能力拓展
@@ -259,23 +263,23 @@ __webpack__require__.e(1).then(__webpack_require__.bind(__webpack_require__, 3))
 })
 ```
 
-源码当中 `import` api 在 js parse 阶段会被 webpack 识别到使用了 dynamic import 的能力，后续在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中。当代码执行到 index.js 当中会异步加载 `add.js` 并执行。
+源码当中 `import` api 在 js parse 阶段会被 webpack 识别到使用了 dynamic import 的能力，后续在 webpack 构建 moduleGraph 的阶段会对 index.js module 添加一个 AsyncDependenciesBlock 依赖。`add.js` 最终会被 Webpack 单独输出到一个 js chunk 当中，这个 js bundle 可以被单独发布到 CDN 上。当代码实际执行到 index.js 当中会通过 `__webpack_require__.e` 方法异步加载 `add.js` 并执行。
 
 在运行时阶段为了能正常加载异步的 js bundle，在编译阶段 Webpack 会按需注入和异步分包有关的  RuntimeModule（从功能定位上来说，RuntimeModule 一般是用以注入全局的运行时模块，给 `__webpack_require__` 这个函数上去挂载相关的方法，在每个 module 内部可以通过 `__webpack_require__.xx` 方法去访问到注入的对应方法），和 Code Splitting 高度相关的 RuntimeModule 主要有如下2个：
 
 * JsonpChunkLoadingRuntimeModule
 
-定义了 Jsonp 格式的代码加载运行机制。注入到最终产物的运行代码会通过劫持 `chunkLoadingGlobal.push` 来管理异步 js chunk 的加载和缓存。
+定义了 Jsonp 格式的代码加载运行机制（浏览器所支持的异步代码执行的方式）。注入到最终产物的代码会通过劫持 `chunkLoadingGlobal.push` 来管理异步 js chunk 的加载和缓存。
 
 * LoadScriptRuntimeModule
 
-LoadScriptRuntimeModule 提供了在**浏览器环境下的异步加载 js 的代码**实现，这部分内容会被注入到最终代码产物当中。
+LoadScriptRuntimeModule 提供了在**浏览器环境下的异步加载 js 代码的具体实现**：DOM 当中动态插入需要异步加载 js bundle 的 `<script>` 标签，由浏览器接管 js 的下载及执行。这部分代码会被注入到代码产物当中。
 
 ```javascript
 // todo 补一段代码
 ```
 
-对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分和合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，**LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然这些代码在 RN 平台下无法正常使用**。
+对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分/合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，**LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然这些代码在 RN 平台下无法正常使用**。
 
 因此为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
 
@@ -296,7 +300,7 @@ if (isReact(this.options.mode)) {
 }
 ```
 
-来确保在 Mpx2RN 场景下注入的是我们自定义的加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
+确保在 Mpx2RN 场景下注入的是我们自定义的加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
 
 ```javascript
 // packages/webpack-plugin/lib/react/LoadAsyncChunkModule.js
@@ -308,23 +312,40 @@ class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
 }
 ```
 
-那么 Mpx2RN 加载
-
-Todo: 模块的管理
+最终 webpack 加载分包的代码被重写。
 
 ### 异步分包 js bundle
 
-对于分包 js bundle 来说，业务代码中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 所识别。所以对于 `require.async` 引入的 js bundle 在编译环节主要去模拟实现 dynamic import 的能力，使得这个模块被 webpack 当作异步模块来处理：
+对于分包 js bundle 来说，业务代码中使用微信小程序的 `require.async` api 来标识所依赖的 js bundle 是异步加载的，但是 `require.async` api 并不像 webpack 提供的 dynamic import 在编译阶段被识别。所以对于 `require.async` 引入的 js bundle 主要是在 parse 阶段去模拟实现 dynamic import 的能力，使得这个模块被 webpack 当作异步模块来处理：
 
 * 添加 AsyncDependenciesBlock
 * 添加 ImportDependency
 
-
 在编译环节主要借助 Webpack Code Splitting 的能力进行拆包，在运行时环节 xxx
 
-在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。
+<!-- 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。 -->
 
 ### RN LoadChunkAsync bridge
+
+RN 官方标准 API 并不直接支持动态加载并执行额外的 js bundle，这项功能强依赖宿主 App 的能力实现。
+
+在 Mpx2RN xxx，这部分都需要 RN 容器提供底层的能力 api 以供上层应用使用。rnConfig 是 Mpx 框架专为 RN 环境提供的配置对象，用于定制 RN 平台特有的行为和功能。
+
+```javascript
+import mpx from '@mpxjs/core'
+
+mpx.config.rnConfig.loadChunkAsync = function (config) {
+  // 由 RN 容器提供的分包下载并执行 api
+  return drnLoadChunkAsync(config.package)
+}
+
+mpx.config.rnConfig.downloadChunkAsync = function (packages) {
+  if (packages && packages.length) {
+    // 由 RN 容器提供的分包拉取 api
+    drnDownloadChunkAsync(packages)
+  }
+}
+```
 
 <!--* 非常有技术复杂度的一个项目
  * 问题分析(mpx、rn、微信平台能力设计)
