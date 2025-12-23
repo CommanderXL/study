@@ -4,7 +4,7 @@
 
 对于 Mpx2RN 的异步分包能力来说也不例外：
 
-* 由微信小程序定义异步分包的规范和标准；
+* 由微信小程序定义异步分包的规范和标准（参见[文档](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)）；
 * RN 作为宿主平台按照小程序的规范和标准提供底层的能力实现；
 
 在进入 Mpx2RN 的异步分包能力分享之前，先简单了解下 Mpx 跨端在不同平台上能力差异与实现。
@@ -56,41 +56,34 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 
 ## Mpx2RN 异步分包
 
-那么在 Mpx2RN 的场景下，情况又变的不一样了。对于 Mpx2RN 异步分包这个能力来说，包含了两层含义：
+在 Mpx2RN 的场景下宿主环境变成了 App 容器。很显然如果要对等实现微信小程序的异步分包规范就需要提供一系列的底层能力。
 
-* 由微信小程序定义异步分包的规范和标准；
-* RN 作为宿主平台按照小程序的规范和标准提供底层的能力实现；
-
-最终一套以 Mpx 为上层 DSL 的代码，也就具备了在不同端上有着相同能力和表现的分包能力。
+* 上层框架支持分包输出；
+* 容器支持分包代码的加载&执行；
 
 在 Mpx2RN 整个工程链路当中，涉及到了两个编译构建流程：
 
 * mpx app => webpack => js bundle
 * js bundle => metro => HBC
 
-Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时，最终产出可以在 RN 环境下运行的 js bundle。
+其中第一阶段 Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时，最终产出可以在 RN 环境下运行的 js bundle。
 
-对于 DRN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 DRN 容器上运行的 HBC 代码。
+第二阶段对于 RN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 RN 容器上运行的 HBC 代码。
+
+App 加载&执行 todo 补一张图
 
 而是一套跨越构建工具、JS 运行时和 Native 容器的完整解决方案 。
 
-在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
+<!-- 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
 * wx.onLazyLoadError
 * js bundle 异步分包 - `require.async` api
 * 页面/组件的异步分包能力
 
-等。
+等。 -->
 
-规范只约定了能力的表现，一方面是上层框架，另一方面是宿主平台能力。
 
 <!-- Mpx 基于 Webpack 的分包能力。 -->
-
-对于一个 mpx sfc 来说，不管是页面还是组件，最终都是由一个 react component 去承载。伪代码：
-
-```javascript
-createElement('...')
-```
 
 <!-- react async component container，dynamic import 的桥接，所以最终页面/组件的代码最终都会变为异步执行的策略。 -->
 
