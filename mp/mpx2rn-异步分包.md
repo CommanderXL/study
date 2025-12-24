@@ -130,6 +130,65 @@ todo 补个图
 
 对于参与到异步分包页面/组件来说，不需要关注异步加载的过程，统一交由 MpxAsyncSuspense 来管理和调度，页面/组件只需要关注自身的渲染和逻辑；
 
+### Webpack LoadAsyncChunkRuntimeModule & RN LoadChunkAsync API
+
+为了充分利用 Webpack Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，核心要解决的问题是 webpack 所提供加载异步 chunk 的能力强依赖浏览器所提供的：
+
+* script 标签异步加载 js chunk；
+* 同一上下文当中执行 js chunk；
+
+不过对于 RN 来说并没有直接可用的能力去实现以上两个功能。
+
+因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api，将原本 webpack 内置的 `LoadScriptRuntimeModule` 替换成适配 RN 异步分包能力的 `LoadAsyncChunkModule.js`：
+
+```javascript
+// 在 RN 场景下，识别到使用了 dynamic import 能力去注入 LoadAsyncChunkModule
+if (isReact(this.options.mode)) {
+  compilation.hooks.runtimeRequirementInTree
+    .for(RuntimeGlobals.loadScript)
+    .tap({
+      stage: -1000,
+      name: 'LoadAsyncChunk'
+    }, (chunk, set) => {
+      compilation.addRuntimeModule(
+        chunk,
+        new LoadAsyncChunkModule(this.options.rnConfig)
+      )
+      return true
+    })
+}
+```
+
+`LoadAsyncChunkRuntimeModule` 内部一方面充分利用 webpack code splitting 能力，另外一方面通过桥接 RN 容器所提供的 loadChunkAsync api 来实现异步分包的加载&执行的能力：
+
+```javascript
+// @mpxjs/webpack-plugin/lib/react/LoadAsyncChunkModule.js
+class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
+  ...
+  generate() {
+    const { compilation } = this
+  }
+}
+```
+
+> rnConfig 是 Mpx 框架专为 RN 环境提供的配置对象，用于定制 RN 平台特有的行为和功能。因此通过 rnConfig 挂载和分包相关的 api 来做 js context 和容器的能力桥接：
+
+```javascript
+import mpx from '@mpxjs/core'
+
+mpx.config.rnConfig.loadChunkAsync = function (config) {
+  // 由 RN 容器提供的分包下载并执行 api
+  return drnLoadChunkAsync(config.package)
+}
+
+mpx.config.rnConfig.downloadChunkAsync = function (packages) {
+  if (packages && packages.length) {
+    // 由 RN 容器提供的分包拉取 api
+    drnDownloadChunkAsync(packages)
+  }
+}
+```
+
 ### dynamic import
 
 <!-- 对于一个页面/组件暴露出来的内容是，只需要从同步 `require` api 改为 dynamic `import`
@@ -246,40 +305,7 @@ require.async('./add.js?root=utils').then((m) => {
 
 <!-- 在没有实现分包能力之前，所有的代码最终都会打成一个 js bundle，体积会大，加载时间会变长。 -->
 
-### LoadAsyncChunkModule
 
-为了充分利用 Webpack 的 Code Splitting 已有的能力，同时也想使得这一能力能在 RN 平台下能正常运行，那只要保证 LoadScriptRuntimeModule 注入的异步加载 js 代码能在 RN 平台下正常运行即可。因此，我们“侵入” webpack 内部的 SyncBail 类型 `hooks.runtimeRequirementInTree` api：
-
-```javascript
-if (isReact(this.options.mode)) {
-  compilation.hooks.runtimeRequirementInTree
-    .for(RuntimeGlobals.loadScript)
-    .tap({
-      stage: -1000,
-      name: 'LoadAsyncChunk'
-    }, (chunk, set) => {
-      compilation.addRuntimeModule(
-        chunk,
-        new LoadAsyncChunkModule(this.options.rnConfig)
-      )
-      return true
-    })
-}
-```
-
-确保在 Mpx2RN 场景下注入的是我们自定义的加载异步分包的运行时代码 `LoadAsyncChunkModule.js`，而非 webpack 内置的 `LoadScriptRuntimeModule`：
-
-```javascript
-// packages/webpack-plugin/lib/react/LoadAsyncChunkModule.js
-class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
-  ...
-  generate() {
-    const { compilation } = this
-  }
-}
-```
-
-最终 webpack 加载分包的代码被重写。
 
 ## Webpack Code Splitting
 
@@ -294,8 +320,6 @@ Mpx 使用 Webpack 作为编译构建工具。Webpack 本身提供了高度可�
 * 通过 webpack hook 直接“侵入” webpack 内部去接管异步分包代码的加载和执行；
 
 通过一个简单的 js demo 来大致讲解下 Webpack 的处理流程：
-
-一个简单的示例：
 
 ```javascript
 // add.js
@@ -367,7 +391,7 @@ class LoadScriptRuntimeModule extends HelperRuntimeModule {
 
 对于 webpack 来说，其所提供的 Code Splitting 当中的模块拆分/合并、模块的管理能力，其实现和平台无关。但是对于异步模块的加载来说，**LoadScriptRuntimeModule 所注入的代码强依赖浏览器环境才能正常运行，显然这些代码在 RN 平台下无法正常使用**。
 
-## RN LoadChunkAsync
+<!-- ## RN LoadChunkAsync
 
 RN 官方标准 API 并不直接支持动态加载并执行额外的 js bundle，这项功能强依赖宿主 App 的能力实现。
 
@@ -387,7 +411,7 @@ mpx.config.rnConfig.downloadChunkAsync = function (packages) {
     drnDownloadChunkAsync(packages)
   }
 }
-```
+``` -->
 
 <!--* 非常有技术复杂度的一个项目
  * 问题分析(mpx、rn、微信平台能力设计)
