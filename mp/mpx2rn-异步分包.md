@@ -359,33 +359,33 @@ class LoadScriptRuntimeModule extends HelperRuntimeModule {
   generate () {
     ...
     const code = Template.asString([
-			"script = document.createElement('script');",
-			scriptType ? `script.type = ${JSON.stringify(scriptType)};` : "",
-			charset ? "script.charset = 'utf-8';" : "",
-			`script.timeout = ${loadTimeout / 1000};`,
-			`if (${RuntimeGlobals.scriptNonce}) {`,
-			Template.indent(
-				`script.setAttribute("nonce", ${RuntimeGlobals.scriptNonce});`
-			),
-			"}",
-			uniqueName
-				? 'script.setAttribute("data-webpack", dataWebpackPrefix + key);'
-				: "",
-			`script.src = ${
-				this._withCreateScriptUrl
-					? `${RuntimeGlobals.createScriptUrl}(url)`
-					: "url"
-			};`,
-			crossOriginLoading
-				? Template.asString([
-						"if (script.src.indexOf(window.location.origin + '/') !== 0) {",
-						Template.indent(
-							`script.crossOrigin = ${JSON.stringify(crossOriginLoading)};`
-						),
-						"}"
-				  ])
-				: ""
-		]);
+      "script = document.createElement('script');",
+      scriptType ? `script.type = ${JSON.stringify(scriptType)};` : '',
+      charset ? "script.charset = 'utf-8';" : '',
+      `script.timeout = ${loadTimeout / 1000};`,
+      `if (${RuntimeGlobals.scriptNonce}) {`,
+      Template.indent(
+        `script.setAttribute("nonce", ${RuntimeGlobals.scriptNonce});`
+      ),
+      '}',
+      uniqueName
+        ? 'script.setAttribute("data-webpack", dataWebpackPrefix + key);'
+        : '',
+      `script.src = ${
+        this._withCreateScriptUrl
+          ? `${RuntimeGlobals.createScriptUrl}(url)`
+          : 'url'
+      };`,
+      crossOriginLoading
+        ? Template.asString([
+            "if (script.src.indexOf(window.location.origin + '/') !== 0) {",
+            Template.indent(
+              `script.crossOrigin = ${JSON.stringify(crossOriginLoading)};`
+            ),
+            '}'
+          ])
+        : ''
+    ])
     ...
   }
 }
