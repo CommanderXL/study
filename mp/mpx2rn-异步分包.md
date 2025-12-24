@@ -171,7 +171,9 @@ class LoadAsyncChunkRuntimeModule extends HelperRuntimeModule {
 }
 ```
 
-> rnConfig 是 Mpx 框架专为 RN 环境提供的配置对象，用于定制 RN 平台特有的行为和功能。因此通过 rnConfig 挂载和分包相关的 api 来做 js context 和容器的能力桥接：
+> rnConfig 是 Mpx 框架专为 RN 环境提供的配置对象，用于定制 RN 平台特有的行为和功能。
+
+在业务代码中通过 rnConfig 挂载和分包相关的 api 来做 js context 和容器的能力桥接：
 
 ```javascript
 import mpx from '@mpxjs/core'
