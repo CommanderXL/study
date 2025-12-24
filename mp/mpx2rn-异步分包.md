@@ -70,9 +70,12 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 
 第二阶段对于 RN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 RN 容器上运行的 HBC 代码。
 
+![image1](https://dpubstatic.udache.com/static/dpubimg/hEPgJLZp-SllFC5eQNZvL_process1.jpg)
 
 
-Mpx2RN 异步分包能力是一套跨越构建工具、JS Runtime和 Native 容器的完整解决方案 。
+![image2](https://dpubstatic.udache.com/static/dpubimg/0p5P_Wq2AT53W-OdJWAqt_process2.jpg)
+
+所以 Mpx2RN 异步分包能力是一套跨越构建工具、JS Runtime和 Native 容器的完整解决方案 。
 
 <!-- 在 Mpx2RN 的场景下是**以微信小程序的异步分包为规范在 RN 平台下完成同等能力的实现**，具体体现在：
 
@@ -359,13 +362,13 @@ export default function createApp(options) {
 
 对于每个 Stack.Screen 组件来说会消费组件来作为路由的页面，对于非异步分包的页面，Stack.Screen 实际渲染的就是对应声明的页面组件。**对于异步分包页面来说，Stack.Screen 组件实际消费的是异步加载容器组件(AsyncSuspense)，再由异步加载容器组件去管理异步加载的页面。**
 
-Stack.Screen -> AsyncSuspense -> Page
-
-todo 简单补个图
+![image3](https://dpubstatic.udache.com/static/dpubimg/TnejmXNhSoQJcn_Mjpjmc_process3.jpg)
 
 ### 异步分包组件
 
 异步分包组件的处理流程和异步分包页面类似，在编译阶段将 mpx sfc 处理为 react component 代码的过程中，原本是构建当前页面/组件和其依赖的组件的直接依赖关系。那么**对于异步分包组件来说是构建的当前页面/组件和 MpxAsyncSuspense 容器组件的依赖关系，再由 MpxAsyncSuspense 来接管异步组件的加载和渲染**；
+
+![image4](https://dpubstatic.udache.com/static/dpubimg/De4u5UuS5EA-sKdR-mAhJ_process4.jpg)
 
 ### 异步分包 js bundle
 
