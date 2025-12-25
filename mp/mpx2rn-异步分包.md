@@ -80,10 +80,11 @@ Mpx 的构建主要是将 mpx SFC 转化为 react component，并注入 RN 相�
 
 其中第一阶段 Mpx 的构建会将 mpx SFC 转化为 react component，并注入 RN 相关的运行时代码，最终产出可以在 RN 环境下运行的 js bundle。
 
-第二阶段对于 RN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 RN 容器上运行的 HBC 代码。
+第二阶段对于 RN 的构建来说，会消费第一阶段的 js bundle 来产出最终能在 RN 容器上运行的 HBC 代码：
 
 ![image1](https://dpubstatic.udache.com/static/dpubimg/hEPgJLZp-SllFC5eQNZvL_process1.jpg)
 
+在运行时阶段，宿主容器需要提供底层的分包加载以及代码执行的能力：
 
 ![image2](https://dpubstatic.udache.com/static/dpubimg/0p5P_Wq2AT53W-OdJWAqt_process2.jpg)
 
