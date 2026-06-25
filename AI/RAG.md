@@ -274,7 +274,7 @@ docs/biz/index.md
 
 业务知识库解决的是**业务语义到代码的索引**。它面向的是“等待应答页取消流程”“乘车码轮询逻辑”“宠物出行表单”这类 query，用户描述的是业务概念或业务流程，query 里不一定包含明确的代码 symbol。业务知识库通过页面索引、模块索引、组件索引，把这些业务语义先映射到一组稳定的代码文件位置。
 
-RAG 解决的是**代码 symbol 和代码上下文的精确召回**。它面向的是“`initFromLocation` 在小程序和 RN 下有什么区别”“`cancelOrder` 的调用链是什么”“这个 store action 被哪些页面使用”这类 query，问题里已经出现了函数名、类名、文件名、接口名等工程语义。此时 FTS、CodeGraph 能围绕这些 symbol 做更精确的定位、调用关系扩展和上下文补全。
+RAG 解决的是**代码 symbol 和代码上下文的精确召回**。它面向的是“`initFromLocation` 在小程序和 RN 下有什么区别”“`cancelOrder` 的调用链是什么” （也不是说用户最原始的 query 一定要包含这些，llm rewrite 后也会包含一些 symbol）这类有明确 symbol 符号的 query。此时 FTS、CodeGraph 能围绕这些 symbol 做更精确的定位、调用关系扩展和上下文补全。
 
 两者结合，LLM 可以根据 query 类型选择合适的第一跳召回方式，而不是一开始就在全仓库里盲搜。
 
