@@ -219,32 +219,64 @@ function checkAntiPriceReverse(order) {}
 
 > index.md is content-oriented. It's a catalog of everything in the wiki — each page listed with a link, a one-line summary, and optionally metadata like date or source count. Organized by category (entities, concepts, sources, etc.). The LLM updates it on every ingest. When answering a query, the LLM reads the index first to find relevant pages, then drills into them. This works surprisingly well at moderate scale (~100 sources, ~hundreds of pages) and avoids the need for embedding-based RAG infrastructure.
 
-乘客业务泛前端知识库就是这种思路的一个具体落地，在代码仓库里面提供了一层很薄的业务语义到代码的索引层：
+乘客业务泛前端知识库就是这种思路的一个具体落地。它的目标不是把所有源码解释一遍，而是在代码仓库里提供一层很薄的、结构化的业务语义索引，让 LLM 可以先按业务概念定位，再回到源码做精确验证。
+
+从**结构设计**上看，知识库不是平铺的 markdown 集合，而是按知识类型分层：
 
 ```text
 docs/
+  architecture/       # 架构索引：项目分层、核心依赖、公共能力
   biz/
-    index.md          # 业务页面总索引：页面ID、说明、主实现文件、页面索引
-    pages/            # 页面索引：页面定位、入口组件、组件列表、接口、数据管理
-    modules/          # 页面容器/业务组件文档：组件职责、文件路径、子组件、数据管理
+    index.md          # 业务页面总索引
+    pages/            # 页面级知识
+    modules/          # 页面容器 / 业务组件知识
+    stores/           # Store 定位知识
+  coding-standards/   # 编码规范和约束
 ```
 
-整个索引层成树状结构：
+其中最核心的是 `biz` 目录，它按照“页面 -> 模块 -> Store/接口/源码”的方向组织业务知识：
 
-* `index.md` 入口索引建立**业务语义和核心文件实体及页面索引**的关系；
-* pages 页面索引建立**组件文件实体及组件索引**的关系；
+```text
+docs/biz/index.md
+  -> docs/biz/pages/*.md
+      -> docs/biz/modules/p-*.md   # 页面容器
+      -> docs/biz/modules/c-*.md   # 业务组件
+          -> docs/biz/stores/*.md
+          -> 源码文件 / 接口路径
+```
+
+从**内容设计**上看，每类文档只承载自己这一层应该回答的问题，不把所有细节都塞进同一篇文档：
+
+1. **入口索引 `docs/biz/index.md`**：回答“这个业务场景对应哪个页面”。它用表格维护页面名称、页面唯一 ID、业务说明、主实现文件、页面文档链接。例如“平台等待应答 6.0”会被索引到 `gulfstream-hold-v6.0`，并指向对应页面文档和主实现文件。
+2. **页面文档 `docs/biz/pages/*.md`**：回答“这个页面由哪些业务模块组成”。它记录页面定位、访问路径、页面框架概览、入口组件、组件列表、调用接口、数据管理。页面文档不直接展开所有源码细节，而是把关键模块继续链接到组件/容器文档。
+3. **模块文档 `docs/biz/modules/*.md`**：回答“这个页面容器或组件负责什么”。容器文档描述公共组件、状态切换、共享 URL 参数和 Store；组件文档描述组件职责、文件路径、子组件、接口和数据依赖。这里的关键是用源文件路径作为稳定锚点，避免同一个组件被不同业务页面重复解释。
+4. **Store 文档 `docs/biz/stores/*.md`**：回答“这个 Store 的边界在哪里”。它只保留 Store 类型、文件路径和核心职责，不展开全部 state/action 字段，也不维护反向使用方，避免知识库变成源码的重复拷贝。
+
+这套设计有几个比较关键的取舍：
+
+* **入口是业务语义，不是代码目录。** 用户不会问“`src/subpackage/gulfstream/.../main.mpx` 做了什么”，更常问“等待应答页取消流程在哪里”。所以第一层索引按业务阶段、业务页面、业务场景组织，而不是按文件夹组织。
+* **内容是定位索引，不是源码复述。** 页面文档只记录入口组件、关键接口、Store、组件关系等可帮助定位的信息；可以直接从源码读到的实现细节不固化到文档里。
+* **引用方向是 top-down。** 从业务索引一路向下定位页面、模块、Store 和源码文件；下层文档不维护复杂的上层反向索引，减少循环引用和过期风险。
+* **稳定 ID 和文件路径是连接点。** 页面用页面唯一 ID，组件用全局唯一组件 ID 和源文件路径，Store 用 Store ID。这些稳定锚点让 LLM 可以从业务语义稳定落到代码实体。
 
 当用户问“等待应答页取消流程”这种需要依据业务语义定位代码的 query 时，LLM 可以先通过 Read 入口索引 `index.md` 直接定位到 `gulfstream-hold-v6.0` / `gulfstream-hold-v1.x` 这些具体的业务实体页面和对应的实体组件及索引内容，从而可以快速定位到具体的代码实现。
 
-业务知识库本身很薄，核心提供的是业务语义到文件位置粒度的索引。这套方案和 bigram 方案的差异也非常明显：
+因此，业务知识库本质上是一层“业务语义 -> 页面/模块/接口/Store/源码文件”的结构化索引。它不追求替代 RAG 或替代源码阅读，而是把业务 query 的第一跳从不确定的关键词搜索，变成稳定的业务索引命中。这套方案和 bigram 方案的差异也非常明显：
 
-* bigram 时尝试建立“中文注释 -> 代码符号间"的点状映射（而代码当中的中文注释和代码符号间并不是严格的语义和代码的映射关系，强依赖注释内容的书写质量）；
+* bigram 尝试建立“中文注释 -> 代码符号间"的点状映射（而代码当中的中文注释和代码符号间并不是严格的语义和代码的映射关系，强依赖注释内容的书写质量）；
 * 业务知识库的索引则是维护“业务语义 -> 多个代码单元协作关系”的面状映射；
 
 业务知识库在解决业务语义 query 的问题时效果还是不错的。在 single Q&A benchmark 的测试当中任务执行耗时、token消耗及 tool 调用次数都有所优化。
 
 ### 业务知识库和 RAG 间的关系
 
+业务知识库和 RAG 的目标是一致的：都是为了让 LLM 更快、更精准地定位到和当前问题相关的代码，减少盲目的 grep/read 和多轮上下文探索。两者不是互斥关系，而是面向不同类型的索引和问题场景。
+
+业务知识库解决的是**业务语义到代码的索引**。它面向的是“等待应答页取消流程”“乘车码轮询逻辑”“宠物出行表单”这类 query，用户描述的是业务概念或业务流程，query 里不一定包含明确的代码 symbol。业务知识库通过页面索引、模块索引、组件索引，把这些业务语义先映射到一组稳定的代码文件位置。
+
+RAG 解决的是**代码 symbol 和代码上下文的精确召回**。它面向的是“`initFromLocation` 在小程序和 RN 下有什么区别”“`cancelOrder` 的调用链是什么”“这个 store action 被哪些页面使用”这类 query，问题里已经出现了函数名、类名、文件名、接口名等工程语义。此时 FTS、CodeGraph 能围绕这些 symbol 做更精确的定位、调用关系扩展和上下文补全。
+
+两者结合，LLM 可以根据 query 类型选择合适的第一跳召回方式，而不是一开始就在全仓库里盲搜。
 
 ## 4. 代码 RAG 在 long-running task 当中的困境
 
