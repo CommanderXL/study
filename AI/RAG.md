@@ -1,5 +1,7 @@
 
-## 1. Agentic Retrieve Code
+> **RAG（Retrieval-Augmented Generation，检索增强生成）** 是一类在生成答案之前先检索相关上下文的技术方案的统称。FTS 全文检索、基于 CodeGraph 的图检索，向量化 embedding 是实现 RAG 的不同技术方案。本文讨论的代码 RAG，核心目标是：在 AI Coding 场景中，让 LLM 通过少量工具调用就能拿到足够相关的代码上下文，而不是依赖 grep/read 的多轮盲搜。
+
+## 1. Agentic Search
    
 AI Coding 的核心前提，是 Agent 能够快速找到和当前问题相关的代码上下文。但在真实的工程实践中，用户使用自然语言提问，例如“乘车码轮询逻辑在哪里”、“改动了这个 X 函数会影响哪些地方”，相关的代码实现却分散在多个文件、函数、路由和调用链中。LLM 缺乏代码全局感知能力，要完成一个完整的问答，它并不能直接拿着原始的用户 query 去做代码召回，而是通过将用户 query rewrite 为关键词（例如：乘车码轮询逻辑 -> 乘车码|轮询|polling），然后通过关键词探索性的去匹配代码片段，经过多轮循环（grep 关键词 -> read file -> grep 关键词 -> read file -> answer），将碎片化的信息组织成有逻辑性的上下文：
 
@@ -12,32 +14,93 @@ AI Coding 的核心前提，是 Agent 能够快速找到和当前问题相关的
 
 ## 2. RAG 增强检索
 
-开源社区有不少产品去解决上述问题：
+开源社区有不少产品去解决上述问题，这些产品对于实现 RAG 所采用的方案大同小异，主要包括 FTS 全文检索、基于 CodeGraph 的图检索、Vector 语义相似度检索，三者之间采用了**不同的构建索引&召回策略，这是造成不同产品的召回效果最核心的差异**。
 
-> RAG（Retrieval-Augmented Generation）是指一类检索增强的技术方案（Vector 向量只是一种实现的手段），相较于 AI-Native 提供的 bash/grep/glob 多轮检索方式，RAG 会尽量在少的对话轮次里返回和 query 相关的召回内容。
-> 开源社区的产品对于实现 RAG 所采用的方案大同小异，主要包括 FTS 全文检索、基于 CodeGraph 的图检索、Vector 语义相似度检索，三者之间对应不同的构建索引&召回策略，这是造成不同产品的召回效果最核心的差异。
-> 其中我们对 Mindwiki/Gitnexus/CodeGraph 这3个工具进行了深入的代码魔改及研究。
+在此之前，先简单介绍下两个概念：**索引**和**召回**：
 
-要理解这些工具的差异，需要先区分两个阶段：**索引构建**和**召回查询**。索引决定了系统提前为代码库沉淀了哪些可检索的信息；召回策略决定了用户 query 进来后，系统如何利用这些信息找到相关上下文。
+- 索引：提前把代码库整理成几张方便查询的“表”；
+- 召回：用户提问时，先查这些“表”，把可能相关的代码片段找出来。
 
-**索引**可以理解为 RAG 系统提前为代码库构建的一份结构化目录。原始代码文件并不适合直接被 LLM 逐个扫描，所以 RAG 工具通常会先做离线预处理：
+### 索引
 
-1. 扫描仓库文件；
-2. 按文件、类、函数、代码块等粒度提取符号名、函数签名、注释、正文等元信息；
-3. 建立 FTS 倒排索引、Vector 向量索引，以及符号之间的调用/引用关系图；
-4. 将这些索引持久化到本地数据库或缓存文件中，供后续查询复用。
+**索引（Index）**是在离线阶段先把代码拆解、抽取、存储成更容易查询的数据结构。以一个函数为例：
 
-索引阶段做得越细，后续召回时能使用的信号就越丰富。只切分代码文本并建立 FTS 索引，系统更像增强版 grep；如果同时提取符号和调用关系，就可以支持 CodeGraph 图检索；如果额外把 chunk 转成 embedding，则可以支持 Vector 语义相似度检索。
+```ts
+// src/subpackage/estimate/utils/location
+export function initFromLocation(params) {
+  // 根据定位初始化起点
+}
+```
 
-**召回（retrieval）** 指的是根据用户 query，从索引中找出最可能相关的代码上下文。它不是最终答案，而是给 LLM 准备回答材料的过程。一次召回通常会返回一组候选 chunk，例如某几个函数定义、调用方、配置文件、路由入口、类型声明等。后续还会经过 rerank、去重、图扩展、上下文预算裁剪等步骤，最终拼成一段适合放进 prompt 的上下文。
+索引阶段不会只保存这一段原始文本，而是会依据代码内容转化为几类结构化的数据：
+
+```text
+代码块索引：
+  file: src/subpackage/estimate/utils/location.ts
+  symbol: initFromLocation
+  qualified_name: src/subpackage/estimate/utils/location.ts::initFromLocation
+  signature: initFromLocation(params)
+  body: export function initFromLocation...
+  comment: 根据定位初始化起点
+
+Graph 关系：
+  initFromLocation
+    <- called by pageInit
+    -> calls getCurrentLocation
+    -> calls updateFromPoi
+
+Vector 向量：
+  Array<Float64>
+```
+
+这些数据存储形式可能是 sqlite、json、向量库或本地缓存，但核心思路类似：把原始代码变成可查询的结构化数据。不同的索引内容服务于不同的召回策略：
+
+* 代码块索引 -> FTS 召回；
+* Graph 关系 -> 依赖召回；
+* Vector 向量 -> 语义相似度召回；
+
+### 召回
+
+**召回（Retrieval）**就是用户 query 进来后，从这些索引里分别把候选代码上下文捞出来。
+
+比如用户问：
+
+```text
+initFromLocation 在小程序和 RN 下有什么区别？
+```
+
+LLM 首先会将这段自然语义的描述转化为几个检索关键词：`initFromLocation|小程序|miniprogram|RN`：
+
+```text
+函数 symbol 名: initFromLocation
+平台关键词: 小程序 / miniprogram / RN
+```
+
+然后去不同索引里查：
+
+```text
+FTS:
+  搜 initFromLocation
+  搜 RN / 小程序 / miniprogram
+
+CodeGraph:
+  找 initFromLocation 的定义
+  找谁调用了 initFromLocation
+  找 initFromLocation 内部又调用了哪些函数
+
+Vector:
+  找和“定位初始化、平台差异、RN 小程序”语义接近的代码片段
+```
+
+这些查询会返回一批候选结果，例如函数定义、调用方、平台判断分支、相关配置文件、类型声明等。较完整的 RAG pipeline 一般会对这些候选结果做 rerank、去重、图扩展、上下文预算裁剪，最终拼成一段适合放进 prompt 的上下文。
 
 常见的召回策略大概可以分成三类：
 
-1. **FTS 全文检索**：把代码文本拆成可检索的 token，并通过倒排索引记录“某个词出现在哪些文件、哪些 chunk、哪些函数里”。例如代码里出现了 `initFromLocation`、`polling`、`cancelOrder` 这些词，查询时 FTS 可以快速返回包含这些关键词的候选片段，并通过 BM25 之类的相关性算法进行排序。
-2. **CodeGraph 图检索**：基于索引阶段提取出的符号关系，从一个命中的函数继续扩展到它的 caller/callee、父类/子类、同文件相关符号等上下文。它解决的是“顺着代码结构补全链路”的问题。
-3. **Vector 语义相似度检索**：把代码 chunk 和用户 query 都转换成向量，通过向量距离查找语义相近的内容。它适合处理“词不完全一致但语义接近”的场景，但也更依赖 embedding 模型质量，容易引入看起来相关但实际不关键的结果。
+1. **FTS 全文检索**：解决“关键词在哪里出现过”。例如搜 `initFromLocation` 能快速找到函数定义和引用位置；搜 `polling` / `cancelOrder` 能找到包含这些词的代码片段。它依赖词面匹配，优点是稳定、可解释，缺点是 query 里的词和代码里的词对不上时容易漏召回。
+2. **CodeGraph 图检索**：解决“命中一个点之后，相关链路在哪里”。例如 FTS 找到了 `initFromLocation` 的定义，CodeGraph 可以继续补它的 caller/callee、父类/子类、同文件相关 symbol。它本质上是在沿代码结构补上下文。
+3. **Vector 语义相似度检索**：解决“词不一样但意思接近”。索引阶段先把代码 chunk 转成 embedding，查询阶段再把用户 query 转成 embedding，通过向量近邻搜索找语义相近的片段。它能补充 FTS 漏掉的结果，但也更依赖 embedding 模型质量，容易引入看起来相关但实际不关键的内容。
 
-以“initFromLocation 在小程序和 RN 下有什么区别？”为例，一次典型的 RAG 执行流程大概是：
+所以一次典型的 RAG 执行流程大概是：
 
 1. **Query 预处理**：识别出 `initFromLocation` 是明确的代码 symbol，同时保留“小程序”“RN”“区别”等语义关键词；
 2. **多路召回**：FTS 根据 `initFromLocation` 精确匹配函数定义和引用位置；CodeGraph 基于符号关系找到 caller/callee、同文件相关逻辑；Vector 检索补充命名不完全一致但语义接近的代码片段；
@@ -58,13 +121,17 @@ AI Coding 的核心前提，是 Agent 能够快速找到和当前问题相关的
 - "initFromLocation 在小程序和 RN 场景下有什么区别？"
 - "老 gulfstream 页面和新 trip 跨端页之间如何通过 jump_table/match_cross_end_url 来决策跳转逻辑？什么时候降级到老页面？"
 
-这类 query 中的关键词（函数、方法名）本身就是代码库里的 symbol。RAG 工具（FTS + CodeGraph）非常擅长处理这类问题，可以直接用关键词定位到目标文件和函数，再通过 CodeGraph 补全依赖链路，这套方案召回精度高、LLM 可以通过少量的工具调用次数就能获得具体代码实现。
+这类 query 中的关键词（函数、方法名）本身就是代码库里的 symbol。RAG 工具（FTS + CodeGraph）非常擅长处理这类问题，可以直接用关键词定位到目标文件和函数，再通过 CodeGraph 补全依赖链路，这套方案召回精度高、LLM 可以通过少量的 RAG 工具调用次数就能获得具体代码实现。
 
 **第二类：业务语义 query**——问题用的是业务语言，没有直接对应的代码 symbol，语义背后是多个页面、组件、函数的集合。例如：
 
 - "等待应答页用户点取消后，预取消挽留弹窗和真正取消订单是怎么串起来的？"
 
-"等待应答页"不是某个具体的函数或类名，它是一个业务概念，在代码里可能分散为多个页面组件、状态机、事件回调。面对这类 query，LLM 只能像"盲人摸象"——先按中英文关键词、同义词去碰运气定位文件，判断召回内容是否和这个业务场景有关，再顺着线索深入阅读，如此反复。RAG 工具在这里能提供的帮助非常有限，RAG 索引的是代码符号，而 query 里根本没有出现这些符号。
+"等待应答页"不是某个具体的函数或类名，它是一个业务概念，在代码里可能分散为多个页面组件、函数、状态管理，它和代码关键词不是一对一的关系。面对这类 query，LLM 将 query rewrite 为中英文关键词、同义词去“碰运气”定位文件(grep/glob)，判断召回内容是否和这个业务场景有关，再顺着线索深入阅读代码(read)，如此反复。
+
+------> 模型训练的内容，业务语义至实际的代码；
+
+RAG 工具在这种场景下提供的帮助有限，RAG 索引的是代码符号，而 query 里根本没有出现这些符号。
 
 ### Bigram
 
