@@ -82,11 +82,11 @@ AI Coding 的核心前提，是 Agent 能够快速找到和当前问题相关的
 
 ### LLM Wiki 与业务知识库
 
-前段时间爆火的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 虽然提供的是个人知识库的构建思路，但是里面的 [Index 的核心思想](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f#indexing-and-logging)：
+前段时间爆火的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 虽然提供的是个人知识库的构建思路，但是里面的 [Index 的核心思想](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f#indexing-and-logging) 同样也能运用在代码的索引&召回场景当中：
 
 > index.md is content-oriented. It's a catalog of everything in the wiki — each page listed with a link, a one-line summary, and optionally metadata like date or source count. Organized by category (entities, concepts, sources, etc.). The LLM updates it on every ingest. When answering a query, the LLM reads the index first to find relevant pages, then drills into them. This works surprisingly well at moderate scale (~100 sources, ~hundreds of pages) and avoids the need for embedding-based RAG infrastructure.
 
-“结构化索引”这个思路同样也能运用在代码的索引&召回场景当中。乘客业务泛前端知识库就是这种思路的一个具体落地，在代码仓库里面提供了一层很薄的业务语义到代码的索引层：
+乘客业务泛前端知识库就是这种思路的一个具体落地，在代码仓库里面提供了一层很薄的业务语义到代码的索引层：
 
 ```text
 docs/
@@ -96,16 +96,18 @@ docs/
     modules/          # 页面容器/业务组件文档：组件职责、文件路径、子组件、数据管理
 ```
 
-* `index.md` 入口索引建立了**业务语义和核心文件实体及页面索引**的关系；
+整个索引层成树状结构：
+
+* `index.md` 入口索引建立**业务语义和核心文件实体及页面索引**的关系；
 * pages 页面索引建立**组件文件实体及组件索引**的关系；
 
-用户问“等待应答页取消流程”时，LLM 就可以先通过入口索引定位直接定位到 `gulfstream-hold-v6.0` / `gulfstream-hold-v1.x` 具体的业务实体页面和对应的实体组件及索引内容，从而。
+当用户问“等待应答页取消流程”这种需要依据业务语义定位代码的 query 时，LLM 可以先通过 Read 入口索引 `index.md` 直接定位到 `gulfstream-hold-v6.0` / `gulfstream-hold-v1.x` 这些具体的业务实体页面和对应的实体组件及索引内容，从而。
 
 这套方案在解决业务语义 query 的问题时效果还是不错的。在 single Q&A benchmark 的测试当中任务执行耗时、token消耗及 tool 调用次数都有所优化。
 
-这和 bigram 方案的差异非常明显：
+这套方案和 bigram 方案的差异也非常明显：
 
-* bigram 是建立中文注释和代码符号间点状映射（静态扫描的产物没有严格的业务语义和代码映射关系）；
+* bigram 时尝试建立“中文注释 -> 代码符号间"的点状映射（而代码当中的中文注释和代码符号间并不是严格的语义和代码的映射关系，强依赖注释内容的书写质量）；
 * 业务知识库的索引则是维护“业务语义 -> 多个代码单元协作关系”的面状映射；
 
 ## 4. 代码 RAG 在 long-running task 当中的困境
