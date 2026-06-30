@@ -122,16 +122,15 @@ Vector:
 从这几个开源产品的索引&召回策略的设计上来看：
 
 * **FTS + CodeGraph 基本是代码 RAG 的标配。** FTS/BM25 负责做精确符号和关键词定位，CodeGraph 负责沿调用关系、引用关系继续扩展上下文。两者结合后，**召回结果可解释、确定性强**。
-* 在索引策略的设计上，产品间最大的差异是**是否引入 Vector embedding 以及函数体的源码是否参与索引构建**流程：
+* **核心差异一：索引粒度是“函数体源码”还是“结构化符号摘要”。**
   * FTS Index：
     * MindWiki / GitNexus 会把函数体源码也纳入索引构建，在后续的召回策略当中，**函数体内的代码也会参与召回流程最终影响召回结果**；
     * 其他工具会更“克制”，主要索引 symbol name、file path 等精确字段，函数体源码不参与索引构建；
   * Vector Index：
     * MindWiki / GitNexus 让函数体源码参与 embedding 流程；
     * 而 Codebase-memory-mcp/Code-Review-Graph 只把**精确符号、签名、参数等显示信息压缩成语义向量**，而函数体源码不参与 embedding；相较于将源码参与 embedding 的设计来说，向量语义会更加聚焦；
-* 索引设计是召回结果的最大的影响因素：
-  * Vector embedding 的价值在于**扩大语义召回范围，但它的效果更难评估和解释**。FTS 的命中依据是关键词，而 Vector 只能说明 query 和代码 chunk 在向量空间中更接近。至于为什么接近、接近的是业务语义、代码命名还是局部实现细节，往往不容易解释。Vector 召回更依赖 embedding 内容、chunk 切分、模型质量和混排权重，如果想稳定调优非常困难（这也是 CodeGraph 及 Graphify 两个产品没有引入 Vector Embedding 的主要原因之一）。
-  * Vector 召回：是否引入 Vector、Vector embedding 什么内容、以及如何做 FTS/BM25 + Vector 混合排序，都会直接影响最终返回给 LLM 的上下文质量。Vector 会把召回依据从精确符号匹配扩展到语义相似匹配，召回覆盖面变大，但排序依据更依赖 embedding 模型和混排权重，**结果的可解释性和确定性会弱于纯 FTS/BM25 的方案**；
+* **核心差异二：召回质量很大程度取决于索引内容是否可解释、可调优。**
+  * Vector embedding 的价值在于**扩大语义召回范围，但是它的效果很难评估和解释**。FTS 的命中依据是关键词，而 Vector 只能说明 query 和代码 chunk 在向量空间中更接近。至于为什么接近、接近的是业务语义、代码命名还是局部实现细节，不容易解释。Vector 召回更依赖 embedding 内容、chunk 切分、模型质量和混排权重，如果**想稳定调优非常困难，结果的可解释性和确定性会弱于纯 FTS/BM25 的方案**（这也是 CodeGraph 及 Graphify 两个产品没有引入 Vector Embedding 的主要原因之一）。Vector embedding 虽然通过语义相似度扩大了召回范围，但是随之而来的就是会引入更多的噪音。
   * 函数体是否参与索引：对于函数体参与索引构建的方案（Mindwiki / GitNexus）来说，不管是通过 FTS 还是 Vector 召回，函数体内部的局部变量、分支逻辑、临时计算、工具方法调用都会参与匹配，召回覆盖面更大，但也更容易把局部实现噪音提前带入候选结果；而只索引 symbol、签名、参数、路径（Codebase-memory-mcp / Code-Review-Graph）等信息的方案，更接近人读代码时“先定位入口，再阅读实现”的过程，召回的结果相较于函数体参与索引的方案通常更聚焦、更可解释;
 
 
