@@ -16,6 +16,31 @@ AI Coding 的核心前提，是 Agent 能够快速找到和当前问题相关的
 
 开源社区有不少产品去解决上述问题，这些产品对于实现 RAG 所采用的方案大同小异，主要包括 FTS 全文检索、基于 CodeGraph 的图检索、Vector 语义相似度检索，三者之间采用了**不同的构建索引&召回策略，这是造成不同产品的召回效果最核心的差异**。
 
+下表是几个代码 RAG 工具在索引和召回策略上的横向对比：
+
+| 工具 | RAG 方案 | 索引策略 | 召回策略 | 备注 |
+|------|----------|----------|----------|------|
+| MindWiki | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path + 函数体源码（固定窗口长度）；Vector Index：chunk-base；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | 更偏混合检索，代码正文会参与 FTS/Vector 召回 |
+| GitNexus | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path + 函数体源码（symbol 上下两行）；Vector Index：chunk-base；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector chunk 基于 symbol 上下文切分，函数体也参与 embedding |
+| Code-Review-Graph | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、参数等内容压缩成语义向量（函数体源码不参与 embedding）；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 更偏符号摘要，不直接 embedding 函数体源码 |
+| Codebase-memory-mcp | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、函数体内 Identifier token、文件路径等内容压缩成语义向量；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 不直接使用完整函数体源码，而是使用 symbol、签名、docstring、body identifiers、调用邻居等摘要信息 |
+| CodeGraph | FTS + CodeGraph | FTS：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调代码检索中精确符号匹配比语义相似更重要；benchmark、token 消耗和耗时等数据较好 |
+| Graphify | FTS + CodeGraph | FTS Index：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调结果可解释性和确定性 |
+
+从这几个开源产品的索引&召回策略的设计上来看：
+
+* **FTS + CodeGraph 基本是代码 RAG 的标配。** FTS/BM25 负责做精确符号和关键词定位，CodeGraph 负责沿调用关系、引用关系继续扩展上下文。两者结合后，**召回结果可解释、确定性强**。
+* 在索引策略的设计上，产品间最大的差异是**函数体的源码是否参与索引构建**流程：
+  * FTS Index：
+    * MindWiki / GitNexus 会把函数体源码也纳入索引构建，在后续的召回策略当中，**函数体内的代码也会参与召回流程最终影响召回结果**；
+    * 其他工具会更“克制”，主要索引 symbol name、file path 等精确字段，函数体源码不参与索引构建；
+  * Vector Index：
+    * MindWiki / GitNexus 让函数体源码参与 embedding 流程；
+    * 而 Codebase-memory-mcp/Code-Review-Graph 只把**精确符号、签名、参数等显示信息压缩成语义向量**，而函数体源码不参与 embedding；相较于将源码参与 embedding 的设计来说，向量语义会更加聚焦；
+* 索引设计是召回结果的最大的影响因素：
+  * 对于函数体参与索引构建的方案（Mindwiki / GitNexus）来说，不管是通过 FTS 还是 Vector 召回，**索引内容虽然会更容易覆盖到代码的实现细节（即函数体源码），但往往会使得召回内容引入更多噪音**；
+  * 是否引入 Vector、Vector embedding 什么内容、以及是否通过 RRF 做 FTS/BM25 + Vector 混合排序，都会直接影响最终返回给 LLM 的上下文质量。
+
 在此之前，先简单介绍下两个概念：**索引**和**召回**：
 
 - 索引：提前把代码库整理成几张方便查询的“表”；
@@ -56,12 +81,12 @@ Vector 向量：
 这些数据存储形式可能是 sqlite、json、向量库或本地缓存，但核心思路类似：把原始代码变成可查询的结构化数据。不同的索引内容服务于不同的召回策略：
 
 * 代码块索引 -> FTS 召回；
-* Graph 关系 -> 依赖召回；
+* CodeGraph -> 依赖召回；
 * Vector 向量 -> 语义相似度召回；
 
 ### 召回
 
-**召回（Retrieval）**就是用户 query 进来后，从这些索引里分别把候选代码上下文捞出来。
+**召回（Retrieval）**就是接受用户 query 后，从之前构建的索引里分别把候选代码上下文捞出来。
 
 比如用户问：
 
