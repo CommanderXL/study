@@ -113,11 +113,11 @@ Vector:
 | 工具 | RAG 方案 | 索引策略 | 召回策略 | 备注 |
 |------|----------|----------|----------|------|
 | MindWiki | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path + 函数体源码（固定窗口长度）； * Vector Index：chunk-base；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | 更偏混合检索，代码正文会参与 FTS/Vector 召回 |
-| GitNexus | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path + 函数体源码（symbol 上下两行）；Vector Index：chunk-base；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector chunk 基于 symbol 上下文切分，函数体也参与 embedding |
-| Code-Review-Graph | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、参数等内容压缩成语义向量（函数体源码不参与 embedding）；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 更偏符号摘要，不直接 embedding 函数体源码 |
-| Codebase-memory-mcp | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、函数体内 Identifier token、文件路径等内容压缩成语义向量；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 不直接使用完整函数体源码，而是使用 symbol、签名、docstring、body identifiers、调用邻居等摘要信息 |
-| CodeGraph | FTS + CodeGraph | FTS：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调代码检索中精确符号匹配比语义相似更重要；benchmark、token 消耗和耗时等数据较好 |
-| Graphify | FTS + CodeGraph | FTS Index：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调结果可解释性和确定性 |
+| [GitNexus](https://github.com/abhigyanpatwari/GitNexus) | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path + 函数体源码（symbol 上下两行）；Vector Index：chunk-base；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector chunk 基于 symbol 上下文切分，函数体也参与 embedding |
+| [Code-Review-Graph](https://github.com/tirth8205/code-review-graph) | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、参数等内容压缩成语义向量（函数体源码不参与 embedding）；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 更偏符号摘要，不直接 embedding 函数体源码 |
+| [Codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) | FTS + CodeGraph + Vector | FTS Index：Symbol name + File Path；Vector Index：Symbol name、签名、函数体内 Identifier token、文件路径等内容压缩成语义向量；CodeGraph | `hybrid_search`：FTS/BM25 + Vector 通过 RRF 混合排序；再做 CodeGraph 扩展 | Vector 不直接使用完整函数体源码，而是使用 symbol、签名、docstring、body identifiers、调用邻居等摘要信息 |
+| [CodeGraph](https://github.com/colbymchenry/codegraph) | FTS + CodeGraph | FTS：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调代码检索中精确符号匹配比语义相似更重要；benchmark、token 消耗和耗时等数据较好 |
+| [Graphify](https://github.com/safishamsi/graphify) | FTS + CodeGraph | FTS Index：Symbol name + File Path；CodeGraph | FTS/BM25；CodeGraph 扩展 | 不做 Vector RAG，更强调结果可解释性和确定性 |
 
 从这几个开源产品的索引&召回策略的设计上来看：
 
