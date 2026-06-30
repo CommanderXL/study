@@ -135,30 +135,34 @@ Vector:
 
 ## 3. RAG 与业务语义
 
-以上 RAG 工具可以一定程度解决文章开头提到的3个问题：上下文碎片化、检索低效和结构盲区。但是前提是用户 query 偏工程语义：
+第二章讨论的 RAG 工具，主要解决的是“如何更快、更完整地从代码索引中召回相关上下文”。但它们能发挥多大作用，强依赖用户 query 和代码索引之间是否存在稳定的匹配关系。这里可以先把 query 分成两类：**工程语义 query** 和 **业务语义 query**。
 
-**工程语义 query**——问题中包含明确的代码 symbol 或工程术语，语义聚焦，和代码命名体系高度重合。例如：
+### 工程语义 query：RAG 擅长的场景
+
+工程语义 query 指的是问题中包含明确的代码 symbol 或工程术语，语义聚焦，和代码命名高度重合。例如：
 
 - "initFromLocation 在小程序和 RN 场景下有什么区别？"
 - "老 gulfstream 页面和新 trip 跨端页之间如何通过 jump_table/match_cross_end_url 来决策跳转逻辑？什么时候降级到老页面？"
 
 这类 query 中的关键词（函数、方法名）本身就是代码库里的 symbol。RAG 工具（FTS + CodeGraph）非常擅长处理这类问题，可以直接用关键词定位到目标文件和函数，再通过 CodeGraph 补全依赖链路，这套方案召回精度高、LLM 可以通过少量的 RAG 工具调用次数就能获得具体代码实现。
 
-除了这种有明确代码 symbol 的 query 类型外，还有偏“业务语义 query”：
+RAG 在这里解决的是第二章提到的三个问题：上下文碎片化、检索低效和结构盲区。因为 query 里已经有明确代码锚点，索引可以直接发挥作用。
 
-**业务语义 query**——问题用的是业务语言，没有直接对应的代码 symbol，语义背后是多个页面、组件、函数的集合。例如：
+### 业务语义 query：RAG 的短板
+
+业务语义 query 指的是问题用的是业务语言，没有直接对应的代码 symbol，语义背后往往是多个页面、组件、函数和状态流转的集合。例如：
 
 - "等待应答页用户点取消后，预取消挽留弹窗和真正取消订单是怎么串起来的？"
 
-"等待应答页"不是某个具体的函数或类名，它是一个业务概念，在代码里可能分散为多个页面组件、函数、状态管理，它和代码关键词不是一对一的关系。面对这类 query，LLM 将 query rewrite 为中英文关键词、同义词去“碰运气”定位文件(grep/glob)，判断召回内容是否和这个业务场景有关，再顺着线索深入阅读代码(read)，如此反复。
+"等待应答页"不是某个具体的函数或类名，它是一个业务概念，在代码里可能分散为页面组件、函数、接口和状态管理。面对这类 query，LLM 往往只能先把 query rewrite 为若干中英文关键词、同义词，再用 grep/glob 去“碰运气”定位文件；命中一些线索后，再继续 read 代码判断它是否真的属于这个业务场景，如此反复。
 
-对于特定业务术语来说，LLM embedding model 肯定没有对应的业务训练数据，所以在 query rewrite 阶段并不能将这些业务术语转化为有效的代码关键字，因此 RAG 工具在这种场景下提供的帮助有限。
+这类问题的困难在于：业务术语并不一定出现在代码命名里，LLM embedding model 也不一定理解项目内部的业务词。因此，即使底层 RAG 工具有 FTS、CodeGraph、Vector，也很难凭空把“等待应答页”“防倒挂”“乘车码轮询”这类业务语义稳定映射到正确代码位置。后面的 Bigram 和业务知识库，都是围绕这个问题做的两种尝试。
 
 ### Bigram
 
-在上述 RAG 工具中，MindWiki 专门针对业务语义召回作了一些尝试：项目领域术语自动抽取。
+MindWiki 针对业务语义召回做过一个尝试：项目领域术语自动抽取。它的目标是，**在索引阶段提前建立“中文业务词 -> 代码符号”的映射**。
 
-大致的实现思路就是：在索引阶段，扫描仓库中所有函数/类名（英文）与 docstring（含中文注释）的共现关系，建立中文注释到代码符号的映射：
+大致实现思路是：扫描仓库中所有函数/类名（英文）与 docstring（含中文注释）的共现关系，尝试从中抽取业务词和代码 symbol 的对应关系。
 
 举个例子：
 
@@ -234,11 +238,13 @@ function checkAntiPriceReverse(order) {}
 
 这里没有一个单独的 `cancelOrder` 或 `preCancel` 函数可以完整代表这个业务语义。即使 bigram 能把“取消”映射到某个 `cancelOrder` 函数，也只能命中流程里的一个点，无法自动补齐“按钮在哪里触发、挽留弹窗由谁展示、预取消接口和真正取消接口如何衔接、状态变化后页面怎么切换”这些上下文。也就是说，bigram 解决的是“业务词到代码点位”的问题，而不是“业务流程到代码链路”的问题。
 
-**这套 Bigram 的方案从内部测试的结果来看，并不能拿到明确的效果收益（可能还是负向的优化），但是还是提供了一个从业务语义到代码索引的思路**
+从内部测试结果看，这套 Bigram 方案并没有拿到明确收益，甚至可能因为引入噪音带来负向效果。但它仍然提供了一个重要方向：**业务语义不能只依赖 query 阶段临时猜关键词，而应该在索引阶段提前建立到代码的连接**。
 
 ### LLM Wiki 与业务知识库
 
-前段时间爆火的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 虽然提供的是个人知识库的构建思路，但是里面的 [Index 的核心思想](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f#indexing-and-logging) 同样也能运用在代码的索引&召回场景当中：
+Bigram 是从“词”这个粒度去补业务语义，但业务问题通常不是一个词，而是一组页面、模块、接口和状态之间的关系。因此更有效的方式，是建立一层结构化业务知识库，让业务语义先落到稳定代码锚点，再回到源码做精确验证。
+
+前段时间爆火的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 虽然提供的是个人知识库构建思路，但其中 [Index 的核心思想](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f#indexing-and-logging) 同样可以运用在代码索引和召回场景中：
 
 > index.md is content-oriented. It's a catalog of everything in the wiki — each page listed with a link, a one-line summary, and optionally metadata like date or source count. Organized by category (entities, concepts, sources, etc.). The LLM updates it on every ingest. When answering a query, the LLM reads the index first to find relevant pages, then drills into them. This works surprisingly well at moderate scale (~100 sources, ~hundreds of pages) and avoids the need for embedding-based RAG infrastructure.
 
@@ -295,9 +301,9 @@ docs/biz/index.md
 
 业务知识库解决的是**业务语义到代码的索引**。它面向的是“等待应答页取消流程”“乘车码轮询逻辑”“宠物出行表单”这类 query，用户描述的是业务概念或业务流程，query 里不一定包含明确的代码 symbol。业务知识库通过页面索引、模块索引、组件索引，把这些业务语义先映射到一组稳定的代码文件位置。
 
-RAG 解决的是**代码 symbol 和代码上下文的精确召回**。它面向的是“`initFromLocation` 在小程序和 RN 下有什么区别”“`cancelOrder` 的调用链是什么” （也不是说用户最原始的 query 一定要包含这些，llm rewrite 后也会包含一些 symbol）这类有明确 symbol 符号的 query。此时 FTS、CodeGraph 能围绕这些 symbol 做更精确的定位、调用关系扩展和上下文补全。
+RAG 解决的是**代码 symbol 和代码上下文的精确召回**。它面向的是“`initFromLocation` 在小程序和 RN 下有什么区别”“`cancelOrder` 的调用链是什么”这类已经包含明确 symbol 的 query；也包括 LLM rewrite 后已经提取出有效 symbol 的场景。此时 FTS、CodeGraph 能围绕这些 symbol 做更精确的定位、调用关系扩展和上下文补全。
 
-两者结合，LLM 可以根据 query 类型选择合适的第一跳召回方式，而不是一开始就在全仓库里盲搜。
+两者结合后，LLM 可以根据 query 类型选择合适的第一跳召回方式：业务语义 query 先走业务知识库定位代码锚点，工程语义 query 直接走 RAG 精确召回。这样比一开始就在全仓库里盲搜更稳定。
 
 ## 4. 代码 RAG 在 long-running task 当中的困境
 
